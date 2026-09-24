@@ -1,7 +1,12 @@
 """Chalk — Streamlit entry point.
 
-Single-file app using st.tabs() for the seven views (Upload, Review,
-Rollover, Generate, Export, Metrics, Settings) — see DECISIONS.md and
-PLAN.md Milestone 6. This is a scaffolding placeholder; the real UI is
-built in Milestone 6, after Track A (the pipeline) is complete.
+    streamlit run app.py                       # choose or create a project on launch
+    streamlit run app.py -- --project <folder> # open one directly
+
+All UI code lives in the ui package (single app, views as st.tabs() —
+see DECISIONS.md); all business logic lives in chalk.
 """
+
+from ui.shell import main
+
+main()

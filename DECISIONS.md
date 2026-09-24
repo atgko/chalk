@@ -51,6 +51,17 @@
 - **course.json archives** go to `<project>/.archive/` (sibling of course.json); outputs archive to `outputs/.archive/` per PRD 5.1.
 - **Extraction copies the syllabus into `source/` only after it parses successfully**, and records `course.source_file` as a project-relative path so the project folder can be moved or shared.
 
+## Decisions made during the build (Milestone 6 — Streamlit UI)
+
+- **Project chosen at launch, not on the Upload tab.** PRD 7.2 puts a "project name field (pre-filled from filename)" on Upload, but DECISIONS' one-instance-one-project rule means the project already exists by then. The launch screen opens or creates a project (`streamlit run app.py -- --project <folder>` skips it); Upload just uploads.
+- **First-run setup can be skipped.** Extraction, rollover, and export work offline (PRD 10), so an instructor can start without a provider and connect one later in Settings. The footer then reads "Provider: Not configured".
+- **Settings keeps the saved API key when the key field is left blank**, so switching model doesn't mean re-pasting the key. Every save still re-validates with a test call.
+- **LLM error messages now match PRD 7.3 exactly**, per provider (OpenAI / Anthropic / local endpoint with its URL).
+- **"Copy Canvas HTML"** is Streamlit's built-in copy button on a code block — Streamlit has no clipboard API.
+- **A rollover preview is tied to the inputs that produced it**: changing term, date, or duration hides the old preview, so a stale preview can never be confirmed.
+- **Unexpected errors are contained per tab**: a plain notice on screen, the traceback to the terminal, the other tabs unaffected.
+- **Manual Week 1 dates accept 2000–2100**, overriding Streamlit's default ±10-year date range.
+
 ## Open items deliberately deferred (not gaps, just lower-priority / resolve-when-relevant)
 
 - `course.json` schema versioning/migration across terms and repo forks.

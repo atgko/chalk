@@ -36,12 +36,13 @@ _OBJECTIVES_HEADINGS = {"learning objectives", "course outcome and objectives"}
 Table = list[list[str]]
 
 
-def extract_course_data(md_path) -> CourseData:
+def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> CourseData:
     """Parse a markdown syllabus into a CourseData object.
 
     Raises AmbiguousTableError if zero or multiple candidate schedule
     tables are found, or ExtractionError for any other recognized parsing
-    failure. Never writes to md_path.
+    failure. Never writes to md_path. `schedule_table_index` works as in
+    the Word extractor.
     """
     try:
         text = Path(md_path).read_text(encoding="utf-8")
@@ -55,7 +56,7 @@ def extract_course_data(md_path) -> CourseData:
     year = _year_from_term_or_raise(front_matter["term"])
 
     tables = _parse_markdown_tables(text)
-    schedule_table = _find_schedule_table(tables)
+    schedule_table = _find_schedule_table(tables, schedule_table_index)
     weeks = _extract_weeks(schedule_table, year)
 
     course_info = CourseInfo(
@@ -138,8 +139,15 @@ def _is_separator_row(cells: list[str]) -> bool:
     return bool(cells) and all(_SEPARATOR_CELL_RE.match(cell) for cell in cells)
 
 
-def _find_schedule_table(tables: list[Table]) -> Table:
+def _find_schedule_table(tables: list[Table], table_index: int | None = None) -> Table:
     candidates = [table for table in tables if len(table) >= 2 and table[0][0].strip().lower() == "week"]
+
+    if table_index is not None:
+        if not 0 <= table_index < len(candidates):
+            raise ExtractionError(
+                "That table choice is no longer valid. Upload the syllabus again and pick a table."
+            )
+        return candidates[table_index]
 
     if len(candidates) == 1:
         return candidates[0]
@@ -153,7 +161,7 @@ def _find_schedule_table(tables: list[Table]) -> Table:
 
     raise AmbiguousTableError(
         "Multiple possible schedule tables were found. Choose the correct one below.",
-        candidates=[" | ".join(table[0]) for table in candidates],
+        candidates=[" / ".join(" | ".join(row) for row in table[:2]) for table in candidates],
     )
 
 

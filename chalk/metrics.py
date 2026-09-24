@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -67,3 +69,31 @@ def read_events_by_type(log_path: Path, event_type: EventType) -> list[dict[str,
     """Convenience filter over read_events(), used by the Metrics tab and
     CLI `status` command to summarize one category at a time."""
     return [event for event in read_events(log_path) if event.get("event_type") == event_type]
+
+
+@dataclass(frozen=True)
+class MetricsSummary:
+    """Aggregates over the whole log — what the Metrics tab, the UI footer,
+    and CLI `status` report (PRD section 6.7)."""
+
+    generation_counts: dict[str, int]
+    total_cost_usd: float
+    rollovers: list[dict[str, Any]]
+    extraction_errors: list[dict[str, Any]]
+    consistency_failures: int
+    consistency_overrides: int
+
+
+def summarize_events(events: list[dict[str, Any]]) -> MetricsSummary:
+    def of_type(event_type: str) -> list[dict[str, Any]]:
+        return [e for e in events if e.get("event_type") == event_type]
+
+    generations = of_type("generation")
+    return MetricsSummary(
+        generation_counts=dict(Counter(e.get("content_type", "unknown") for e in generations)),
+        total_cost_usd=sum(e.get("cost_usd", 0.0) for e in generations),
+        rollovers=of_type("rollover"),
+        extraction_errors=of_type("extraction_error"),
+        consistency_failures=sum(1 for e in of_type("consistency_check") if not e.get("passed", True)),
+        consistency_overrides=len(of_type("consistency_check_override")),
+    )

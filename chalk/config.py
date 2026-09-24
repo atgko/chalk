@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from dotenv import dotenv_values, set_key
 
+from chalk.errors import ChalkError
 from chalk.llm_client import complete
 
 _REQUIRED_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL")
@@ -107,3 +109,95 @@ def validate_provider(provider: str, api_key: str, base_url: str, model: str) ->
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+# ---- Provider form (first-run setup + Settings tab) --------------------------
+
+PROVIDER_CHOICES = ("OpenAI", "Anthropic Claude", "Local model (Ollama)")
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_OLLAMA_URL = "http://localhost:11434/v1"
+DEFAULT_OLLAMA_MODEL = "llama3.1:70b"
+
+_COST_RATE_SECTION = {"OpenAI": "openai", "Anthropic Claude": "anthropic"}
+_FOOTER_LABEL = {"OpenAI": "OpenAI", "Anthropic Claude": "Anthropic", "Local model (Ollama)": "Local model"}
+
+
+@dataclass(frozen=True)
+class ProviderSettings:
+    provider: str
+    api_key: str
+    base_url: str
+    model: str
+
+
+def provider_settings(
+    choice: str, *, api_key: str = "", model: str = "", base_url: str = ""
+) -> ProviderSettings:
+    """Turn the setup form's inputs into the four .env values (PRD
+    section 11's three provider configurations). Raises ChalkError with a
+    plain-English message for a missing required field."""
+    api_key, model, base_url = api_key.strip(), model.strip(), base_url.strip()
+    if choice == "Local model (Ollama)":
+        return ProviderSettings(
+            provider="openai",
+            api_key=api_key or "ollama",
+            base_url=base_url or DEFAULT_OLLAMA_URL,
+            model=model or DEFAULT_OLLAMA_MODEL,
+        )
+    if choice not in _COST_RATE_SECTION:
+        raise ValueError(f"Unknown provider choice: {choice!r}")
+    if not api_key:
+        raise ChalkError(f"Paste your {choice} API key to continue.")
+    if not model:
+        raise ChalkError("Choose a model to continue.")
+    if choice == "OpenAI":
+        return ProviderSettings("openai", api_key, OPENAI_BASE_URL, model)
+    return ProviderSettings("anthropic", api_key, "", model)
+
+
+def choice_for_env(env: dict[str, str]) -> str:
+    """Which PROVIDER_CHOICES entry an existing .env corresponds to."""
+    if env.get("LLM_PROVIDER", "").lower() == "anthropic":
+        return "Anthropic Claude"
+    base_url = env.get("LLM_BASE_URL", "")
+    if base_url and "api.openai.com" not in base_url:
+        return "Local model (Ollama)"
+    return "OpenAI"
+
+
+def model_options(config: dict[str, Any], choice: str) -> list[str]:
+    """Model dropdown choices: the cost_rates keys for OpenAI/Anthropic, so
+    every selectable model has a cost rate (DECISIONS.md). Empty for
+    Ollama, whose model name stays free text."""
+    section = _COST_RATE_SECTION.get(choice)
+    if section is None:
+        return []
+    return list(config.get("cost_rates", {}).get(section, {}))
+
+
+def describe_provider(env: dict[str, str]) -> str:
+    """Footer text, e.g. "OpenAI gpt-4o" (PRD section 7.1)."""
+    if not all(env.get(key) for key in _REQUIRED_ENV_KEYS):
+        return "Not configured"
+    return f"{_FOOTER_LABEL[choice_for_env(env)]} {env['LLM_MODEL']}"
+
+
+def validate_and_save_provider(env_path: Path, settings: ProviderSettings) -> None:
+    """Test-call the candidate settings, and only if that succeeds write
+    them to .env and make them the live process configuration."""
+    validate_provider(settings.provider, settings.api_key, settings.base_url, settings.model)
+    write_provider_env(
+        env_path,
+        provider=settings.provider,
+        api_key=settings.api_key,
+        base_url=settings.base_url,
+        model=settings.model,
+    )
+    os.environ.update(
+        {
+            "LLM_PROVIDER": settings.provider,
+            "LLM_API_KEY": settings.api_key,
+            "LLM_BASE_URL": settings.base_url,
+            "LLM_MODEL": settings.model,
+        }
+    )

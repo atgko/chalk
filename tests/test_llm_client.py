@@ -168,20 +168,44 @@ def test_anthropic_provider_routes_to_the_anthropic_client(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "provider,patch_fn,error_fn",
+    "provider,patch_fn,error_fn,expected",
     [
-        ("openai", patch_openai, openai_auth_error),
-        ("anthropic", patch_anthropic, anthropic_auth_error),
+        (
+            "openai",
+            patch_openai,
+            openai_auth_error,
+            "The OpenAI API key was not accepted. Check it at platform.openai.com and try again.",
+        ),
+        (
+            "anthropic",
+            patch_anthropic,
+            anthropic_auth_error,
+            "The Anthropic API key was not accepted. Check it at console.anthropic.com and try again.",
+        ),
     ],
 )
-def test_auth_error_becomes_the_plain_english_message(monkeypatch, provider, patch_fn, error_fn):
+def test_auth_error_becomes_the_prd_message_for_each_provider(
+    monkeypatch, provider, patch_fn, error_fn, expected
+):
     monkeypatch.setenv("LLM_PROVIDER", provider)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     patch_fn(monkeypatch, [error_fn()])
 
     with pytest.raises(LLMProviderError) as exc_info:
         complete("prompt")
 
-    assert exc_info.value.user_message == "API key was not accepted. Check your key and try again."
+    assert exc_info.value.user_message == expected
+
+
+def test_auth_error_on_a_local_endpoint_names_the_endpoint(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    patch_openai(monkeypatch, [openai_auth_error()])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert "http://localhost:11434/v1" in exc_info.value.user_message
 
 
 @pytest.mark.parametrize(
@@ -195,13 +219,30 @@ def test_connection_error_becomes_the_plain_english_message(
     monkeypatch, provider, patch_fn, error_fn
 ):
     monkeypatch.setenv("LLM_PROVIDER", provider)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     patch_fn(monkeypatch, [error_fn()])
 
     with pytest.raises(LLMProviderError) as exc_info:
         complete("prompt")
 
-    assert "Could not reach the LLM provider" in exc_info.value.user_message
-    assert "Extraction and rollover work without a connection" in exc_info.value.user_message
+    assert exc_info.value.user_message == (
+        "Could not reach the LLM provider. Check your connection. "
+        "Extraction and rollover work without a connection."
+    )
+
+
+def test_connection_error_on_a_local_endpoint_uses_the_ollama_message(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_BASE_URL", "http://vm.example.edu:11434/v1")
+    patch_openai(monkeypatch, [openai_connection_error()])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert exc_info.value.user_message == (
+        "Could not reach the local model at http://vm.example.edu:11434/v1. Check that "
+        "Ollama is running and the URL in your .env is correct."
+    )
 
 
 def test_unexpected_error_is_wrapped_with_the_exception_type_name(monkeypatch):

@@ -53,3 +53,35 @@ def test_read_events_by_type_filters_to_the_requested_event_type(tmp_path):
     checks = read_events_by_type(log_path, "consistency_check")
     assert len(checks) == 1
     assert checks[0]["passed"] is False
+
+
+def test_summarize_events_aggregates_every_reported_metric():
+    from chalk.metrics import summarize_events
+
+    events = [
+        {"event_type": "generation", "content_type": "quiz", "cost_usd": 0.01},
+        {"event_type": "generation", "content_type": "quiz", "cost_usd": 0.02},
+        {"event_type": "generation", "cost_usd": 0.005},
+        {"event_type": "rollover", "target_term": "Fall 2027"},
+        {"event_type": "extraction_error", "filename": "x.docx"},
+        {"event_type": "consistency_check", "passed": False},
+        {"event_type": "consistency_check", "passed": True},
+        {"event_type": "consistency_check_override"},
+    ]
+
+    summary = summarize_events(events)
+
+    assert summary.generation_counts == {"quiz": 2, "unknown": 1}
+    assert round(summary.total_cost_usd, 3) == 0.035
+    assert summary.rollovers == [events[3]]
+    assert summary.extraction_errors == [events[4]]
+    assert summary.consistency_failures == 1
+    assert summary.consistency_overrides == 1
+
+
+def test_summarize_events_of_an_empty_log():
+    from chalk.metrics import summarize_events
+
+    summary = summarize_events([])
+    assert summary.generation_counts == {}
+    assert summary.total_cost_usd == 0

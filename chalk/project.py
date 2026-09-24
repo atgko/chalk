@@ -12,7 +12,9 @@ save, rollover preview -> confirm) live in chalk.pipeline.
 from __future__ import annotations
 
 import datetime as dt
+import io
 import shutil
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -218,19 +220,38 @@ def list_source_files(paths: ProjectPaths) -> list[str]:
 
 def project_status(paths: ProjectPaths) -> ProjectStatus:
     """Summarize project state for `toolkit.py status` and the UI footer."""
-    events = metrics.read_events(paths.eval_log)
+    summary = metrics.summarize_events(metrics.read_events(paths.eval_log))
     return ProjectStatus(
         name=paths.root.name,
         course=load_course(paths),
         source_files=list_source_files(paths),
         output_counts=_count_outputs(paths),
-        total_cost_usd=sum(e.get("cost_usd", 0.0) for e in events if e["event_type"] == "generation"),
-        rollover_count=sum(1 for e in events if e["event_type"] == "rollover"),
-        extraction_error_count=sum(1 for e in events if e["event_type"] == "extraction_error"),
-        consistency_failures=sum(
-            1 for e in events if e["event_type"] == "consistency_check" and not e.get("passed", True)
-        ),
+        total_cost_usd=summary.total_cost_usd,
+        rollover_count=len(summary.rollovers),
+        extraction_error_count=len(summary.extraction_errors),
+        consistency_failures=summary.consistency_failures,
     )
+
+
+def list_output_files(paths: ProjectPaths) -> list[Path]:
+    """Every current file under outputs/ (archived versions excluded),
+    for the Export tab's download list."""
+    if not paths.outputs_dir.exists():
+        return []
+    return sorted(
+        p
+        for p in paths.outputs_dir.rglob("*")
+        if p.is_file() and ".archive" not in p.relative_to(paths.outputs_dir).parts
+    )
+
+
+def zip_outputs(paths: ProjectPaths) -> bytes:
+    """All current outputs as one zip, paths relative to outputs/."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in list_output_files(paths):
+            archive.write(path, path.relative_to(paths.outputs_dir).as_posix())
+    return buffer.getvalue()
 
 
 def _count_outputs(paths: ProjectPaths) -> dict[str, int]:

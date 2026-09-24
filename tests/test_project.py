@@ -227,3 +227,35 @@ def test_status_summarizes_events_and_outputs(tmp_project):
 def test_status_tolerates_a_missing_outputs_dir(tmp_path):
     paths = ProjectPaths(tmp_path)
     assert project_status(paths).output_counts["top-level"] == 0
+
+
+# ---- export helpers ---------------------------------------------------------------
+
+import io  # noqa: E402
+import zipfile  # noqa: E402
+
+from chalk.project import list_output_files, zip_outputs  # noqa: E402
+
+
+def test_list_output_files_skips_archived_versions(tmp_project):
+    (tmp_project.outputs_dir / "canvas.html").write_text("x", encoding="utf-8")
+    (tmp_project.outputs_dir / "quizzes" / "week-1-quiz.md").write_text("q", encoding="utf-8")
+    (tmp_project.outputs_dir / ".archive").mkdir()
+    (tmp_project.outputs_dir / ".archive" / "canvas-1.html").write_text("old", encoding="utf-8")
+
+    names = [p.relative_to(tmp_project.outputs_dir).as_posix() for p in list_output_files(tmp_project)]
+
+    assert names == ["canvas.html", "quizzes/week-1-quiz.md"]
+
+
+def test_list_output_files_without_an_outputs_dir(tmp_path):
+    assert list_output_files(ProjectPaths(tmp_path)) == []
+
+
+def test_zip_outputs_contains_every_current_output(tmp_project):
+    (tmp_project.outputs_dir / "canvas.html").write_text("<table>", encoding="utf-8")
+    (tmp_project.outputs_dir / "quizzes" / "week-1-quiz.md").write_text("q", encoding="utf-8")
+
+    with zipfile.ZipFile(io.BytesIO(zip_outputs(tmp_project))) as archive:
+        assert sorted(archive.namelist()) == ["canvas.html", "quizzes/week-1-quiz.md"]
+        assert archive.read("canvas.html") == b"<table>"

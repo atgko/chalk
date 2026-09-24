@@ -43,13 +43,17 @@ _DUE_RE = re.compile(r"\bdue\b", re.IGNORECASE)
 _NOTE_PREFIX_RE = re.compile(r"^notes?:\s*", re.IGNORECASE)
 
 
-def extract_course_data(docx_path) -> CourseData:
+def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -> CourseData:
     """Parse a Word syllabus into a CourseData object.
 
     Raises ProtectedFileError if the file can't be opened at all (usually
     password protection), AmbiguousTableError if zero or multiple
     candidate schedule tables are found, or ExtractionError for any other
     recognized parsing failure. Never writes to docx_path.
+
+    `schedule_table_index` picks one of the candidate tables an earlier
+    AmbiguousTableError listed (DECISIONS.md manual override), by position
+    in its `candidates` list.
     """
     try:
         document = Document(str(docx_path))
@@ -62,7 +66,7 @@ def extract_course_data(docx_path) -> CourseData:
     front_matter = _extract_front_matter(document)
     year = _year_from_term_or_raise(front_matter["term"])
 
-    schedule_table = _find_schedule_table(document)
+    schedule_table = _find_schedule_table(document, schedule_table_index)
     weeks = _extract_weeks(schedule_table, year)
 
     course_info = CourseInfo(
@@ -93,8 +97,15 @@ def extract_course_data(docx_path) -> CourseData:
 # ---- Schedule table location -------------------------------------------
 
 
-def _find_schedule_table(document):
+def _find_schedule_table(document, table_index: int | None = None):
     candidates = [table for table in document.tables if looks_like_schedule_table(table)]
+
+    if table_index is not None:
+        if not 0 <= table_index < len(candidates):
+            raise ExtractionError(
+                "That table choice is no longer valid. Upload the syllabus again and pick a table."
+            )
+        return candidates[table_index]
 
     if len(candidates) == 1:
         return candidates[0]
@@ -121,7 +132,9 @@ def looks_like_schedule_table(table) -> bool:
 def _table_preview(table) -> str:
     if not table.rows:  # pragma: no cover - looks_like_schedule_table already requires rows
         return ""
-    return " | ".join(cell.text for cell in table.rows[0].cells)
+    # Header plus the first data row: two schedule-like tables often share
+    # an identical header, so the header alone can't tell them apart.
+    return " / ".join(" | ".join(cell.text for cell in row.cells) for row in table.rows[:2])
 
 
 # ---- Front matter --------------------------------------------------------

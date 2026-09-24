@@ -250,3 +250,20 @@ def test_extraction_does_not_modify_the_source_file(tmp_path):
 
     assert path.read_bytes() == original_bytes
     assert path.stat().st_mtime == original_mtime
+
+
+def test_schedule_table_index_resolves_multiple_candidates(tmp_path):
+    path = build_syllabus_with_multiple_candidate_tables(tmp_path / "syllabus.md")
+    with pytest.raises(AmbiguousTableError) as exc_info:
+        extract_course_data(path)
+    assert "Duplicate table" in exc_info.value.candidates[1]
+
+    course_data = extract_course_data(path, schedule_table_index=1)
+
+    assert course_data.weeks[0].topics == ["Duplicate table for ambiguity test"]
+
+
+def test_out_of_range_schedule_table_index_raises_extraction_error(tmp_path):
+    path = build_syllabus_with_multiple_candidate_tables(tmp_path / "syllabus.md")
+    with pytest.raises(ExtractionError, match="no longer valid"):
+        extract_course_data(path, schedule_table_index=-1)

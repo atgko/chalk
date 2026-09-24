@@ -36,3 +36,19 @@ def find_term(calendars: dict[str, Any], term_name: str) -> dict[str, Any] | Non
         if term.get("term") == term_name:
             return term
     return None
+
+
+def suggest_target_term(current_term: str, term_names: list[str]) -> str | None:
+    """Default rollover target: the same season one year later (Fall 2026
+    -> Fall 2027) if the calendar has it, else the first listed term after
+    the current one, else None."""
+    parts = current_term.rsplit(" ", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        same_season_next_year = f"{parts[0]} {int(parts[1]) + 1}"
+        if same_season_next_year in term_names:
+            return same_season_next_year
+    if current_term in term_names:
+        index = term_names.index(current_term)
+        if index + 1 < len(term_names):
+            return term_names[index + 1]
+    return None

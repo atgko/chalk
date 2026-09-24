@@ -43,7 +43,9 @@ class RolloverPlan:
 # ---- Extraction --------------------------------------------------------------
 
 
-def extract_syllabus(paths: ProjectPaths, syllabus_path) -> tuple[CourseData, ConsistencyResult]:
+def extract_syllabus(
+    paths: ProjectPaths, syllabus_path, *, schedule_table_index: int | None = None
+) -> tuple[CourseData, ConsistencyResult]:
     """Extract a syllabus and copy it into source/.
 
     Does NOT save course.json — the instructor reviews the result first
@@ -53,7 +55,9 @@ def extract_syllabus(paths: ProjectPaths, syllabus_path) -> tuple[CourseData, Co
     """
     syllabus_path = Path(syllabus_path)
     try:
-        course_data, consistency = extract_course(syllabus_path, eval_log_path=paths.eval_log)
+        course_data, consistency = extract_course(
+            syllabus_path, eval_log_path=paths.eval_log, schedule_table_index=schedule_table_index
+        )
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,

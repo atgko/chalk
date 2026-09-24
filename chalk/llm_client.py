@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import anthropic
 import openai
@@ -53,14 +53,49 @@ class CompletionResult(TypedDict):
     output_tokens: int
 
 
+_OPENAI_BASE_URL = "https://api.openai.com/v1"
+
+
 def _get_provider() -> str:
     return os.getenv("LLM_PROVIDER", "openai").lower()
+
+
+def _local_base_url() -> str | None:
+    """The configured endpoint if it's a local/self-hosted OpenAI-compatible
+    server (e.g. Ollama) rather than OpenAI itself, else None."""
+    base_url = os.getenv("LLM_BASE_URL", "")
+    if _get_provider() == "openai" and base_url and "api.openai.com" not in base_url:
+        return base_url
+    return None
+
+
+def _auth_error_message() -> str:
+    """PRD section 7.3's per-provider "key invalid" messages."""
+    local_url = _local_base_url()
+    if local_url:
+        return f"The endpoint at {local_url} did not accept the API key. Check LLM_API_KEY in your .env."
+    if _get_provider() == "anthropic":
+        return "The Anthropic API key was not accepted. Check it at console.anthropic.com and try again."
+    return "The OpenAI API key was not accepted. Check it at platform.openai.com and try again."
+
+
+def _connection_error_message() -> str:
+    local_url = _local_base_url()
+    if local_url:
+        return (
+            f"Could not reach the local model at {local_url}. Check that Ollama is "
+            "running and the URL in your .env is correct."
+        )
+    return (
+        "Could not reach the LLM provider. Check your connection. "
+        "Extraction and rollover work without a connection."
+    )
 
 
 def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
     client = openai.OpenAI(
         api_key=os.getenv("LLM_API_KEY", "ollama"),
-        base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+        base_url=os.getenv("LLM_BASE_URL") or _OPENAI_BASE_URL,
     )
     response = client.chat.completions.create(
         model=os.getenv("LLM_MODEL", "gpt-4o"),
@@ -111,16 +146,10 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
             return call(prompt, system, max_tokens)
 
         except _AUTH_EXCEPTIONS as exc:
-            raise LLMProviderError(
-                "API key was not accepted. Check your key and try again."
-            ) from exc
+            raise LLMProviderError(_auth_error_message()) from exc
 
         except _CONNECTION_EXCEPTIONS as exc:
-            raise LLMProviderError(
-                "Could not reach the LLM provider. "
-                "Check your internet connection. "
-                "Extraction and rollover work without a connection."
-            ) from exc
+            raise LLMProviderError(_connection_error_message()) from exc
 
         except _TRANSIENT_EXCEPTIONS as exc:
             last_transient_error = exc

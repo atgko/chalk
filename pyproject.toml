@@ -6,10 +6,10 @@ requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=chalk --cov-report=term-missing --cov-fail-under=80"
+addopts = "--cov=chalk --cov=ui --cov-report=term-missing --cov-fail-under=80"
 
 [tool.coverage.run]
-source = ["chalk"]
+source = ["chalk", "ui"]
 omit = ["tests/*"]
 
 [tool.coverage.report]

@@ -23,7 +23,9 @@ _EXTRACTORS_BY_SUFFIX = {
 }
 
 
-def extract_course(path, eval_log_path=None) -> tuple[CourseData, ConsistencyResult]:
+def extract_course(
+    path, eval_log_path=None, *, schedule_table_index: int | None = None
+) -> tuple[CourseData, ConsistencyResult]:
     """Extract course.json from a syllabus file and run the consistency
     check.
 
@@ -43,7 +45,7 @@ def extract_course(path, eval_log_path=None) -> tuple[CourseData, ConsistencyRes
             f"Unsupported file type '{path.suffix}'. Upload a .docx or .md syllabus."
         )
 
-    course_data = extractor(path)
+    course_data = extractor(path, schedule_table_index=schedule_table_index)
     consistency_result = check_term_consistency(course_data)
 
     if eval_log_path is not None:
