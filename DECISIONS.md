@@ -62,6 +62,18 @@
 - **Unexpected errors are contained per tab**: a plain notice on screen, the traceback to the terminal, the other tabs unaffected.
 - **Manual Week 1 dates accept 2000–2100**, overriding Streamlit's default ±10-year date range.
 
+## Decisions made during the build (Milestones 7-8 — generation)
+
+- **One generation engine, content types as data.** Instead of five near-identical modules (PLAN's quiz.py/discussion.py/…), `chalk/generation/specs.py` describes each type (template, required variables, output folder, max_tokens) and `engine.py` runs them all. Adding a type is a spec plus a template.
+- **Generate returns a draft; Save writes it.** Matches PRD 7.2's "output shown inline for review before saving". Every successful LLM call is logged, whether or not the draft is saved (PRD 6.7 counts calls). The CLI saves immediately, after the overwrite confirmation.
+- **Template filling replaces only known `{variable}` names**, so other braces (including Pandoc's `{.columns}` in the slides template) never break a template. Validation is still strict about required variables (DECISIONS: name the variable and file, no auto-repair).
+- **A project with no copy of a template uses the bundled default** (e.g. projects created before generation existed). An instructor-edited template is never replaced.
+- **Unknown cost is recorded as unknown, not $0**: a hosted model with no `cost_rates` entry logs `cost_usd: null` and the UI/CLI say so. Local/Ollama endpoints always use `cost_rates.local.default` (PLAN Risk #10).
+- **Single week per request** for quizzes/discussions/summaries/slides ("week number(s)" in PRD 6.5) — multi-week requests deferred.
+- **Slides banner**: the PRD's "every generated file opens with the AI-draft banner" conflicts with F-05e's "YAML title block at top", so slide decks carry the banner as an HTML comment directly after the YAML block. Slide output is post-processed to enforce the pipeline conventions (no `subtitle:`, no bare `#`, `<!-- Slide N -->` numbering) regardless of what the model returns.
+- **Rubric descriptions** can be typed or uploaded (PDF/DOCX/MD/TXT), read with the same text extraction as source materials. The prompt and system message both forbid grading student work (CTE policy).
+- **Source context**: 6,000-token budget (~24k characters), truncated with an explicit "[truncated]" note; source files are selected by name from `source/` only, never as arbitrary paths.
+
 ## Open items deliberately deferred (not gaps, just lower-priority / resolve-when-relevant)
 
 - `course.json` schema versioning/migration across terms and repo forks.

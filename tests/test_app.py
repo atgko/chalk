@@ -350,17 +350,116 @@ def test_rollover_errors_are_shown_plainly(saved_project):
 # ---- Generate / Export / Metrics ----------------------------------------------------------
 
 
-def test_generate_tab_is_a_disabled_shell_with_the_no_materials_nudge(saved_project):
+@pytest.fixture
+def llm(monkeypatch):
+    calls = []
+
+    def _complete(prompt, system="", max_tokens=2000):
+        calls.append(prompt)
+        return {"text": f"## Questions\nQ1. Draft number {len(calls)}", "input_tokens": 1000, "output_tokens": 500}
+
+    monkeypatch.setattr("chalk.generation.engine.complete", _complete)
+    return calls
+
+
+def test_generate_asks_for_a_provider_when_none_is_configured(saved_project):
+    saved_project.env.unlink()
+    at = launch(saved_project, chalk_setup_skipped=True)
+    assert "Connect an AI provider in the Settings tab to generate content." in texts(at.info)
+
+
+def test_generate_shows_the_estimate_and_no_materials_nudge(saved_project):
     at = launch(saved_project)
-    assert any("Content generation arrives in the next update" in i for i in texts(at.info))
+    assert any(c.startswith("Estimated cost: up to ~$") for c in texts(at.caption))
     assert "No source materials added yet" in " ".join(texts(at.caption))
-    assert widget(at.button, "Generate").disabled
+    assert not widget(at.button, "Generate").disabled
 
 
-def test_generate_tab_lists_source_materials_except_the_syllabus(saved_project):
+def test_generate_lists_source_materials_except_the_syllabus(saved_project):
     (saved_project.source_dir / "ch3.txt").write_text("notes", encoding="utf-8")
     at = launch(saved_project)
     assert at.multiselect[0].options == ["ch3.txt"]
+
+
+def test_generate_review_then_save(saved_project, llm):
+    at = launch(saved_project)
+    widget(at.selectbox, "Week").set_value(2)
+    at = click(at.run(), "Generate")
+
+    assert_no_exception(at)
+    assert any("Draft for review — outputs/quizzes/week-2-quiz.md" in s.value for s in at.subheader)
+    assert not (saved_project.outputs_dir / "quizzes" / "week-2-quiz.md").exists()
+
+    at = click(at, "Save")
+
+    assert_no_exception(at)
+    saved = saved_project.outputs_dir / "quizzes" / "week-2-quiz.md"
+    assert "Draft number 1" in saved.read_text(encoding="utf-8")
+    assert any(s.startswith("Saved outputs/quizzes/week-2-quiz.md.") for s in texts(at.success))
+
+
+def test_regenerate_needs_confirmation_and_replaces_the_draft(saved_project, llm):
+    at = click(click(launch(saved_project), "Generate"), "Regenerate")
+    assert any("This makes another paid call" in w for w in texts(at.warning))
+    assert len(llm) == 1
+
+    at = click(at, "Keep this draft")
+    assert "Regenerate" in {b.label for b in at.button}
+
+    at = click(click(at, "Regenerate"), "Yes, regenerate")
+
+    assert_no_exception(at)
+    assert len(llm) == 2
+    assert any("Draft number 2" in m.value for m in at.markdown)
+
+
+def test_discarding_a_draft_writes_nothing(saved_project, llm):
+    at = click(click(launch(saved_project), "Generate"), "Discard")
+    assert at.session_state["chalk_draft"] is None
+    assert not list((saved_project.outputs_dir / "quizzes").iterdir())
+
+
+def test_overwriting_needs_the_checkbox(saved_project, llm):
+    (saved_project.outputs_dir / "quizzes" / "week-1-quiz.md").write_text("old", encoding="utf-8")
+    at = launch(saved_project)
+
+    assert any("A quiz already exists for Week 1." in w for w in texts(at.warning))
+    assert widget(at.button, "Generate").disabled
+    at.checkbox[-1].check()
+    assert not widget(at.run().button, "Generate").disabled
+
+
+def test_rubric_waits_for_assignment_details(saved_project, llm):
+    at = launch(saved_project)
+    widget(at.selectbox, "Content type").set_value("rubric")
+    at = at.run()
+    assert "A rubric needs an assignment name and a description of the assignment." in texts(at.caption)
+    assert "Generate" not in {b.label for b in at.button}
+
+    widget(at.text_input, "Assignment name").input("Lab 3")
+    widget(at.text_area, "Assignment description").input("Build two VLANs.")
+    at = click(at.run(), "Generate")
+
+    assert_no_exception(at)
+    assert "Build two VLANs." in llm[0]
+
+
+def test_slides_draft_is_shown_as_markdown_source(saved_project, llm):
+    at = launch(saved_project)
+    widget(at.selectbox, "Content type").set_value("slides")
+    at = click(at.run(), "Generate")
+    assert any(c.value.startswith("---\ntitle:") for c in at.code)
+
+
+def test_generation_errors_are_shown_plainly(saved_project, monkeypatch):
+    from chalk.errors import LLMProviderError
+
+    def _down(prompt, system="", max_tokens=2000):
+        raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
+
+    monkeypatch.setattr("chalk.generation.engine.complete", _down)
+    at = click(launch(saved_project), "Generate")
+    assert any("Could not reach the LLM provider" in e.value for e in at.error)
 
 
 def test_export_lists_outputs_and_shows_canvas_html(saved_project):

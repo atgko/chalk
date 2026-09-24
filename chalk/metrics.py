@@ -91,7 +91,7 @@ def summarize_events(events: list[dict[str, Any]]) -> MetricsSummary:
     generations = of_type("generation")
     return MetricsSummary(
         generation_counts=dict(Counter(e.get("content_type", "unknown") for e in generations)),
-        total_cost_usd=sum(e.get("cost_usd", 0.0) for e in generations),
+        total_cost_usd=sum(e.get("cost_usd") or 0.0 for e in generations),  # None = no known rate
         rollovers=of_type("rollover"),
         extraction_errors=of_type("extraction_error"),
         consistency_failures=sum(1 for e in of_type("consistency_check") if not e.get("passed", True)),

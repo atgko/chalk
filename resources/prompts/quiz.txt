@@ -1,0 +1,16 @@
+You are helping a university instructor create a quiz for {course_title}.
+
+Week {week_number} covers: {topics}
+
+Learning objectives for this course:
+{learning_objectives}
+
+Generate {question_count} questions in {format} format.
+Questions should connect concepts across the week rather than test isolated recall.
+Reference specific course elements (module names, tools, frameworks) where relevant.
+
+{source_material_context}
+
+Format: markdown with a "Questions" section and an "Answer Key" section.
+Label questions Q1, Q2... and answers A1, A2...
+No preamble or explanation outside the questions and answers.

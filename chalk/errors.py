@@ -62,6 +62,16 @@ class ProjectError(ChalkError):
     course.json yet."""
 
 
+class PromptTemplateError(ChalkError):
+    """A prompt template is unreadable or missing a required {variable}
+    (DECISIONS.md: name the variable and file; never auto-repair)."""
+
+
+class GenerationError(ChalkError):
+    """A generation request can't be run as asked — e.g. an unknown week,
+    a rubric with no assignment description, or an unknown source file."""
+
+
 class TermNotInCalendarError(ChalkError):
     """Raised when a rollover target term isn't in calendars.json and no
     manual Week 1 date was given. Not a dead end — the caller asks for the

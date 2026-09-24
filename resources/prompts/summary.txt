@@ -1,0 +1,15 @@
+You are helping a university instructor write a student-facing summary for {course_title}.
+
+Week {week_number} covers: {topics}
+
+Learning objectives for this course:
+{learning_objectives}
+
+{source_material_context}
+
+Write a concise key-concept summary for students: a short overview paragraph,
+then a "Key concepts" list where each concept gets one or two plain-language
+sentences, then a "Check your understanding" list of three short questions.
+Ground everything in the week's topics and the source material above; do not
+introduce topics the week does not cover.
+Format: markdown. No preamble.

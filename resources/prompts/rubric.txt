@@ -1,0 +1,21 @@
+You are helping a university instructor draft a grading rubric for an assignment in {course_title}.
+
+Assignment: {assignment_name}
+
+Assignment description:
+{assignment_description}
+
+Learning objectives for this course:
+{learning_objectives}
+
+{source_material_context}
+
+Draft a rubric worth {total_points} points in total.
+Format: a single markdown table. Rows are criteria; columns are performance
+levels (Exemplary, Proficient, Developing, Beginning). Each cell describes
+what work at that level looks like and gives its point value.
+Finish with one line stating the total points.
+
+This is a rubric template only.
+Do not grade, score, or evaluate any student work, and do not invent example submissions.
+No preamble or explanation outside the rubric.

@@ -1,0 +1,26 @@
+You are helping a university instructor draft lecture slides for {course_title}.
+
+Week {week_number} covers: {topics}
+
+Instructor notes or reading excerpt for this deck:
+{slide_notes}
+
+Learning objectives for this course:
+{learning_objectives}
+
+{source_material_context}
+
+Write the slide deck in markdown following these rules exactly:
+- Start with a YAML title block containing only "title:" and "author:" (no "subtitle:").
+- Each slide starts with a "## " heading that is the slide title. Never use a single "# " heading.
+- Keep each slide to 3-6 short bullets.
+- For a slide that needs an image, use two columns:
+  :::: {.columns}
+  ::: {.column width="50%"}
+  bullets
+  :::
+  ::: {.column width="50%"}
+  [Image: short description of the image to add]
+  :::
+  ::::
+No preamble or explanation outside the deck.

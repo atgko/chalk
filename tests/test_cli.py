@@ -240,10 +240,107 @@ def test_export_writes_canvas_and_brief(project, tmp_path):
     assert (project / "outputs" / "canvas.html").exists()
 
 
-def test_generate_explains_it_is_not_available_yet(project):
-    result = run("generate", "quiz", "--week", "3", "--project", str(project))
+@pytest.fixture
+def llm(monkeypatch, project):
+    """A configured provider (via the project's .env) and a mocked LLM."""
+    for key in ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
+        monkeypatch.delenv(key, raising=False)
+    (project / ".env").write_text("LLM_PROVIDER=openai\nLLM_API_KEY=sk\nLLM_MODEL=gpt-4o\n", encoding="utf-8")
+    calls = []
+
+    def _complete(prompt, system="", max_tokens=2000):
+        calls.append(prompt)
+        return {"text": f"## Questions\nQ1. Draft {len(calls)}", "input_tokens": 1000, "output_tokens": 500}
+
+    monkeypatch.setattr("chalk.generation.engine.complete", _complete)
+    return calls
+
+
+def test_generate_without_a_provider_explains_how_to_configure_one(project, tmp_path, monkeypatch):
+    for key in ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
+        monkeypatch.delenv(key, raising=False)
+    result = run("generate", "quiz", "--week", "1", "--project", str(project))
     assert result.code == 1
-    assert "isn't available in this build yet" in result.err
+    assert "No LLM provider is configured" in result.err
+
+
+def test_generate_quiz_writes_a_bannered_draft_and_reports_cost(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+
+    result = run("generate", "quiz", "--week", "2", "--count", "4", "--format", "short answer",
+                 "--project", str(project))
+
+    assert result.code == 0, result.err
+    assert "Estimated cost: up to ~$" in result.out
+    assert "Wrote outputs/quizzes/week-2-quiz.md" in result.out
+    assert "Tokens: 1,000 in / 500 out · Cost: $0.0075" in result.out
+    text = (project / "outputs" / "quizzes" / "week-2-quiz.md").read_text(encoding="utf-8")
+    assert text.startswith("> **AI-generated draft**")
+    assert "Generate 4 questions in short answer format." in llm[0]
+
+
+def test_generate_asks_before_overwriting_and_can_be_cancelled(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    run("generate", "summary", "--week", "1", "--project", str(project))
+
+    result = run("generate", "summary", "--week", "1", "--project", str(project), answers=["n"])
+
+    assert result.code == 1
+    assert "Cancelled — nothing was generated." in result.out
+    assert len(llm) == 1
+
+
+def test_generate_overwrite_with_yes_archives_the_old_draft(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    run("generate", "discussion", "--week", "1", "--project", str(project))
+
+    result = run("generate", "discussion", "--week", "1", "--yes", "--project", str(project))
+
+    assert result.code == 0
+    assert len(list((project / "outputs" / "discussions" / ".archive").iterdir())) == 1
+
+
+def test_generate_per_week_types_need_a_week(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    result = run("generate", "quiz", "--project", str(project))
+    assert result.code == 1
+    assert "Say which week" in result.err
+
+
+def test_generate_rubric_from_a_description_file(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    description = tmp_path / "lab3.md"
+    description.write_text("Configure two VLANs and a trunk.", encoding="utf-8")
+
+    result = run("generate", "rubric", "--assignment", "Lab 3", "--description-file", str(description),
+                 "--points", "40", "--project", str(project))
+
+    assert result.code == 0, result.err
+    assert "Wrote outputs/rubrics/lab-3-rubric.md" in result.out
+    assert "Configure two VLANs and a trunk." in llm[0]
+    assert "worth 40 points" in llm[0]
+
+
+def test_generate_rubric_with_a_missing_description_file(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    result = run("generate", "rubric", "--assignment", "Lab", "--description-file", str(tmp_path / "nope.md"),
+                 "--project", str(project))
+    assert "Couldn't find" in result.err
+
+
+def test_generate_grounds_in_selected_sources_and_reports_unknown_cost(project, tmp_path, llm, monkeypatch):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    material = tmp_path / "ch1.txt"
+    material.write_text("Intro chapter summary", encoding="utf-8")
+    run("add", str(material), "--project", str(project))
+    monkeypatch.setenv("LLM_MODEL", "gpt-unlisted")
+
+    result = run("generate", "slides", "--week", "1", "--notes", "OSI layers", "--source", "ch1.txt",
+                 "--project", str(project))
+
+    assert result.code == 0, result.err
+    assert "Intro chapter summary" in llm[0] and "OSI layers" in llm[0]
+    assert "Cost: unknown (no cost rate for this model in config.json)" in result.out
 
 
 def test_status_after_a_full_loop(project, tmp_path):

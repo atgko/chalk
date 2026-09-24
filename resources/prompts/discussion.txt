@@ -1,0 +1,17 @@
+You are helping a university instructor write discussion prompts for {course_title}.
+
+Week {week_number} covers: {topics}
+
+Learning objectives for this course:
+{learning_objectives}
+
+Write {prompt_count} discussion prompts that together span three levels:
+- Recall: students restate or explain a key idea from the week
+- Application: students apply a concept to a realistic scenario
+- Analysis: students compare, critique, or connect ideas across the week
+
+{source_material_context}
+
+Format: markdown. Give each prompt a "### Prompt N — [Level]" heading, where
+[Level] is Recall, Application, or Analysis, followed by the prompt text.
+No preamble or explanation outside the prompts.

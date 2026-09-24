@@ -13,6 +13,7 @@ from pathlib import Path
 import streamlit as st
 
 from chalk.extractors.consistency import ConsistencyResult
+from chalk.generation.engine import GeneratedDraft
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan
 from chalk.project import ProjectPaths
@@ -23,6 +24,8 @@ _PENDING_EXTRACTION_KEY = "chalk_pending_extraction"
 _TABLE_CHOICE_KEY = "chalk_table_choice"
 _ROLLOVER_PLAN_KEY = "chalk_rollover_plan"
 _ROLLOVER_WRITTEN_KEY = "chalk_rollover_written"
+_DRAFT_KEY = "chalk_draft"
+_REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
 
 
@@ -111,6 +114,26 @@ def get_rollover_written() -> list[Path]:
 
 def set_rollover_written(paths: list[Path]) -> None:
     st.session_state[_ROLLOVER_WRITTEN_KEY] = paths
+
+
+# ---- Generate ------------------------------------------------------------------
+
+
+def get_draft() -> GeneratedDraft | None:
+    return st.session_state.get(_DRAFT_KEY)
+
+
+def set_draft(draft: GeneratedDraft | None) -> None:
+    st.session_state[_DRAFT_KEY] = draft
+    st.session_state[_REGENERATE_KEY] = False
+
+
+def regenerate_requested() -> bool:
+    return st.session_state.get(_REGENERATE_KEY, False)
+
+
+def request_regenerate(requested: bool) -> None:
+    st.session_state[_REGENERATE_KEY] = requested
 
 
 # ---- One-shot messages that survive a rerun -------------------------------------

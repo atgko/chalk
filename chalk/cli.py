@@ -22,8 +22,27 @@ from typing import TextIO
 from dotenv import load_dotenv
 
 from chalk import branding
+from chalk.config import describe_provider
+from chalk.costs import format_cost
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
+from chalk.generation.engine import (
+    GenerationRequest,
+    current_env,
+    estimate_cost,
+    generate,
+    overwrite_warning,
+    save_draft,
+    spec_for,
+)
+from chalk.generation.source_context import read_source_text
+from chalk.generation.specs import (
+    DEFAULT_PROMPT_COUNT,
+    DEFAULT_QUESTION_COUNT,
+    DEFAULT_RUBRIC_POINTS,
+    QUIZ_FORMATS,
+    SPECS,
+)
 from chalk.models import CourseData
 from chalk.pipeline import (
     RolloverPlan,
@@ -43,7 +62,6 @@ from chalk.project import (
     require_course,
 )
 
-GENERATION_TYPES = ("quiz", "discussion", "rubric", "summary", "slides")
 _RULE = "─" * 64
 
 InputFn = Callable[[str], str]
@@ -121,9 +139,20 @@ def build_parser() -> argparse.ArgumentParser:
     export = commands.add_parser("export", parents=[project_arg], help="Regenerate Canvas HTML and the course brief.")
     export.set_defaults(handler=_cmd_export)
 
-    generate = commands.add_parser("generate", parents=[project_arg], help="Generate course content (coming soon).")
-    generate.add_argument("type", choices=GENERATION_TYPES)
-    generate.add_argument("--week", type=int, required=True)
+    generate = commands.add_parser(
+        "generate", parents=[project_arg], help="Generate an AI draft (quiz, discussion, rubric, summary, slides)."
+    )
+    generate.add_argument("type", choices=list(SPECS))
+    generate.add_argument("--week", type=int, help="Week number (all types except rubric).")
+    generate.add_argument("--count", type=int, help="Quiz questions (default 5) or discussion prompts (default 3).")
+    generate.add_argument("--format", choices=QUIZ_FORMATS, default="mixed", help="Quiz question format.")
+    generate.add_argument("--assignment", help="Rubric: the assignment's name.")
+    generate.add_argument("--description", help="Rubric: the assignment description, as text.")
+    generate.add_argument("--description-file", type=Path, help="Rubric: read the description from a file.")
+    generate.add_argument("--points", type=int, default=DEFAULT_RUBRIC_POINTS, help="Rubric: total points.")
+    generate.add_argument("--notes", help="Slides: bullet points or a reading excerpt.")
+    generate.add_argument("--source", action="append", help="A file in source/ to ground the draft in (repeatable).")
+    generate.add_argument("--yes", action="store_true", help="Overwrite an existing draft without asking.")
     generate.set_defaults(handler=_cmd_generate)
 
     status = commands.add_parser("status", parents=[project_arg], help="Show a project summary.")
@@ -197,12 +226,57 @@ def _cmd_export(args, console: _Console) -> int:
 
 
 def _cmd_generate(args, console: _Console) -> int:
-    open_project(args.project)
-    console.error(
-        f"Content generation ({args.type}) isn't available in this build yet. "
-        "Extraction, rollover, and export all work."
+    paths = open_project(args.project)
+    if paths.env.exists():
+        load_dotenv(paths.env, override=False)
+    if describe_provider(current_env()) == "Not configured":
+        raise ChalkError(
+            "No LLM provider is configured. Copy .env.example to this project's .env and fill it in, "
+            "or set one up in the app's Settings tab."
+        )
+    course_data = require_course(paths)
+    request = _generation_request(args)
+    if spec_for(request.content_type).per_week and request.week_number is None:
+        raise ChalkError("Say which week to generate for, e.g. --week 3.")
+
+    warning = overwrite_warning(paths, request)
+    if warning and not (args.yes or console.confirm(warning)):
+        console.say("Cancelled — nothing was generated.")
+        return 1
+
+    estimate = estimate_cost(paths, course_data, request)
+    console.say(f"Estimated cost: {format_cost(estimate, prefix='up to ~')}. Generating…")
+    draft = generate(paths, course_data, request)
+    path = save_draft(paths, draft)
+    console.say(f"Wrote {_relative(path, paths)}")
+    console.say(
+        f"Tokens: {draft.input_tokens:,} in / {draft.output_tokens:,} out · Cost: {format_cost(draft.cost_usd)}"
     )
-    return 1
+    console.say("This is an AI-generated draft — review and edit it before use.")
+    return 0
+
+
+def _generation_request(args) -> GenerationRequest:
+    description = args.description or ""
+    if args.description_file is not None:
+        if not args.description_file.is_file():
+            raise ChalkError(f"Couldn't find '{args.description_file}'. Check the path and try again.")
+        description = read_source_text(args.description_file)
+    return GenerationRequest(
+        content_type=args.type,
+        week_number=args.week,
+        question_count=args.count or DEFAULT_QUESTION_COUNT,
+        quiz_format=args.format,
+        prompt_count=args.count or DEFAULT_PROMPT_COUNT,
+        assignment_name=args.assignment or "",
+        assignment_description=description,
+        total_points=args.points,
+        slide_notes=args.notes or "",
+        source_files=tuple(args.source or ()),
+    )
+
+
+
 
 
 def _cmd_status(args, console: _Console) -> int:
