@@ -2,3 +2,76 @@
 # Streamlit collects anonymous usage statistics by default; turn that off.
 [browser]
 gatherUsageStats = false
+
+# Hide Streamlit's developer menu (Deploy, rerun settings) from instructors.
+[client]
+toolbarMode = "minimal"
+
+# ---- Theme -------------------------------------------------------------------
+# University of Utah colors (brand.utah.edu/branding/colors) on a warm, editorial
+# layout: off-white page, cream panels, serif headings, sans-serif body.
+#   Utah Red #BE0000 is the primary color. Red Rocks #890000, Granite Peak
+#   #708E99, Mountain Green #6CC24A, Wasatch Sunrise #FFB81D and Zion Cinder
+#   Cone #707271 appear only as small accents (callouts, charts), per the brand
+#   rule that accents stay under 10% of a design.
+# Every text/background pair was checked against WCAG AA (4.5:1 for text). The
+# bright accents tint callout backgrounds; darker shades of the same hue carry
+# the callout text. Dark mode uses a slightly brighter Utah Red (#D63A2F) so it
+# works both as a button fill under white text and as accent text on the dark page.
+
+[theme]
+font = "'Segoe UI', Calibri, 'Helvetica Neue', Arial, sans-serif"
+headingFont = "Georgia, Cambria, 'Times New Roman', serif"
+headingFontWeights = 700
+codeFont = "'Cascadia Code', Consolas, ui-monospace, monospace"
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+showWidgetBorder = true
+
+[theme.light]
+primaryColor = "#BE0000"
+backgroundColor = "#FBF8F3"
+secondaryBackgroundColor = "#F3EDE4"
+textColor = "#2A2622"
+linkColor = "#890000"
+borderColor = "#E4DCCF"
+dataframeHeaderBackgroundColor = "#F3EDE4"
+codeBackgroundColor = "#F3EDE4"
+codeTextColor = "#890000"
+redColor = "#BE0000"
+redTextColor = "#890000"
+blueColor = "#708E99"
+blueTextColor = "#3D5760"
+greenColor = "#6CC24A"
+greenTextColor = "#2E6A1C"
+orangeColor = "#FFB81D"
+orangeTextColor = "#7A4F00"
+yellowColor = "#FFB81D"
+yellowTextColor = "#7A4F00"
+grayColor = "#707271"
+grayTextColor = "#555756"
+chartCategoricalColors = ["#BE0000", "#708E99", "#890000", "#707271", "#3ABFC0", "#FFB81D", "#6CC24A"]
+
+[theme.dark]
+primaryColor = "#D63A2F"
+backgroundColor = "#1F1A17"
+secondaryBackgroundColor = "#2C2520"
+textColor = "#F4EDE2"
+linkColor = "#FF8A7E"
+borderColor = "#4A4037"
+dataframeHeaderBackgroundColor = "#2C2520"
+codeBackgroundColor = "#2C2520"
+codeTextColor = "#FF9A8F"
+redColor = "#D63A2F"
+redTextColor = "#FF9A8F"
+blueColor = "#708E99"
+blueTextColor = "#B4CBD3"
+greenColor = "#6CC24A"
+greenTextColor = "#9BDC7F"
+orangeColor = "#FFB81D"
+orangeTextColor = "#FFCF66"
+yellowColor = "#FFB81D"
+yellowTextColor = "#FFCF66"
+grayColor = "#707271"
+grayTextColor = "#B8BAB9"
+chartCategoricalColors = ["#D63A2F", "#8FAAB4", "#FF8A7E", "#A6A8A7", "#3ABFC0", "#FFB81D", "#6CC24A"]

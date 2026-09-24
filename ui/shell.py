@@ -33,7 +33,7 @@ from ui import (
     setup_view,
     upload_view,
 )
-from ui.common import NEEDS_COURSE_MESSAGE
+from ui.common import NEEDS_COURSE_MESSAGE, render_header
 
 TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Export", "Metrics", "Settings")
 
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> None:
         setup_view.render(paths)
         return
 
-    st.title(branding.PROJECT_NAME)
+    render_header(branding.PROJECT_NAME)
     st.caption(f"Course project: {paths.root.name}")
     message = session.pop_flash()
     if message:

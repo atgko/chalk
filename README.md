@@ -4,6 +4,8 @@ Chalk keeps a university course syllabus current from term to term and drafts co
 
 Everything runs on your own computer. Your files never leave it, except for the text sent to the AI provider you choose when you generate content.
 
+**New to the project? [GETTING-STARTED.md](GETTING-STARTED.md)** walks you through running the demo on your own computer, step by step.
+
 ---
 
 ## Contents

@@ -17,6 +17,7 @@ from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
 from chalk.project import init_project, open_project
 from ui import session
+from ui.common import render_header
 
 DEFAULT_PARENT = Path.cwd() / "projects"
 
@@ -30,7 +31,7 @@ def project_from_argv(argv: list[str]) -> Path | None:
 
 
 def render() -> None:
-    st.title(branding.PROJECT_NAME)
+    render_header(branding.PROJECT_NAME)
     st.write(
         "Keep your syllabus current from term to term and draft course materials from it. "
         "Everything stays in one course project folder on this computer."

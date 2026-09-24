@@ -12,6 +12,7 @@ FERPA_NOTICE = (
     "Course materials only — don't upload student work, grades, rosters, or any other "
     "student information (FERPA)."
 )
+KICKER = "Syllabus & course materials toolkit"
 NEEDS_COURSE_MESSAGE = "Upload and extract a syllabus first — this tab needs a saved course.json."
 
 _MIME_TYPES = {
@@ -21,6 +22,14 @@ _MIME_TYPES = {
     ".json": "application/json",
     ".zip": "application/zip",
 }
+
+
+def render_header(title: str) -> None:
+    """Page heading: a short Utah Red kicker line over a serif title, as on
+    the reference design. The kicker names what the tool is, not an
+    institution, so it never reads as an official University product."""
+    st.markdown(f":red[**{KICKER}**]")
+    st.title(title)
 
 
 def relative(path: Path, paths: ProjectPaths) -> str:

@@ -8,10 +8,11 @@ import streamlit as st
 from chalk import branding
 from chalk.project import ProjectPaths
 from ui import provider_form, session
+from ui.common import render_header
 
 
 def render(paths: ProjectPaths) -> None:
-    st.title(f"Welcome to {branding.PROJECT_NAME}")
+    render_header(f"Welcome to {branding.PROJECT_NAME}")
     st.write(
         f"{branding.PROJECT_NAME} reads your syllabus, rolls it forward to a new term, and drafts "
         "quizzes, discussion prompts, and rubrics from it. Connect an AI model provider to "

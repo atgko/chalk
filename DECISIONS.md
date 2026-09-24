@@ -89,6 +89,13 @@
 - **Not hosted.** Hosting was considered and rejected for now: projects, archives, and `.env` keys live on the server's disk, and PRD 9 rules out multi-user hosting. A session-only demo mode for Streamlit Cloud remains possible later.
 - **Demo course** (`chalk/demo.py`, the launch-screen buttons, `toolkit.py demo`): synthetic sample syllabi shaped like the PRD's own examples (the IS 6640 rollover worked example, the Spring-2026 term-label bug, IS 4490 markdown with the DST flag). Reset deletes only a folder carrying the `.chalk-demo` marker, and keeps its `.env` so a provider key entered before a meeting survives the reset.
 
+## Visual design
+
+- **Theme**: University of Utah colors on the warm, editorial layout of the team's reference page (off-white background, cream panels, serif headings, sans-serif body), set entirely in `.streamlit/config.toml` with separate light and dark themes. No custom CSS, so Streamlit upgrades can't break it.
+- **Utah Red (#BE0000) is the primary color**, per brand.utah.edu. Accent colors (Granite Peak, Red Rocks, Mountain Green, Wasatch Sunrise, Zion Cinder Cone) are used only for callouts and charts, in line with the brand's "accents under 10%" rule. Every text/background pair meets WCAG AA; dark mode uses a slightly brighter red (#D63A2F) so it passes both as a button fill and as text.
+- **No University logo or wordmark.** The brand rules restrict official marks, and Chalk isn't an official University product. The header kicker reads "Syllabus & course materials toolkit", not the institution's name.
+- **Streamlit's developer toolbar is hidden** (`toolbarMode = "minimal"`) so instructors and the sponsor don't see "Deploy".
+
 ## Open items deliberately deferred (not gaps, just lower-priority / resolve-when-relevant)
 
 - `course.json` schema versioning/migration across terms and repo forks.
