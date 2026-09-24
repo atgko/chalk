@@ -1,0 +1,155 @@
+{
+  "institution": "University of Utah",
+  "calendar_source": "https://registrar.utah.edu/academic-calendars/",
+  "last_updated": "2026-09-23",
+  "terms": [
+    {
+      "term": "Fall 2026",
+      "start": "2026-08-24",
+      "end": "2026-12-10",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2026_2027.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Labor Day", "date": "2026-09-07" },
+        { "label": "Fall Break", "date_start": "2026-10-10", "date_end": "2026-10-18" },
+        { "label": "Thanksgiving Break", "date_start": "2026-11-26", "date_end": "2026-11-29" }
+      ]
+    },
+    {
+      "term": "Spring 2027",
+      "start": "2027-01-11",
+      "end": "2027-04-27",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2026_2027.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Martin Luther King Jr. Day", "date": "2027-01-18" },
+        { "label": "Presidents Day", "date": "2027-02-15" },
+        { "label": "Spring Break", "date_start": "2027-03-06", "date_end": "2027-03-14" }
+      ]
+    },
+    {
+      "term": "Summer 2027",
+      "start": "2027-05-17",
+      "end": "2027-08-04",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2026_2027.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Memorial Day", "date": "2027-05-31" },
+        { "label": "Juneteenth (observed)", "date": "2027-06-21" },
+        { "label": "Independence Day (observed)", "date": "2027-07-05" },
+        { "label": "Pioneer Day (observed)", "date": "2027-07-23" }
+      ]
+    },
+    {
+      "term": "Fall 2027",
+      "start": "2027-08-23",
+      "end": "2027-12-09",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2027-2028.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Labor Day", "date": "2027-09-06" },
+        { "label": "Fall Break", "date_start": "2027-10-09", "date_end": "2027-10-17" },
+        { "label": "Thanksgiving Break", "date_start": "2027-11-25", "date_end": "2027-11-28" }
+      ]
+    },
+    {
+      "term": "Spring 2028",
+      "start": "2028-01-10",
+      "end": "2028-04-25",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2027-2028.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Martin Luther King Jr. Day", "date": "2028-01-17" },
+        { "label": "Presidents Day", "date": "2028-02-21" },
+        { "label": "Spring Break", "date_start": "2028-03-05", "date_end": "2028-03-12" }
+      ]
+    },
+    {
+      "term": "Summer 2028",
+      "start": "2028-05-15",
+      "end": "2028-08-02",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2027-2028.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Memorial Day", "date": "2028-05-29" },
+        { "label": "Juneteenth", "date": "2028-06-19" },
+        { "label": "Independence Day (observed)", "date": "2028-07-04" },
+        { "label": "Pioneer Day", "date": "2028-07-24" }
+      ]
+    },
+    {
+      "term": "Fall 2028",
+      "start": "2028-08-21",
+      "end": "2028-12-07",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2028-2029.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Labor Day", "date": "2028-09-04" },
+        { "label": "Fall Break", "date_start": "2028-10-07", "date_end": "2028-10-15" },
+        { "label": "Thanksgiving Break", "date_start": "2028-11-23", "date_end": "2028-11-26" }
+      ]
+    },
+    {
+      "term": "Spring 2029",
+      "start": "2029-01-08",
+      "end": "2029-04-24",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2028-2029.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Martin Luther King Jr. Day", "date": "2029-01-15" },
+        { "label": "Presidents Day", "date": "2029-02-19" },
+        { "label": "Spring Break", "date_start": "2029-03-03", "date_end": "2029-03-11" }
+      ]
+    },
+    {
+      "term": "Summer 2029",
+      "start": "2029-05-14",
+      "end": "2029-08-01",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2028-2029.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Memorial Day", "date": "2029-05-28" },
+        { "label": "Juneteenth (observed)", "date": "2029-06-18" },
+        { "label": "Independence Day (observed)", "date": "2029-07-04" },
+        { "label": "Pioneer Day", "date": "2029-07-24" }
+      ]
+    },
+    {
+      "term": "Fall 2029",
+      "start": "2029-08-20",
+      "end": "2029-12-06",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2029-2030.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Labor Day", "date": "2029-09-03" },
+        { "label": "Fall Break", "date_start": "2029-10-06", "date_end": "2029-10-14" },
+        { "label": "Thanksgiving Break", "date_start": "2029-11-22", "date_end": "2029-11-25" }
+      ]
+    },
+    {
+      "term": "Spring 2030",
+      "start": "2030-01-07",
+      "end": "2030-04-23",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2029-2030.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Martin Luther King Jr. Day", "date": "2030-01-21" },
+        { "label": "Presidents Day", "date": "2030-02-18" },
+        { "label": "Spring Break", "date_start": "2030-03-02", "date_end": "2030-03-10" }
+      ]
+    },
+    {
+      "term": "Summer 2030",
+      "start": "2030-05-13",
+      "end": "2030-07-31",
+      "verified_against": "https://registrar.utah.edu/academic-calendars/pdf-academic-calendars/main_and_online_2029-2030.pdf",
+      "verified_date": "2026-09-23",
+      "no_class_dates": [
+        { "label": "Memorial Day", "date": "2030-05-27" },
+        { "label": "Juneteenth", "date": "2030-06-19" },
+        { "label": "Independence Day", "date": "2030-07-04" },
+        { "label": "Pioneer Day", "date": "2030-07-24" }
+      ]
+    }
+  ]
+}

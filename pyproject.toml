@@ -1,0 +1,24 @@
+[project]
+name = "chalk"
+version = "0.1.0"
+description = "Local-first syllabus maintenance and course material generation toolkit for university faculty"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=chalk --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["chalk"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

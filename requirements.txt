@@ -1,0 +1,7 @@
+streamlit>=1.38          # UI framework, local no-server app; floor high enough for streamlit.testing.v1.AppTest (needs 1.28+)
+openai>=1.40              # OpenAI SDK; also serves the Ollama path (OpenAI-compatible endpoint via base_url swap)
+anthropic>=0.34           # Anthropic SDK — separate response shape, isolated inside llm_client.py
+python-docx>=1.1          # Word (.docx) table read/write for extraction and rollover, in place
+pypdf>=4.0                # Pure-Python PDF text extraction for instructor-supplied source material summaries
+pydantic>=2.7             # course.json schema as typed models with validation
+python-dotenv>=1.0        # loads .env (LLM_PROVIDER/LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
