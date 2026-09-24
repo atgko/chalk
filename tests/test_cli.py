@@ -365,3 +365,18 @@ def test_report_writes_the_evaluation_report(project, tmp_path):
     assert result.code == 0
     assert "Wrote outputs/evaluation-report.md" in result.out
     assert "| markdown | 1 | 0 | 0% |" in (project / "outputs" / "evaluation-report.md").read_text(encoding="utf-8")
+
+
+def test_demo_command_creates_then_reopens_then_resets(tmp_path):
+    first = run("demo", "--dir", str(tmp_path))
+    assert first.code == 0
+    root = tmp_path / "Chalk-Demo"
+    assert f"Demo course ready at {root}" in first.out
+    assert (root / "try-these" / "IS-6640-Spring-2026-term-label-bug.docx").exists()
+
+    (root / "outputs" / "scratch.txt").write_text("x", encoding="utf-8")
+    assert run("demo", "--dir", str(tmp_path)).code == 0
+    assert (root / "outputs" / "scratch.txt").exists()
+
+    assert run("demo", "--dir", str(tmp_path), "--reset").code == 0
+    assert not (root / "outputs" / "scratch.txt").exists()

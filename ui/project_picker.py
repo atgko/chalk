@@ -13,6 +13,7 @@ from pathlib import Path
 import streamlit as st
 
 from chalk import branding
+from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
 from chalk.project import init_project, open_project
 from ui import session
@@ -48,6 +49,18 @@ def render() -> None:
         name = st.text_input("Project name", placeholder="IS-6640-Fall-2027")
         if st.button("Create project", type="primary", disabled=not name.strip()):
             _enter(lambda: init_project(parent.strip(), name))
+
+    st.divider()
+    st.subheader("Just looking?")
+    st.write(
+        "Open a demo course with a sample syllabus already loaded. Its `try-these` folder has "
+        "more sample files to upload."
+    )
+    demo_col, reset_col = st.columns(2)
+    if demo_col.button("Open the demo course"):
+        _enter(lambda: open_demo_project(DEFAULT_PARENT))
+    if reset_col.button("Reset the demo course", help="Rebuild it from scratch. Keeps your saved AI key."):
+        _enter(lambda: open_demo_project(DEFAULT_PARENT, reset=True))
 
 
 def _enter(get_paths) -> None:

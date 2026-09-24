@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from chalk import branding
 from chalk.config import describe_provider
 from chalk.costs import format_cost
+from chalk.demo import TRY_THESE_DIR, open_demo_project
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
 from chalk.generation.engine import (
@@ -116,6 +117,11 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--dir", type=Path, default=Path.cwd(), help="Where to create it (default: current folder).")
     init.set_defaults(handler=_cmd_init)
 
+    demo = commands.add_parser("demo", help="Create (or reopen) the demo course with a sample syllabus loaded.")
+    demo.add_argument("--dir", type=Path, default=Path.cwd() / "projects", help="Where to put it (default: ./projects).")
+    demo.add_argument("--reset", action="store_true", help="Rebuild it from scratch (keeps its .env).")
+    demo.set_defaults(handler=_cmd_demo)
+
     add = commands.add_parser("add", parents=[project_arg], help="Index a source-material file.")
     add.add_argument("file", type=Path)
     add.set_defaults(handler=_cmd_add)
@@ -175,6 +181,14 @@ def _cmd_init(args, console: _Console) -> int:
     console.say(f"Created course project at {paths.root}")
     console.say("Next: copy your provider settings into .env (see .env.example), then run")
     console.say(f'  python toolkit.py extract path/to/syllabus.docx --project "{paths.root}"')
+    return 0
+
+
+def _cmd_demo(args, console: _Console) -> int:
+    paths = open_demo_project(args.dir, reset=args.reset)
+    console.say(f"Demo course ready at {paths.root}")
+    console.say(f"Sample files to try are in {paths.root / TRY_THESE_DIR}")
+    console.say(f'Open it with: streamlit run app.py -- --project "{paths.root}"')
     return 0
 
 

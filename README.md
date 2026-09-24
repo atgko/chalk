@@ -41,41 +41,38 @@ Everything runs on your own computer. Your files never leave it, except for the 
 ### 2a. Requirements
 
 - **Python 3.11 or newer.** Check with `python --version`. Get it from [python.org](https://www.python.org/downloads/). On Windows, tick "Add python.exe to PATH" in the installer.
-- **pip**, which comes with Python.
 - An AI provider account is optional; see [section 8](#8-choosing-and-configuring-your-ai-provider).
 
-### 2b. Clone and install
+### 2b. Get the code
+
+Download it from GitHub (**Code → Download ZIP**, then unzip it), or clone it:
 
 ```bash
 git clone https://github.com/atgko/chalk.git
-cd chalk
+```
+
+### 2c. Start it
+
+**Double-click `Start Chalk.bat`** (Windows) or **`Start Chalk.command`** (macOS; the first time, right-click it and choose **Open**). On Linux, run `./"Start Chalk.command"`.
+
+The first start sets everything up, which takes a couple of minutes and needs internet. After that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
+
+- **Want to look around first?** Double-click **`Start Chalk Demo`** instead, or click **Open the demo course** on the launch screen. It opens a sample course with a syllabus already loaded. See [DEMO.md](DEMO.md) for a guided walkthrough.
+- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, paste its folder path under **Open a course project**.
+- **AI provider:** connect one on the welcome screen, or click **Skip for now**. Extraction, rollover, and export work without one, and you can connect later in the **Settings** tab.
+
+### 2d. Manual setup (optional)
+
+The launchers do this for you. To set up by hand instead (for development, say):
+
+```bash
 python -m venv .venv
-```
-
-Activate the virtual environment:
-
-- Windows (PowerShell): `.venv\Scripts\Activate.ps1`
-- macOS / Linux: `source .venv/bin/activate`
-
-Then install:
-
-```bash
+.venv\Scripts\activate         # Windows
+source .venv/bin/activate      # macOS / Linux
 pip install -r requirements.txt
+streamlit run app.py                                  # launch screen
+streamlit run app.py -- --project "path/to/project"   # open a project directly
 ```
-
-### 2c. First launch
-
-```bash
-streamlit run app.py
-```
-
-Your browser opens the app. On first launch:
-
-1. **Create a course project.** Type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Chalk creates a folder for it (by default under `projects/` in this repo, which is not tracked by git). To reopen an existing project later, paste its folder path under **Open a course project**, or start the app pointed straight at it:
-   ```bash
-   streamlit run app.py -- --project "C:\path\to\IS-6640-Fall-2027"
-   ```
-2. **Connect an AI provider**, or click **Skip for now**. Extraction, rollover, and export work without one. You can connect later in the **Settings** tab.
 
 ## 3. How to use the app
 
@@ -113,6 +110,7 @@ python toolkit.py generate summary --week 3
 python toolkit.py generate slides --week 3 [--notes "bullet points or an excerpt"]
 python toolkit.py generate rubric --assignment "Lab 3" --description-file lab3.docx [--points 100]
 python toolkit.py report --project IS-6640-Fall-2027
+python toolkit.py demo [--reset]
 python toolkit.py status --project IS-6640-Fall-2027
 ```
 
@@ -422,7 +420,7 @@ A bug. Your files were not changed. The terminal window running the app has the 
 
 ## 12. Data and privacy
 
-- **Everything stays local.** Projects, syllabi, outputs, and the metrics log live in folders on your computer. There is no Chalk server, account, or telemetry.
+- **Everything stays local.** Projects, syllabi, outputs, and the metrics log live in folders on your computer. There is no Chalk server, account, or telemetry, and Streamlit's own anonymous usage statistics are switched off (`.streamlit/config.toml`).
 - **What goes to the AI provider:** only when you click Generate (or run `generate`), and only the filled-in prompt. That prompt contains the course title, learning objectives, the chosen week's topics, your options, and the text of the source materials you selected. With the Ollama option, nothing leaves the university network. Nothing is sent during extraction, rollover, or export, except that lengthening a course during rollover with "Draft topics for the added weeks with AI" ticked sends the recent weeks' topics.
 - **Your API key** is stored only in the project's `.env` file. The repo's `.gitignore` and each project's `.gitignore` keep it out of git. Never share or commit it.
 - **FERPA: course materials only.** Never upload student work, grades, rosters, emails, or anything that identifies a student. Chalk is designed for syllabi and instructor-authored materials, the app says so wherever files are uploaded, and every prompt template instructs the model not to request or invent student information.

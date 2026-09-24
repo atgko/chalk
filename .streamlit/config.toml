@@ -1,0 +1,4 @@
+# Chalk is local-first: nothing about your usage leaves this computer.
+# Streamlit collects anonymous usage statistics by default; turn that off.
+[browser]
+gatherUsageStats = false

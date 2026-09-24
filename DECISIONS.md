@@ -81,6 +81,14 @@
 - **Source materials can be added in the app** (Generate tab → Add source materials), not only via CLI `add`, so the no-terminal promise (PRD 7.1) holds for generation too.
 - **Dependency pins**: each direct dependency is pinned from the tested version up to (not including) its next major version, rather than a full `pip freeze`. A full freeze would pin platform-specific transitive packages and break installs on the other OS.
 
+## Decisions made after the build (easier to run, sponsor demo)
+
+- **Double-click launchers replace README-only setup** (reverses the earlier "no launcher script for MVP" decision). `Start Chalk.bat` / `Start Chalk.command` create the virtual environment; `chalk/launcher.py` does the rest (Python version check, installs requirements on first run and whenever requirements.txt changes, free port, opens the browser), so the logic is cross-platform and tested. `Start Chalk Demo` opens the demo course.
+- **Streamlit runs headless under the launcher**, which opens the browser itself once the server answers its health check. A normal first `streamlit run` stops at an "Email:" prompt, which would make a double-clicked launcher look frozen.
+- **Streamlit usage statistics are off** (`.streamlit/config.toml`, and passed explicitly by the launcher). They're on by default, which contradicted the local-first/no-telemetry promise.
+- **Not hosted.** Hosting was considered and rejected for now: projects, archives, and `.env` keys live on the server's disk, and PRD 9 rules out multi-user hosting. A session-only demo mode for Streamlit Cloud remains possible later.
+- **Demo course** (`chalk/demo.py`, the launch-screen buttons, `toolkit.py demo`): synthetic sample syllabi shaped like the PRD's own examples (the IS 6640 rollover worked example, the Spring-2026 term-label bug, IS 4490 markdown with the DST flag). Reset deletes only a folder carrying the `.chalk-demo` marker, and keeps its `.env` so a provider key entered before a meeting survives the reset.
+
 ## Open items deliberately deferred (not gaps, just lower-priority / resolve-when-relevant)
 
 - `course.json` schema versioning/migration across terms and repo forks.

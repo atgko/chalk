@@ -1,0 +1,4 @@
+# Launchers must keep their native line endings to run.
+*.bat text eol=crlf
+*.command text eol=lf
+*.sh text eol=lf

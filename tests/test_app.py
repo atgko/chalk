@@ -50,7 +50,8 @@ def saved_project(project, tmp_path):
 
 
 def launch(paths=None, **state) -> AppTest:
-    at = AppTest.from_file(APP_PATH, default_timeout=60)
+    # Generous: each run is fast, but a busy machine (e.g. OneDrive syncing) can stall one.
+    at = AppTest.from_file(APP_PATH, default_timeout=180)
     if paths is not None:
         at.session_state[session.PROJECT_ROOT_KEY] = str(paths.root)
     for key, value in state.items():
@@ -519,3 +520,17 @@ def test_generate_tab_offers_a_source_material_uploader(saved_project):
     at = launch(saved_project)
     assert "Add source materials" in [e.label for e in at.expander]
     assert widget(at.button, "Add to project").disabled
+
+
+def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
+    monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", tmp_path)
+    at = click(launch(), "Open the demo course")
+
+    assert_no_exception(at)
+    demo_root = tmp_path / "Chalk-Demo"
+    assert (demo_root / "course.json").exists()
+    assert at.title[0].value == "Welcome to Chalk"  # the demo has no .env yet
+
+    at = click(launch(), "Reset the demo course")
+    assert_no_exception(at)
+    assert (demo_root / ".chalk-demo").exists()
