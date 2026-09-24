@@ -41,6 +41,16 @@
 - **Git**: Repository initialized at scaffolding time (this session), before any application code is written.
 - **Build status at time of this log**: Empty — nothing built yet.
 
+## Decisions made during the build (Milestones 4-5)
+
+- **Duration mismatch is a preview flag, not a hard stop** (PRD 7.3 vs 6.2). 6.2 says the way to lengthen or shorten a course is to edit `duration_weeks` before rollover; 7.3's "Duration mismatch" error would block exactly that. Since the extractor always sets `duration_weeks` to the schedule's week count, a mismatch only happens when the instructor changed it deliberately — so rollover proceeds and the Rollover Preview leads with a flag naming both numbers and the resulting week count. Nothing is written until Confirm either way.
+- **CLI commands beyond PRD 6.6's four**: `extract`, `rollover`, and `export` were added alongside `init`/`add`/`generate`/`status` so Track A is usable end to end without the UI. `generate` exits with a plain "not available in this build yet" message until Milestone 7.
+- **Consistency-check override on the CLI** requires either an interactive "y" or an explicit `--continue-anyway` flag (never implied by a general `--yes`), and is logged as `consistency_check_override` either way.
+- **CLI logic lives in `chalk/cli.py`**; `toolkit.py` is a thin shim, so the CLI sits inside the coverage gate.
+- **Workflow layer (`chalk/pipeline.py`)**: extract / save-after-review / rollover preview+confirm / export are single functions both the CLI and the Streamlit UI call, so both front ends log identical metrics events and write identical files.
+- **course.json archives** go to `<project>/.archive/` (sibling of course.json); outputs archive to `outputs/.archive/` per PRD 5.1.
+- **Extraction copies the syllabus into `source/` only after it parses successfully**, and records `course.source_file` as a project-relative path so the project folder can be moved or shared.
+
 ## Open items deliberately deferred (not gaps, just lower-priority / resolve-when-relevant)
 
 - `course.json` schema versioning/migration across terms and repo forks.

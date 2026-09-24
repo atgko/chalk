@@ -1,0 +1,20 @@
+{
+  "institution": "University of Utah",
+  "calendar_source": "https://registrar.utah.edu/academic-calendars/",
+  "calendar_file": "data/calendars.json",
+  "default_output_formats": ["docx", "html"],
+  "archive_outputs": true,
+  "cost_rates": {
+    "openai": {
+      "gpt-4o":          { "input_per_1k": 0.0025, "output_per_1k": 0.010 },
+      "gpt-4o-mini":     { "input_per_1k": 0.00015, "output_per_1k": 0.0006 }
+    },
+    "anthropic": {
+      "claude-sonnet-5": { "input_per_1k": 0.003, "output_per_1k": 0.015 },
+      "claude-haiku-4-5-20251001": { "input_per_1k": 0.0008, "output_per_1k": 0.004 }
+    },
+    "local": {
+      "default":         { "input_per_1k": 0.0, "output_per_1k": 0.0 }
+    }
+  }
+}

@@ -39,6 +39,10 @@ from chalk.models import CourseData, UniversityDate, Week
 
 _DST_BOUNDARY_WINDOW_DAYS = 14
 
+# Stand-in date for weeks added by a duration increase — overwritten by
+# _shift_regular_weeks, and reported as "no old date" in the preview.
+_PLACEHOLDER_DATE = dt.date(1900, 1, 1)
+
 
 @dataclass
 class WeekChange:
@@ -182,10 +186,7 @@ def _build_placeholder_weeks(
         placeholders.append(
             Week(
                 week_number=week_number,
-                # Placeholder date — overwritten by _shift_regular_weeks below,
-                # which computes every regular week's real date from
-                # week_number regardless of where it came from.
-                date=dt.date(1900, 1, 1),
+                date=_PLACEHOLDER_DATE,
                 label=f"Week {week_number}",
                 is_break=False,
                 topics=topics,
@@ -232,7 +233,7 @@ def _shift_regular_weeks(
             WeekChange(
                 week_number=week.week_number,
                 label=new_label,
-                old_date=week.date,
+                old_date=None if week.date == _PLACEHOLDER_DATE else week.date,
                 new_date=new_date,
             )
         )

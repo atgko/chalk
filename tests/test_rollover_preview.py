@@ -351,3 +351,19 @@ def _give_week_ten_an_assignment(course_data: CourseData) -> CourseData:
         for week in course_data.weeks
     ]
     return course_data.model_copy(update={"weeks": weeks})
+
+
+def test_weeks_added_by_expansion_have_no_old_date_in_the_preview():
+    _, preview = roll_over_course(
+        _is6640_ten_week_course(),
+        target_term="Fall 2027",
+        calendars=CALENDARS,
+        target_duration_weeks=12,
+        llm_generate_topics=False,
+    )
+
+    changes_by_week = {c.week_number: c for c in preview.week_changes if c.week_number is not None}
+    assert changes_by_week[10].old_date == dt.date(2026, 10, 26)
+    assert changes_by_week[11].old_date is None
+    assert changes_by_week[12].old_date is None
+    assert changes_by_week[12].new_date == dt.date(2027, 11, 8)

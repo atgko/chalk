@@ -53,3 +53,23 @@ class ProtectedFileError(ExtractionError):
     password-protected, occasionally because it is otherwise corrupt in a
     way python-docx cannot open (DECISIONS.md: caught via exception, no
     zip pre-check)."""
+
+
+class ProjectError(ChalkError):
+    """Raised for course-project problems the instructor fixes by pointing
+    at a different folder or file: not a Chalk project, a project name
+    that already exists, an unsupported source-material file type, or no
+    course.json yet."""
+
+
+class TermNotInCalendarError(ChalkError):
+    """Raised when a rollover target term isn't in calendars.json and no
+    manual Week 1 date was given. Not a dead end — the caller asks for the
+    first day of classes and retries (PRD section 5.3)."""
+
+    def __init__(self):
+        super().__init__(
+            "That term isn't in the calendar data yet. Enter the first day of "
+            "classes below and we'll calculate the rest."
+        )
+
