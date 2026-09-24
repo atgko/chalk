@@ -1,6 +1,6 @@
 -r requirements.txt
 
-pytest>=8.0                # test runner
-pytest-cov>=5.0            # coverage measurement, --cov-fail-under=80 gate
-freezegun>=1.5             # deterministic timestamps for extracted_at / archive filenames / eval-log entries
-ruff>=0.5                  # lint — catches unused imports etc. before review
+pytest>=9.1,<10            # test runner
+pytest-cov>=7.1,<8         # coverage measurement, --cov-fail-under=80 gate
+freezegun>=1.5,<2          # deterministic timestamps in metrics tests
+ruff>=0.16                 # lint — catches unused imports etc. before review

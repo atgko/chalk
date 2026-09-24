@@ -1,5 +1,15 @@
 # Chalk — Implementation Plan
 
+> **Status (2026-09-24):** Milestones 0–8 built, and Milestone 9 done except the
+> items that need people outside the build (see below). 425 tests, 99% coverage (ui/ included).
+> Deviations from this plan are recorded in DECISIONS.md ("Decisions made during the build").
+> Still open:
+> - **Task 65: five-syllabus test corpus (PRD §15).** Needs the real syllabi. The extraction
+>   heuristics (front-matter labels, "Week N (M/DD)" labels, table detection) have only been
+>   validated against synthetic fixtures so far. Run `toolkit.py extract`/`rollover` on each file in
+>   a gitignored `/sandbox/` project, then `toolkit.py report` for the December evidence artifact.
+> - **LICENSE (task 67).** The license choice is the project owners' decision.
+
 Read in full: `capstone-prd-v3.1.md` (v0.3.1) and `DECISIONS.md`. DECISIONS.md is authoritative on conflicts (pydantic models, JSONL eval log, synthetic docx/md fixtures, single `app.py` with `st.tabs()`, 7th Settings tab, branding constant, etc.). Repo root is `C:\Users\athav\OneDrive\Documents\Capstone`, currently holding only the two source docs + `.gitignore` (already staged, no commits yet). `.gitignore` already excludes `/projects/` and `/sandbox/` — good landing spot for real test-corpus syllabi and manually-created course projects, keeping them out of git history alongside the existing `.env` exclusion.
 
 ---

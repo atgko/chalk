@@ -69,6 +69,7 @@ def test_add_indexes_a_source_file(project, tmp_path):
 
     assert result.code == 0
     assert "Added ch3.txt" in result.out
+    assert "FERPA" in result.out
     assert (project / "source" / "ch3.txt").exists()
 
 
@@ -356,3 +357,11 @@ def test_status_after_a_full_loop(project, tmp_path):
     assert "Source files:  2 (ch3.txt, s.docx)" in result.out
     assert "top-level: 3" in result.out
     assert "Rollovers:     1" in result.out
+
+
+def test_report_writes_the_evaluation_report(project, tmp_path):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    result = run("report", "--project", str(project))
+    assert result.code == 0
+    assert "Wrote outputs/evaluation-report.md" in result.out
+    assert "| markdown | 1 | 0 | 0% |" in (project / "outputs" / "evaluation-report.md").read_text(encoding="utf-8")

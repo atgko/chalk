@@ -39,7 +39,7 @@
 
 - **Faculty setup**: README + pip/venv instructions only, as originally written in Section 8 — no launcher script or packaged executable for MVP.
 - **Git**: Repository initialized at scaffolding time (this session), before any application code is written.
-- **Build status at time of this log**: Empty — nothing built yet.
+- **Build status**: see the Status section at the top of PLAN.md.
 
 ## Decisions made during the build (Milestones 4-5)
 
@@ -73,6 +73,13 @@
 - **Slides banner**: the PRD's "every generated file opens with the AI-draft banner" conflicts with F-05e's "YAML title block at top", so slide decks carry the banner as an HTML comment directly after the YAML block. Slide output is post-processed to enforce the pipeline conventions (no `subtitle:`, no bare `#`, `<!-- Slide N -->` numbering) regardless of what the model returns.
 - **Rubric descriptions** can be typed or uploaded (PDF/DOCX/MD/TXT), read with the same text extraction as source materials. The prompt and system message both forbid grading student work (CTE policy).
 - **Source context**: 6,000-token budget (~24k characters), truncated with an explicit "[truncated]" note; source files are selected by name from `source/` only, never as arbitrary paths.
+
+## Decisions made during the build (Milestone 9 — hardening & handoff)
+
+- **FERPA statement (PRD 10)** appears wherever files are uploaded (Upload tab, Generate tab's source uploader, CLI `add`), and every prompt template tells the model the materials contain no student records and not to request or invent student information.
+- **Evaluation report** (`toolkit.py report`, and a download on the Metrics tab) is the December evidence artifact: files processed and error rate by format, consistency catches and overrides, rollovers, and cost per content type — computed only from eval-log.json metadata.
+- **Source materials can be added in the app** (Generate tab → Add source materials), not only via CLI `add`, so the no-terminal promise (PRD 7.1) holds for generation too.
+- **Dependency pins**: each direct dependency is pinned from the tested version up to (not including) its next major version, rather than a full `pip freeze`. A full freeze would pin platform-specific transitive packages and break installs on the other OS.
 
 ## Open items deliberately deferred (not gaps, just lower-priority / resolve-when-relevant)
 

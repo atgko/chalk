@@ -16,7 +16,7 @@ from chalk.errors import AmbiguousTableError, ChalkError
 from chalk.extractors import log_consistency_override
 from chalk.pipeline import extract_syllabus
 from chalk.project import ProjectPaths
-from ui import session
+from ui import common, session
 from ui.session import PendingExtraction, TableChoice
 
 
@@ -63,6 +63,7 @@ def render(paths: ProjectPaths) -> None:
         return
 
     uploaded = st.file_uploader("Syllabus (.docx or .md)", type=["docx", "md"])
+    st.caption(common.FERPA_NOTICE)
     if st.button("Extract course", type="primary", disabled=uploaded is None):
         with st.spinner("Reading the syllabus…"):
             outcome = extract_upload(paths, save_upload(uploaded.name, uploaded.getvalue()))

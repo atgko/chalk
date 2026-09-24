@@ -500,3 +500,22 @@ def test_metrics_summarizes_the_eval_log(saved_project):
 def test_metrics_with_an_empty_log(saved_project):
     at = launch(saved_project)
     assert {"No content generated yet.", "No rollovers yet."} <= set(texts(at.caption))
+
+
+def test_ferpa_notice_is_shown_where_files_are_uploaded(saved_project):
+    from ui.common import FERPA_NOTICE
+
+    at = launch(saved_project)
+    assert texts(at.caption).count(FERPA_NOTICE) == 2  # Upload tab + Generate tab
+
+
+def test_metrics_offers_the_evaluation_report_download(saved_project):
+    at = launch(saved_project)
+    assert_no_exception(at)
+    assert "Download evaluation report" in [el.proto.label for el in at.get("download_button")]
+
+
+def test_generate_tab_offers_a_source_material_uploader(saved_project):
+    at = launch(saved_project)
+    assert "Add source materials" in [e.label for e in at.expander]
+    assert widget(at.button, "Add to project").disabled

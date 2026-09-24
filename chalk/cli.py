@@ -61,6 +61,7 @@ from chalk.project import (
     project_status,
     require_course,
 )
+from chalk.report import write_evaluation_report
 
 _RULE = "─" * 64
 
@@ -155,6 +156,11 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--yes", action="store_true", help="Overwrite an existing draft without asking.")
     generate.set_defaults(handler=_cmd_generate)
 
+    report = commands.add_parser(
+        "report", parents=[project_arg], help="Write outputs/evaluation-report.md from the metrics log."
+    )
+    report.set_defaults(handler=_cmd_report)
+
     status = commands.add_parser("status", parents=[project_arg], help="Show a project summary.")
     status.set_defaults(handler=_cmd_status)
 
@@ -176,6 +182,7 @@ def _cmd_add(args, console: _Console) -> int:
     paths = open_project(args.project)
     destination = add_source(paths, args.file)
     console.say(f"Added {destination.name} to source/.")
+    console.say("Reminder: course materials only — never add student work or student information (FERPA).")
     return 0
 
 
@@ -277,6 +284,12 @@ def _generation_request(args) -> GenerationRequest:
 
 
 
+
+
+def _cmd_report(args, console: _Console) -> int:
+    paths = open_project(args.project)
+    console.say(f"Wrote {_relative(write_evaluation_report(paths), paths)}")
+    return 0
 
 
 def _cmd_status(args, console: _Console) -> int:

@@ -8,6 +8,10 @@ import streamlit as st
 
 from chalk.project import ProjectPaths
 
+FERPA_NOTICE = (
+    "Course materials only — don't upload student work, grades, rosters, or any other "
+    "student information (FERPA)."
+)
 NEEDS_COURSE_MESSAGE = "Upload and extract a syllabus first — this tab needs a saved course.json."
 
 _MIME_TYPES = {

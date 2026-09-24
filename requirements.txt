@@ -1,7 +1,10 @@
-streamlit>=1.38          # UI framework, local no-server app; floor high enough for streamlit.testing.v1.AppTest (needs 1.28+)
-openai>=1.40              # OpenAI SDK; also serves the Ollama path (OpenAI-compatible endpoint via base_url swap)
-anthropic>=0.34           # Anthropic SDK — separate response shape, isolated inside llm_client.py
-python-docx>=1.1          # Word (.docx) table read/write for extraction and rollover, in place
-pypdf>=4.0                # Pure-Python PDF text extraction for instructor-supplied source material summaries
-pydantic>=2.7             # course.json schema as typed models with validation
-python-dotenv>=1.0        # loads .env (LLM_PROVIDER/LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
+# Floors are the versions the test suite was run against; caps stop a future
+# major release from breaking a faculty install. Tested on Python 3.14 (3.11+ supported).
+streamlit>=1.64,<2        # UI framework, local no-server app; streamlit.testing.v1.AppTest for UI tests
+openai>=3.19,<4           # OpenAI SDK; also serves the Ollama path (OpenAI-compatible endpoint via base_url swap)
+anthropic>=1.8,<2         # Anthropic SDK — separate response shape, isolated inside llm_client.py
+python-docx>=1.2,<2       # Word (.docx) table read/write for extraction and rollover, in place
+pypdf>=6.19,<7            # Pure-Python PDF text extraction for source materials and rubric descriptions
+pydantic>=2.13,<3         # course.json schema as typed models with validation
+python-dotenv>=1.2,<2     # loads .env (LLM_PROVIDER/LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
+pandas>=3.0,<4            # Metrics tab chart data (also a Streamlit dependency)

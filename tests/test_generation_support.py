@@ -188,3 +188,8 @@ def test_slides_with_unterminated_front_matter_treat_it_as_body():
 
 def test_bundled_resources_dir_holds_all_prompt_templates():
     assert {p.stem for p in (RESOURCES_DIR / "prompts").glob("*.txt")} == set(SPECS)
+
+
+@pytest.mark.parametrize("key", list(SPECS))
+def test_every_bundled_template_states_the_no_student_data_rule(key, tmp_path):
+    assert "contain no student records" in load_template(tmp_path, SPECS[key])

@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pandas as pd
 import streamlit as st
 
 from chalk.config import describe_provider, read_env
 from chalk.metrics import read_events, summarize_events
 from chalk.project import ProjectPaths
+from chalk.report import render_evaluation_report
 
 
 def render(paths: ProjectPaths) -> None:
-    summary = summarize_events(read_events(paths.eval_log))
+    events = read_events(paths.eval_log)
+    summary = summarize_events(events)
 
     cost, rollovers, catches, errors = st.columns(4)
     cost.metric("Total AI cost", f"${summary.total_cost_usd:.4f}")
@@ -23,6 +27,13 @@ def render(paths: ProjectPaths) -> None:
     )
     errors.metric("Extraction errors", len(summary.extraction_errors))
     st.caption(f"Provider in use: {describe_provider(read_env(paths.env))}")
+    st.download_button(
+        "Download evaluation report",
+        data=render_evaluation_report(events, project_name=paths.root.name, generated_on=dt.date.today()),
+        file_name=f"{paths.root.name}-evaluation-report.md",
+        mime="text/markdown",
+        help="Files processed, consistency-check catches, error rates, and cost per content type.",
+    )
 
     st.markdown("#### Generations by type")
     if summary.generation_counts:

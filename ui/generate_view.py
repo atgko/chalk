@@ -31,7 +31,7 @@ from chalk.generation.specs import (
     ContentSpec,
 )
 from chalk.models import CourseData
-from chalk.project import ProjectPaths, list_source_files
+from chalk.project import SOURCE_SUFFIXES, ProjectPaths, add_source, list_source_files
 from ui import common, session
 from ui.upload_view import save_upload
 
@@ -91,7 +91,27 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
         fields["source_files"] = tuple(st.multiselect("Source materials to use", materials))
     else:
         st.caption("No source materials added yet — generation will use course topics and objectives only.")
+    _render_source_uploader(paths)
     return GenerationRequest(**fields)
+
+
+def _render_source_uploader(paths: ProjectPaths) -> None:
+    with st.expander("Add source materials"):
+        files = st.file_uploader(
+            "Your summaries, notes, or excerpts (PDF, DOCX, MD, TXT)",
+            type=[suffix.lstrip(".") for suffix in SOURCE_SUFFIXES],
+            accept_multiple_files=True,
+            key="source-upload",
+        )
+        st.caption(common.FERPA_NOTICE)
+        if st.button("Add to project", disabled=not files):
+            try:
+                added = [add_source(paths, save_upload(f.name, f.getvalue())).name for f in files]
+            except ChalkError as exc:
+                st.error(exc.user_message)
+                return
+            session.flash(f"Added to source/: {', '.join(added)}.")
+            st.rerun()
 
 
 def _rubric_fields() -> dict:

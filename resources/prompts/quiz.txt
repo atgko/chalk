@@ -13,4 +13,5 @@ Reference specific course elements (module names, tools, frameworks) where relev
 
 Format: markdown with a "Questions" section and an "Answer Key" section.
 Label questions Q1, Q2... and answers A1, A2...
+These materials contain no student records. Never ask for, invent, or include information about individual students.
 No preamble or explanation outside the questions and answers.

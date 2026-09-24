@@ -14,4 +14,5 @@ Write {prompt_count} discussion prompts that together span three levels:
 
 Format: markdown. Give each prompt a "### Prompt N — [Level]" heading, where
 [Level] is Recall, Application, or Analysis, followed by the prompt text.
+These materials contain no student records. Never ask for, invent, or include information about individual students.
 No preamble or explanation outside the prompts.

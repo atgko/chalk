@@ -18,4 +18,5 @@ Finish with one line stating the total points.
 
 This is a rubric template only.
 Do not grade, score, or evaluate any student work, and do not invent example submissions.
+These materials contain no student records. Never ask for, invent, or include information about individual students.
 No preamble or explanation outside the rubric.

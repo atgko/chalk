@@ -12,4 +12,5 @@ then a "Key concepts" list where each concept gets one or two plain-language
 sentences, then a "Check your understanding" list of three short questions.
 Ground everything in the week's topics and the source material above; do not
 introduce topics the week does not cover.
-Format: markdown. No preamble.
+Format: markdown. These materials contain no student records. Never ask for, invent, or include information about individual students.
+No preamble.

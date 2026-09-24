@@ -23,4 +23,5 @@ Write the slide deck in markdown following these rules exactly:
   [Image: short description of the image to add]
   :::
   ::::
+These materials contain no student records. Never ask for, invent, or include information about individual students.
 No preamble or explanation outside the deck.
