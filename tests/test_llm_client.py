@@ -79,9 +79,9 @@ def openai_response(text="hello", input_tokens=10, output_tokens=5):
     )
 
 
-def anthropic_response(text="hello", input_tokens=10, output_tokens=5):
+def anthropic_response(text="hello", input_tokens=10, output_tokens=5, content=None):
     return SimpleNamespace(
-        content=[SimpleNamespace(text=text)],
+        content=content if content is not None else [SimpleNamespace(type="text", text=text)],
         usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
     )
 
@@ -162,6 +162,22 @@ def test_anthropic_provider_routes_to_the_anthropic_client(monkeypatch):
     assert call["model"] == "claude-sonnet-5"
     assert call["system"] == "You are a helper."
     assert call["messages"] == [{"role": "user", "content": "Write a rubric."}]
+
+
+def test_anthropic_skips_thinking_blocks_and_joins_text_blocks(monkeypatch):
+    # Models with adaptive thinking (e.g. claude-sonnet-5) may put a thinking
+    # block, which has no .text, ahead of the answer.
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    content = [
+        SimpleNamespace(type="thinking", thinking="", signature="sig"),
+        SimpleNamespace(type="text", text="Question 1"),
+        SimpleNamespace(type="text", text="\nQuestion 2"),
+    ]
+    patch_anthropic(monkeypatch, [anthropic_response(content=content)])
+
+    result = complete("Write a quiz.")
+
+    assert result["text"] == "Question 1\nQuestion 2"
 
 
 # ---- Error-message contract (PRD section 7.3) ----------------------------

@@ -120,8 +120,10 @@ def _call_anthropic(prompt: str, system: str, max_tokens: int) -> CompletionResu
         system=system,
         messages=[{"role": "user", "content": prompt}],
     )
+    # Models with adaptive thinking may return thinking blocks (no .text)
+    # ahead of the answer, so keep only the text blocks.
     return {
-        "text": response.content[0].text,
+        "text": "".join(block.text for block in response.content if block.type == "text"),
         "input_tokens": response.usage.input_tokens,
         "output_tokens": response.usage.output_tokens,
     }
