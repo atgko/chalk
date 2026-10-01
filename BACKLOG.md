@@ -12,7 +12,15 @@ Last updated: 2026-09-30.
 
 ## Extraction
 
-- **P1: PDF syllabi aren't accepted.** Uploads must be .docx or .md. Many syllabi start as Google Docs or PDFs. pypdf is already a dependency, but its text comes out one word per line with the tables lost (tested on OSC 6660), so table-level parsing would need a different approach (e.g. pdfplumber). Workaround: export to Word.
+- **P1 (explore, then decide): Should Chalk accept PDF syllabi?** Today uploads must be .docx or .md; the workaround is exporting to Word. Many syllabi are shared as PDFs or exported from Google Docs, so this will be an early stumbling block.
+  - **Product question first:** Chalk can't edit a PDF in place. A PDF could feed Review, Generate, Export, and the course brief, but rollover would have to write a *new* .docx/.md syllabus rather than update the original. Check with faculty or the sponsor whether that's acceptable.
+  - **Options to compare:**
+    1. *Status quo:* keep "export to Word" and say so clearly in the upload error. No cost.
+    2. *Layout-aware PDF table extraction* (e.g. pdfplumber): deterministic and offline, but results depend on each PDF's layout. pypdf (already a dependency) returned OSC 6660 one word per line with the tables lost.
+    3. *Convert PDF → .docx, then reuse the Word path:* reuses everything already built, but conversion quality varies; check the converter's license before adopting it.
+    4. *LLM-assisted extraction from the PDF text:* handles unusual layouts best, but costs money per upload, isn't deterministic, needs a provider configured, and sends the syllabus text to the provider. The Review step would catch its mistakes.
+    - Scanned (image-only) PDFs would also need OCR. Proposed: out of scope.
+  - **Suggested spike (½–1 day):** run options 2 and 3 on the OSC 6660 PDF and one or two other real PDFs in `reference/`. Record whether the weeks, dates, topics, and header details come through, then pick an option (or a fallback chain such as 2 → 4).
 - **P2: Markdown has none of the Word path's new tolerance.** No month-name dates, no split tables, no extra columns. Markdown is Chalk's own format, so this matters less, but the README should keep saying so.
 - **P2: Year inference uses the term's year for every date.** A Fall syllabus with a January row (e.g. finals week "Week 17 (1/4)") would get the wrong year.
 - **P2: Grading weights aren't checked to sum to 100%.** Review should warn when they don't (e.g. a missed row, or a points-based table).
