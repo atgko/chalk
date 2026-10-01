@@ -33,3 +33,6 @@ Thumbs.db
 # Local scratch / example course projects created during manual testing
 /projects/
 /sandbox/
+
+# Real syllabi shared for reference (contain instructor contact info; never commit)
+/reference/

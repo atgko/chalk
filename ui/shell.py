@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> None:
         _guarded(review_view.render, paths, course_data)
     for tab, view in ((rollover, rollover_view), (generate, generate_view), (export, export_view)):
         with tab:
+            _warn_if_unsaved_extraction(course_data)
             _gated(course_data, view.render, paths, course_data)
     with metrics:
         _gated(course_data, metrics_view.render, paths)
@@ -103,6 +104,21 @@ def _load_course_or_warn(paths: ProjectPaths) -> CourseData | None:
             "Fix it, or upload and extract the syllabus again (the old file will be archived)."
         )
         return None
+
+
+def _warn_if_unsaved_extraction(course_data: CourseData | None) -> None:
+    """These tabs work from the saved course.json. A newly extracted
+    syllabus isn't used until it's confirmed on the Review tab — say so,
+    or the tab silently shows the previous course (teammate testing: a
+    16-week upload showed the saved 10-week demo course's duration)."""
+    pending = session.get_pending_extraction()
+    if pending is None or course_data is None:
+        return
+    st.warning(
+        f"You extracted {pending.course_data.course.title} but haven't saved it yet. This tab still "
+        f"shows the saved course ({course_data.course.title}). Click **Confirm and save** on the "
+        "Review tab to use the new syllabus."
+    )
 
 
 def _gated(course_data: CourseData | None, render: Callable, *args) -> None:

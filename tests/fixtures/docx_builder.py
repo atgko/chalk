@@ -292,3 +292,82 @@ def build_password_protected_docx(path: Path) -> Path:
     precise cause (DECISIONS.md: caught via exception, no zip pre-check)."""
     path.write_bytes(b"not a real docx file, deliberately corrupt")
     return path
+
+
+def build_syllabus_with_full_schedule(
+    path: Path,
+    *,
+    term: str = "Fall 2026",
+    week1: tuple[int, int, int] = (2026, 8, 24),
+    weeks: int = 10,
+    break_row: tuple[str, str] = ("Fall Break (10/10 - 10/18)", "No class"),
+    break_after_week: int = 7,
+    university_dates: list[tuple[str, str]] | None = None,
+) -> Path:
+    """A schedule with one row per week and a single break row placed
+    after `break_after_week` — enough weeks for a target term's breaks to
+    land inside the course, for season-change rollover tests."""
+    import datetime as dt
+
+    start = dt.date(*week1)
+    rows: list[tuple[str, list[str]]] = []
+    for n in range(1, weeks + 1):
+        week_date = start + dt.timedelta(days=7 * (n - 1))
+        rows.append((f"Week {n} ({week_date.month}/{week_date.day})", [f"Topic {n}"]))
+        if n == break_after_week:
+            rows.append((break_row[0], [break_row[1]]))
+
+    doc = Document()
+    _add_front_matter(doc, term=term)
+    _add_schedule_table(doc, rows=rows)
+    if university_dates:
+        _add_university_dates_table(doc, dates=university_dates)
+    doc.save(str(path))
+    return path
+
+
+def build_syllabus_with_free_form_header(path: Path) -> Path:
+    """Shaped like a real faculty syllabus (contact details invented): no
+    "Term:"/"Course:" labels — the title line carries the term, the next
+    line the course number, and only the instructor is labeled
+    (tab-separated). The schedule table's header says "Module"."""
+    doc = Document()
+    doc.add_paragraph(" ")
+    doc.add_paragraph("")
+    doc.add_paragraph("Networking and Servers – Online Fall 2026")
+    doc.add_paragraph("IS 6640, 10-week and IS 6445, Servers Only, 5-week")
+    doc.add_paragraph("")
+    doc.add_paragraph("CONTACT\t")
+    doc.add_paragraph("Professor:\t\tJane Example")
+    doc.add_paragraph("E-mail:\t\tjane.example@example.edu")
+    doc.add_paragraph("Time:\t\tTuesdays 5PM – 6PM")
+    _add_assessments_table(doc, assessments=[("Video Quizzes", 5), ("Hands-on Labs", 25)])
+    table = doc.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "Module"
+    table.rows[0].cells[1].text = "Weekly Assignments"
+    for n, (month, day) in enumerate([(8, 24), (8, 31), (9, 7)], start=1):
+        cells = table.add_row().cells
+        cells[0].text = f"Week {n} ({month}/{day})"
+        cells[1].text = f"Network+ Mod {n}"
+    doc.save(str(path))
+    return path
+
+
+def build_syllabus_with_course_info_table(path: Path) -> Path:
+    """Course details in a label/value table at the top, no colons."""
+    doc = Document()
+    doc.add_paragraph("Syllabus")
+    info = doc.add_table(rows=0, cols=2)
+    for label, value in [
+        ("Course Title", "Networking and Servers"),
+        ("Course Number", "IS 6640"),
+        ("Semester", "Fall 2026"),
+        ("Credit Hours", "3"),
+        ("Instructor", "Jane Example"),
+    ]:
+        cells = info.add_row().cells
+        cells[0].text = label
+        cells[1].text = value
+    _add_schedule_table(doc, rows=[("Week 1 (8/24)", ["Course Introduction"])])
+    doc.save(str(path))
+    return path

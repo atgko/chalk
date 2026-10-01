@@ -8,6 +8,8 @@ indexed, and a `try-these/` folder of files to upload live:
   check catching the sponsor's real bug
 - IS 4490 as a markdown syllabus, to show the markdown path and the
   daylight-saving flag at rollover
+- OSC 6660, a 16-week Spring syllabus in a real-world layout (no labeled
+  header, schedule split into module tables), to show loose extraction
 
 Reset deletes and rebuilds the demo folder, but only a folder carrying
 the demo marker file, so it can never delete a real course project. The
@@ -24,6 +26,7 @@ from chalk.demo_content import (
     build_is4490_markdown_syllabus,
     build_is6640_term_mismatch_syllabus,
     build_is6640_word_syllabus,
+    build_osc6660_module_syllabus,
     write_subnetting_notes,
 )
 from chalk.errors import ProjectError
@@ -70,6 +73,7 @@ def _build(parent_dir: Path) -> ProjectPaths:
     syllabus = build_is6640_word_syllabus(try_these / "IS-6640-Fall-2026.docx")
     build_is6640_term_mismatch_syllabus(try_these / "IS-6640-Spring-2026-term-label-bug.docx")
     build_is4490_markdown_syllabus(try_these / "IS-4490-Fall-2026.md")
+    build_osc6660_module_syllabus(try_these / "OSC-6660-Spring-2026-real-world-layout.docx")
     notes = write_subnetting_notes(try_these / "week-3-subnetting-notes.md")
 
     course_data, _ = extract_syllabus(paths, syllabus)

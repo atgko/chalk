@@ -159,7 +159,7 @@ IS-6640-Fall-2027/
   README.md              A short guide to the folder
 ```
 
-- **Word rollover** changes only the date inside each "Week N (M/DD)" label, the term line, break rows, and the university-dates table. Everything else in the document (formatting, other text, other tables) is untouched.
+- **Word rollover** changes only the date inside each "Week N (M/DD)" label, the term (wherever it was found), break rows, and the university-dates table. Everything else in the document (formatting, other text, other tables) is untouched.
 - **Markdown rollover** rewrites the schedule table and term line and leaves the rest of the file as it was.
 - Rollover **never renumbers** quizzes, exams, or labs. If the course length changes, it flags this so you can check numbering yourself.
 - **Every generated file starts with** `> **AI-generated draft** — review and edit before use. Generated <date> using <model>.` Slide decks carry the same line as a comment just below their title block, so it doesn't become a slide.
@@ -168,10 +168,12 @@ IS-6640-Fall-2027/
 
 **What Chalk expects in a syllabus:**
 
-- Near the top, one detail per line: `Course:`, `Course Number:`, `Section:`, `Credits:`, `Term:`, `Instructor:`, `Meeting Pattern:`.
-- **Word:** a schedule table whose first column has labels like `Week 1 (8/24)`, with break rows like `Fall Break (10/10 - 10/18)`.
+- **The term near the top**, with a four-digit year (e.g. `Fall 2026`). That's the only required detail. It can be in a `Term:` / `Semester:` line or in the title line (e.g. `Networking and Servers – Online Fall 2026`).
+- Other details are picked up when present, as `Label: value` lines or a two-column table near the top: course title and number (also guessed from the title lines, e.g. `IS 6640`), section, credits (also from a line like `3 Credit Hours`), instructor (`Instructor:`, `Professor:`, `Professors:`), and meeting pattern (also from a line like `Tuesday 6:00-9:00 pm`). Anything Chalk can't find is left blank for you to fill in on the Review tab.
+- **Word:** a schedule table whose first column has labels like `Week 1 (8/24)` or `Week 1 (Jan. 6)` (text after the label is fine), with break rows like `Fall Break (10/10 - 10/18)`. The schedule can be split across several tables (one per module), as long as the week numbers continue from table to table; title and header rows are skipped. A column headed like `Assignment Due` is read as assignments. Rollover keeps each label's date style (`Jan. 6` stays a month name).
 - **Markdown:** a table with header `| Week | Dates | Topic | Major Work |`, dates like `8/24 - 8/30`, and break rows with `-` as the week.
-- Optional: a "Learning Objectives" (or "Course Outcome and Objectives") heading followed by a bulleted list; a table with `Assessment` and `Weight` columns (e.g. `25%`); a table with `Event` and `Date` columns for university dates.
+- Optional: a "Learning Objectives" (or "Course Outcome and Objectives") heading followed by the objectives, up to the next heading (a Word heading style or an ALL-CAPS line); a lead-in like "By the end of this course, you will be able to:" is skipped. A grading table: one with a `Weight` (or `%`) column, or a two-column table of percentages with no header row; a `Total` row is ignored. A table with `Event` and `Date` columns for university dates.
+- PDF syllabi aren't supported yet. Export the document as Word (`.docx`) first (Google Docs: File → Download → Microsoft Word).
 
 ## 7. Updating the academic calendar
 
@@ -191,7 +193,7 @@ Calendar data lives in `data/calendars.json` inside each project. The toolkit's 
 }
 ```
 
-(Dates above are illustrative.) Single-day holidays use `date`, and multi-day breaks use `date_start` and `date_end`. Break labels should match how your syllabus names them (e.g. "Fall Break") so rollover can move those rows. No code changes are needed. For a term that isn't in the file, rollover asks for the first day of classes instead.
+(Dates above are illustrative.) Single-day holidays use `date`, and multi-day breaks use `date_start` and `date_end`. Break labels should match how your syllabus names them (e.g. "Fall Break") so rollover can move those rows. When rolling into a different season (e.g. Fall → Spring), the syllabus's break rows are replaced with the target term's own breaks that fall within the course, and the preview says what was removed and added. No code changes are needed. For a term that isn't in the file, rollover asks for the first day of classes instead.
 
 ## 8. Choosing and configuring your AI provider
 
@@ -307,14 +309,11 @@ Check whether the term label or the schedule dates are wrong, and fix whichever 
 **"This Word file is protected. Remove the password in Word (Review > Protect Document) and re-upload."**
 Chalk can't open password-protected or damaged Word files. Remove the protection in Word, save, and upload again.
 
-**"Could not find the following syllabus details near the top of the document: …"**
-Each listed detail must be on its own line near the top, formatted like `Term: Fall 2026`. See "What Chalk expects in a syllabus" in section 6.
+**"Could not find the term (for example 'Fall 2026') near the top of the syllabus."**
+Add a line like `Term: Fall 2026` near the top, or put the term in the title line. See "What Chalk expects in a syllabus" in section 6.
 
 **"Could not determine the academic year from the term '…'."**
 The `Term:` line needs a four-digit year, e.g. `Term: Fall 2026`.
-
-**"Could not read 'Credits: …' as a whole number."**
-Write credits as a number, e.g. `Credits: 3`.
 
 **"Could not determine the dates for the break row …" / "Could not determine the date for week N …"**
 Break rows need a date range such as `Fall Break (10/10 - 10/18)` (Word) or `10/10 - 10/18` in the Dates column (markdown). Week rows need dates like `8/24 - 8/30`.

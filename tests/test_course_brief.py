@@ -105,3 +105,16 @@ def test_break_rows_do_not_repeat_the_dates_embedded_in_their_label():
     ]
     brief = render_course_brief(course_data.model_copy(update={"weeks": weeks}))
     assert "| — | Oct 10 – Oct 18 | Fall Break |" in brief
+
+
+def test_details_the_syllabus_did_not_state_are_omitted():
+    course_data = build_sample_course_data()
+    blank = course_data.course.model_copy(
+        update={"section": "", "credits": None, "meeting_pattern": "", "instructor": ""}
+    )
+
+    brief = render_course_brief(course_data.model_copy(update={"course": blank}))
+
+    assert "- **Course:** IS 6640\n" in brief
+    for label in ("Section", "Credits", "Meeting pattern", "Instructor"):
+        assert label not in brief.split("## ")[0]

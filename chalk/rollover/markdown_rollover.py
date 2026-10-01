@@ -24,7 +24,8 @@ import re
 from pathlib import Path
 
 from chalk.archiving import archive_before_write
-from chalk.extractors._front_matter import parse_labeled_line
+from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE
+from chalk.extractors._front_matter import parse_labeled_line, replace_term_text, term_line_index
 from chalk.models import CourseData, UniversityDate
 from chalk.rollover.preview import break_name
 
@@ -54,16 +55,27 @@ def write_rolled_over_markdown(
 
 
 def _replace_term_line(lines: list[str], new_term: str) -> list[str]:
+    """Rewrite the term wherever extraction read it from (a labeled line,
+    a two-cell table row, or a heading like "# IS 4490 — Fall 2026"),
+    changing only the season and year."""
+    labeled = [_two_cell_row_as_labeled_line(line) for line in lines]
+    header = ["" if line.strip().startswith("|") else line for line in lines]
+    index = term_line_index(labeled, header)
+    if index is None:  # pragma: no cover - extraction requires a term, so one is always found
+        return lines
     result = list(lines)
-    for i, line in enumerate(result):
-        stripped = line.strip()
-        if not stripped:  # pragma: no cover - none of our fixtures put a blank line before Term
-            continue
-        parsed = parse_labeled_line(stripped)
-        if parsed and parsed[0] == "term":
-            result[i] = f"Term: {new_term}"
-            return result
-    return result  # pragma: no cover - front matter is required, so Term is always found
+    new_line = replace_term_text(lines[index], new_term)
+    if new_line is None:
+        new_line = f"Term: {new_term}" if parse_labeled_line(lines[index]) else lines[index]
+    result[index] = new_line
+    return result
+
+
+def _two_cell_row_as_labeled_line(line: str) -> str:
+    cells = _split_table_row(line) if line.strip().startswith("|") else []
+    if len(cells) == 2:
+        return f"{cells[0].rstrip(':')}: {cells[1]}"
+    return line
 
 
 def _replace_schedule_table(lines: list[str], new_course_data: CourseData) -> list[str]:
@@ -111,17 +123,41 @@ def _replace_university_dates_table(
     start, end = table_range
     original_block = lines[start:end]
     new_block = original_block[:2]  # header + separator, unchanged
-    dates_by_event = {entry.event: entry for entry in university_dates}
+    entry_for_row = _pair_university_date_rows(original_block[2:], university_dates)
 
-    for line in original_block[2:]:
-        cells = _split_table_row(line)
-        entry = dates_by_event.get(cells[0]) if cells else None
+    for index, line in enumerate(original_block[2:]):
+        entry = entry_for_row.get(index)
         if entry is None:
             new_block.append(line)
             continue
-        new_block.append(f"| {cells[0]} | {_format_university_date(entry)} |")
+        new_block.append(f"| {entry.event} | {_format_university_date(entry)} |")
 
     return lines[:start] + new_block + lines[end:]
+
+
+def _pair_university_date_rows(
+    row_lines: list[str], university_dates: list[UniversityDate]
+) -> dict[int, UniversityDate]:
+    """Pair table rows with entries by position when the counts match (the
+    extractor read one entry per row with a parseable date, and rollover
+    keeps order and count — which is what lets a season-change rollover
+    rename "Fall Break" to "Spring Break"); otherwise by event name. Keys
+    are indexes into `row_lines`."""
+    rows = [_split_table_row(line) for line in row_lines]
+    dated_indexes = [index for index, cells in enumerate(rows) if _row_has_parseable_date(cells)]
+    if len(dated_indexes) == len(university_dates):
+        return dict(zip(dated_indexes, university_dates))
+    dates_by_event = {entry.event: entry for entry in university_dates}
+    return {
+        index: dates_by_event[cells[0]]
+        for index, cells in enumerate(rows)
+        if cells and cells[0] in dates_by_event
+    }
+
+
+def _row_has_parseable_date(cells: list[str]) -> bool:
+    date_text = cells[1] if len(cells) > 1 else ""
+    return bool(DATE_RANGE_RE.search(date_text) or FULL_DATE_RE.search(date_text))
 
 
 def _format_university_date(entry: UniversityDate) -> str:

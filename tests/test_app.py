@@ -125,13 +125,23 @@ def test_first_run_setup_can_be_skipped(tmp_project):
     at = click(at, "Skip for now")
 
     assert_no_exception(at)
-    assert [t.label for t in at.tabs] == ["Upload", "Review", "Rollover", "Generate", "Export", "Metrics", "Settings"]
+    assert [t.label for t in at.tabs] == [
+        "Upload",
+        "Review",
+        "Rollover",
+        "Generate",
+        "Export",
+        "Metrics",
+        "Settings",
+    ]
     assert "Provider: Not configured" in at.caption[-1].value
 
 
 def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
     calls = []
-    monkeypatch.setattr("chalk.config.complete", lambda prompt, max_tokens=5: calls.append(prompt) or {})
+    monkeypatch.setattr(
+        "chalk.config.complete", lambda prompt, max_tokens=5: calls.append(prompt) or {}
+    )
     at = launch(tmp_project)
     at.radio[0].set_value("Local model (Ollama)")
     at = click(at.run(), "Test connection and continue")
@@ -146,7 +156,9 @@ def test_first_run_setup_shows_the_provider_error_and_writes_nothing(tmp_project
     from chalk.errors import LLMProviderError
 
     def _reject(prompt, max_tokens=5):
-        raise LLMProviderError("The OpenAI API key was not accepted. Check it at platform.openai.com and try again.")
+        raise LLMProviderError(
+            "The OpenAI API key was not accepted. Check it at platform.openai.com and try again."
+        )
 
     monkeypatch.setattr("chalk.config.complete", _reject)
     at = launch(tmp_project)
@@ -214,7 +226,9 @@ def _pending(project, tmp_path, builder, name, *, acknowledged=None):
 
 
 def test_failed_consistency_check_blocks_review_until_continue_anyway(project, tmp_path):
-    pending = _pending(project, tmp_path, docx_builder.build_syllabus_with_term_mismatch, "bad.docx")
+    pending = _pending(
+        project, tmp_path, docx_builder.build_syllabus_with_term_mismatch, "bad.docx"
+    )
     at = launch(project, chalk_pending_extraction=pending)
 
     assert "Term and schedule don't match" in at.warning[0].value
@@ -228,7 +242,9 @@ def test_failed_consistency_check_blocks_review_until_continue_anyway(project, t
 
 
 def test_cancelling_a_failed_consistency_check_discards_the_extraction(project, tmp_path):
-    pending = _pending(project, tmp_path, docx_builder.build_syllabus_with_term_mismatch, "bad.docx")
+    pending = _pending(
+        project, tmp_path, docx_builder.build_syllabus_with_term_mismatch, "bad.docx"
+    )
     at = click(launch(project, chalk_pending_extraction=pending), "Cancel")
     assert at.session_state["chalk_pending_extraction"] is None
 
@@ -271,6 +287,38 @@ def test_review_then_confirm_and_save_writes_course_json_and_brief(project, tmp_
     assert "Saved course.json and regenerated the course brief." in texts(at.success)
 
 
+def _save_course_missing_details(project, tmp_path):
+    course_data, _ = extract_syllabus(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    blank = course_data.course.model_copy(update={"section": "", "credits": None, "instructor": ""})
+    save_course(project, course_data.model_copy(update={"course": blank}))
+
+
+def test_review_lets_the_instructor_fill_in_missing_details(project, tmp_path):
+    _save_course_missing_details(project, tmp_path)
+    at = launch(project)
+    assert "Blank fields weren't found in the syllabus — fill them in here." in texts(at.caption)
+
+    widget(at.text_input, "Section").set_value("001")
+    widget(at.text_input, "Credits").set_value("3")
+    widget(at.text_input, "Instructor").set_value("Matt Pecsok")
+    at = click(at.run(), "Confirm and save")
+
+    assert_no_exception(at)
+    course = load_course(project).course
+    assert (course.section, course.credits, course.instructor) == ("001", 3, "Matt Pecsok")
+
+
+def test_review_rejects_non_numeric_credits(project, tmp_path):
+    _save_course_missing_details(project, tmp_path)
+    at = launch(project)
+
+    widget(at.text_input, "Credits").set_value("three")
+    at = click(at.run(), "Confirm and save")
+
+    assert any("Credits must be a whole number" in e for e in texts(at.error))
+    assert load_course(project).course.credits is None
+
+
 def test_review_shows_the_saved_course_when_nothing_is_pending(saved_project):
     at = launch(saved_project)
     assert "Showing the saved course.json." in texts(at.caption)
@@ -279,9 +327,27 @@ def test_review_shows_the_saved_course_when_nothing_is_pending(saved_project):
 
 def test_review_handles_a_course_without_objectives_or_assessments(project, tmp_path):
     course_data, _ = extract_syllabus(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
-    save_course(project, course_data.model_copy(update={"learning_objectives": [], "assessments": [], "university_dates": []}))
+    save_course(
+        project,
+        course_data.model_copy(
+            update={"learning_objectives": [], "assessments": [], "university_dates": []}
+        ),
+    )
     at = launch(project)
     assert texts(at.caption).count("None found in the syllabus.") == 2
+
+
+def test_other_tabs_warn_while_a_new_extraction_is_unsaved(saved_project, tmp_path):
+    pending = _pending(saved_project, tmp_path, md_builder.build_minimal_syllabus, "new.md")
+    at = launch(saved_project, chalk_pending_extraction=pending)
+
+    warnings = [w for w in texts(at.warning) if "haven't saved it yet" in w]
+    assert len(warnings) == 3  # Rollover, Generate, Export
+    assert "Confirm and save" in warnings[0]
+
+
+def test_no_unsaved_warning_once_nothing_is_pending(saved_project):
+    assert not any("haven't saved it yet" in w for w in texts(launch(saved_project).warning))
 
 
 def test_review_without_any_course_asks_for_an_upload(project):
@@ -357,7 +423,11 @@ def llm(monkeypatch):
 
     def _complete(prompt, system="", max_tokens=2000):
         calls.append(prompt)
-        return {"text": f"## Questions\nQ1. Draft number {len(calls)}", "input_tokens": 1000, "output_tokens": 500}
+        return {
+            "text": f"## Questions\nQ1. Draft number {len(calls)}",
+            "input_tokens": 1000,
+            "output_tokens": 500,
+        }
 
     monkeypatch.setattr("chalk.generation.engine.complete", _complete)
     return calls
@@ -434,7 +504,9 @@ def test_rubric_waits_for_assignment_details(saved_project, llm):
     at = launch(saved_project)
     widget(at.selectbox, "Content type").set_value("rubric")
     at = at.run()
-    assert "A rubric needs an assignment name and a description of the assignment." in texts(at.caption)
+    assert "A rubric needs an assignment name and a description of the assignment." in texts(
+        at.caption
+    )
     assert "Generate" not in {b.label for b in at.button}
 
     widget(at.text_input, "Assignment name").input("Lab 3")
@@ -481,11 +553,19 @@ def test_metrics_summarizes_the_eval_log(saved_project):
     log = saved_project.eval_log
     metrics.append_event(log, "generation", {"content_type": "quiz", "cost_usd": 0.0123})
     metrics.append_event(
-        log, "rollover",
-        {"source_term": "Fall 2026", "target_term": "Fall 2027", "source_duration_weeks": 2,
-         "target_duration_weeks": 2, "flag_count": 1},
+        log,
+        "rollover",
+        {
+            "source_term": "Fall 2026",
+            "target_term": "Fall 2027",
+            "source_duration_weeks": 2,
+            "target_duration_weeks": 2,
+            "flag_count": 1,
+        },
     )
-    metrics.append_event(log, "extraction_error", {"filename": "bad.docx", "error_type": "ProtectedFileError"})
+    metrics.append_event(
+        log, "extraction_error", {"filename": "bad.docx", "error_type": "ProtectedFileError"}
+    )
 
     at = launch(saved_project)
 

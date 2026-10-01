@@ -1,8 +1,8 @@
 """Word (.docx) syllabus extraction (F-01, Word path).
 
 Locates the schedule table by the "Week N (M/DD)" heuristic in its first
-column, reads front-matter metadata from labeled "Label: value" lines
-preceding the table, learning objectives from a bulleted list under one
+column, reads front-matter metadata loosely (chalk.extractors._front_matter:
+label lines, two-column tables, or guesses from the title lines), learning objectives from a bulleted list under one
 of two known headings, assessments from a two-column weight table, and
 university dates from an optional two-column dates table.
 
@@ -26,21 +26,19 @@ from zipfile import BadZipFile
 from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
 
-from chalk.errors import AmbiguousTableError, ExtractionError, ProtectedFileError
+from chalk.errors import ExtractionError, ProtectedFileError
 from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE, year_from_term
-from chalk.extractors._front_matter import finalize_front_matter, parse_labeled_line
+from chalk.extractors._docx_schedule import extract_weeks, find_schedule_tables
+from chalk.extractors._front_matter import extract_front_matter
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
-# "Week 1 (8/24)", "Week 12 (12/1)" — identifies a schedule-table row as a
-# regular (non-break) week.
-WEEK_LABEL_RE = re.compile(r"week\s*(\d+)\s*\((\d{1,2})/(\d{1,2})\)", re.IGNORECASE)
-
 _WEIGHT_PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+_WEIGHT_HEADER_RE = re.compile(r"weight|percent|%", re.IGNORECASE)
 
 _OBJECTIVES_HEADINGS = {"learning objectives", "course outcome and objectives"}
-
-_DUE_RE = re.compile(r"\bdue\b", re.IGNORECASE)
-_NOTE_PREFIX_RE = re.compile(r"^notes?:\s*", re.IGNORECASE)
+# An all-caps line this short ("REQUIRED TEXT AND COURSE MATERIALS") is a
+# section heading typed in Normal style, which ends the objectives list.
+_CAPS_HEADING_MAX_CHARS = 60
 
 
 def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -> CourseData:
@@ -66,8 +64,8 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
     front_matter = _extract_front_matter(document)
     year = _year_from_term_or_raise(front_matter["term"])
 
-    schedule_table = _find_schedule_table(document, schedule_table_index)
-    weeks = _extract_weeks(schedule_table, year)
+    schedule_tables = find_schedule_tables(document, schedule_table_index)
+    weeks = extract_weeks(schedule_tables, year)
 
     course_info = CourseInfo(
         title=front_matter["title"],
@@ -82,7 +80,7 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
         instructor=front_matter["instructor"],
         source_format="word",
         source_file=str(docx_path),
-        extracted_at=dt.datetime.now(dt.timezone.utc),
+        extracted_at=dt.datetime.now(dt.UTC),
     )
 
     return CourseData(
@@ -94,65 +92,36 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
     )
 
 
-# ---- Schedule table location -------------------------------------------
-
-
-def _find_schedule_table(document, table_index: int | None = None):
-    candidates = [table for table in document.tables if looks_like_schedule_table(table)]
-
-    if table_index is not None:
-        if not 0 <= table_index < len(candidates):
-            raise ExtractionError(
-                "That table choice is no longer valid. Upload the syllabus again and pick a table."
-            )
-        return candidates[table_index]
-
-    if len(candidates) == 1:
-        return candidates[0]
-
-    if len(candidates) == 0:
-        raise AmbiguousTableError(
-            "No schedule table found. Make sure your syllabus has a table "
-            "with 'Week' in the first column, then try again.",
-            candidates=[],
-        )
-
-    raise AmbiguousTableError(
-        "Multiple possible schedule tables were found. Choose the correct one below.",
-        candidates=[_table_preview(table) for table in candidates],
-    )
-
-
-def looks_like_schedule_table(table) -> bool:
-    # Skip row 0 (assumed header) — at least one data row's first cell
-    # must match the "Week N (M/DD)" pattern.
-    return any(WEEK_LABEL_RE.search(row.cells[0].text) for row in table.rows[1:])
-
-
-def _table_preview(table) -> str:
-    if not table.rows:  # pragma: no cover - looks_like_schedule_table already requires rows
-        return ""
-    # Header plus the first data row: two schedule-like tables often share
-    # an identical header, so the header alone can't tell them apart.
-    return " / ".join(" | ".join(cell.text for cell in row.cells) for row in table.rows[:2])
-
-
 # ---- Front matter --------------------------------------------------------
 
 
 def _extract_front_matter(document) -> dict:
-    raw_fields: dict[str, str] = {}
-    for paragraph in document.paragraphs:
-        text = paragraph.text.strip()
-        if not text:
-            continue
-        parsed = parse_labeled_line(text)
-        if parsed:
-            field_name, value = parsed
-            if field_name not in raw_fields:
-                raw_fields[field_name] = value
+    slots = list(front_matter_slots(document))
+    return extract_front_matter(
+        [slot[1] for slot in slots], header_lines=[slot[2] for slot in slots]
+    )
 
-    return finalize_front_matter(raw_fields)
+
+def front_matter_slots(document):
+    """(paragraph, text for "Label: value" matching, text for header
+    guessing) for every paragraph in reading order, including text inside
+    tables — many syllabi put course info in a table at the top. Table
+    text is never used for header guessing (a schedule header isn't a
+    title). A two-cell row also yields its value cell's paragraph matched
+    as "left: right", so a "Term | Fall 2026" row reads like a label line.
+    Shared with docx_rollover, which rewrites the term in place."""
+    for block in document.iter_inner_content():
+        if not hasattr(block, "rows"):
+            yield block, block.text, block.text
+            continue
+        for row in block.rows:
+            cells = row.cells
+            if len(cells) == 2:
+                label = cells[0].text.strip().rstrip(":")
+                yield cells[1].paragraphs[0], f"{label}: {cells[1].text.strip()}", ""
+            for cell in cells:
+                for paragraph in cell.paragraphs:
+                    yield paragraph, paragraph.text, ""
 
 
 def _year_from_term_or_raise(term: str) -> int:
@@ -162,91 +131,7 @@ def _year_from_term_or_raise(term: str) -> int:
     return year
 
 
-# ---- Schedule weeks -------------------------------------------------------
-
-
-def _extract_weeks(table, year: int) -> list[Week]:
-    weeks: list[Week] = []
-    for row in table.rows[1:]:  # skip header
-        label_text = row.cells[0].text.strip()
-        second_cell_lines = _cell_lines(row.cells[1]) if len(row.cells) > 1 else []
-        match = WEEK_LABEL_RE.search(label_text)
-
-        if match:
-            weeks.append(_build_regular_week(match, label_text, second_cell_lines, year))
-        else:
-            weeks.append(_build_break_week(label_text, second_cell_lines, year))
-
-    if not weeks:  # pragma: no cover - _find_schedule_table already guarantees >=1 data row
-        raise ExtractionError(
-            "The schedule table was found but contains no week rows. Make "
-            "sure it has at least one row below the header."
-        )
-    return weeks
-
-
-def _build_regular_week(match, label_text: str, second_cell_lines: list[str], year: int) -> Week:
-    week_number = int(match.group(1))
-    month, day = int(match.group(2)), int(match.group(3))
-    topics, assignments, notes = _classify_lines(second_cell_lines)
-    return Week(
-        week_number=week_number,
-        date=dt.date(year, month, day),
-        label=label_text,
-        is_break=False,
-        topics=topics,
-        assignments=assignments,
-        notes=notes,
-    )
-
-
-def _build_break_week(label_text: str, second_cell_lines: list[str], year: int) -> Week:
-    combined_text = label_text + " " + " ".join(second_cell_lines)
-    range_match = DATE_RANGE_RE.search(combined_text)
-    if not range_match:
-        raise ExtractionError(
-            f"Could not determine the dates for the break row '{label_text}'. "
-            "Include a date range like '(10/10 - 10/18)' next to the label."
-        )
-    m1, d1, m2, d2 = (int(group) for group in range_match.groups())
-    return Week(
-        week_number=None,
-        date_start=dt.date(year, m1, d1),
-        date_end=dt.date(year, m2, d2),
-        label=label_text,
-        is_break=True,
-        topics=[],
-        assignments=[],
-    )
-
-
-def _cell_lines(cell) -> list[str]:
-    return [text for p in cell.paragraphs if (text := p.text.strip())]
-
-
-def _classify_lines(lines: list[str]) -> tuple[list[str], list[str], str | None]:
-    """Split a schedule cell's lines into topics, assignments, and an
-    optional notes string.
-
-    MVP heuristic: a line explicitly prefixed "Note:"/"Notes:" becomes
-    part of the week's notes; a line containing the word "due" is an
-    assignment; everything else is a topic.
-    """
-    topics: list[str] = []
-    assignments: list[str] = []
-    notes_parts: list[str] = []
-
-    for line in lines:
-        note_match = _NOTE_PREFIX_RE.match(line)
-        if note_match:
-            notes_parts.append(line[note_match.end() :].strip())
-        elif _DUE_RE.search(line):
-            assignments.append(line)
-        else:
-            topics.append(line)
-
-    notes = " ".join(notes_parts) if notes_parts else None
-    return topics, assignments, notes
+# ---- Schedule dates -------------------------------------------------------
 
 
 def _course_start_date(weeks: list[Week]) -> dt.date:
@@ -263,6 +148,9 @@ def _course_end_date(weeks: list[Week]) -> dt.date:
 
 
 def _extract_learning_objectives(document) -> list[str]:
+    """Paragraphs after a "Learning Objectives" heading, skipping a lead-in
+    line ("By the end of this course, you will be able to:") and stopping
+    at the next heading — a Heading style or an all-caps Normal line."""
     objectives: list[str] = []
     collecting = False
     for paragraph in document.paragraphs:
@@ -274,31 +162,49 @@ def _extract_learning_objectives(document) -> list[str]:
             continue
         if not collecting:
             continue
-        if paragraph.style is not None and paragraph.style.name.startswith("Heading"):
+        if _is_heading(paragraph, text):
             break
+        if not objectives and text.endswith(":"):
+            continue
         objectives.append(text)
     return objectives
+
+
+def _is_heading(paragraph, text: str) -> bool:
+    if paragraph.style is not None and paragraph.style.name.startswith("Heading"):
+        return True
+    return text.isupper() and len(text) <= _CAPS_HEADING_MAX_CHARS
 
 
 # ---- Assessments table -----------------------------------------------------
 
 
 def _extract_assessments(document) -> list[Assessment]:
+    """The first table that reads as grading weights: a header with a
+    "Weight" (or "%") column, or — with no header row — a table whose
+    rows' second cells are mostly percentages. A "Total" row is skipped."""
     for table in document.tables:
-        if not table.rows:  # pragma: no cover - python-docx tables always have >=1 row
+        rows = [row for row in table.rows if len(row.cells) >= 2]
+        if len(rows) < 2:
             continue
-        header = [cell.text.strip().lower() for cell in table.rows[0].cells]
-        if "assessment" in header and any("weight" in cell for cell in header):
-            return _parse_assessment_rows(table)
+        header_cells = [cell.text.strip() for cell in rows[0].cells[1:]]
+        if any(
+            _WEIGHT_HEADER_RE.search(cell) and not _WEIGHT_PERCENT_RE.search(cell)
+            for cell in header_cells
+        ):
+            return _parse_assessment_rows(rows[1:])
+        weighted = [row for row in rows if _WEIGHT_PERCENT_RE.search(row.cells[1].text)]
+        if len(weighted) * 2 > len(rows) and _WEIGHT_PERCENT_RE.search(rows[0].cells[1].text):
+            return _parse_assessment_rows(rows)
     return []
 
 
-def _parse_assessment_rows(table) -> list[Assessment]:
+def _parse_assessment_rows(rows) -> list[Assessment]:
     assessments = []
-    for row in table.rows[1:]:
+    for row in rows:
         name = row.cells[0].text.strip()
         weight_match = _WEIGHT_PERCENT_RE.search(row.cells[1].text)
-        if not weight_match:
+        if not weight_match or name.lower().startswith("total"):
             continue
         assessments.append(Assessment(name=name, weight=float(weight_match.group(1)) / 100))
     return assessments

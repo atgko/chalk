@@ -195,24 +195,60 @@ def test_unparseable_week_date_raises_extraction_error(tmp_path):
     assert "Could not determine the date for week 1" in exc_info.value.user_message
 
 
-@pytest.mark.parametrize(
-    "omitted_field",
-    ["Course", "Course Number", "Section", "Credits", "Term", "Instructor", "Meeting Pattern"],
-)
-def test_missing_front_matter_field_raises_extraction_error(tmp_path, omitted_field):
-    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.md", omit=omitted_field)
-
-    with pytest.raises(ExtractionError):
-        extract_course_data(path)
-
-
-def test_invalid_credits_value_raises_extraction_error(tmp_path):
-    path = build_syllabus_with_invalid_credits(tmp_path / "syllabus.md")
+def test_missing_term_raises_extraction_error(tmp_path):
+    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.md", omit="Term")
 
     with pytest.raises(ExtractionError) as exc_info:
         extract_course_data(path)
 
-    assert "Credits" in exc_info.value.user_message
+    assert "term" in exc_info.value.user_message
+
+
+@pytest.mark.parametrize(
+    ("omitted_field", "attribute", "blank"),
+    [
+        ("Section", "section", ""),
+        ("Credits", "credits", None),
+        ("Instructor", "instructor", ""),
+        ("Meeting Pattern", "meeting_pattern", ""),
+    ],
+)
+def test_missing_optional_front_matter_field_is_left_blank(
+    tmp_path, omitted_field, attribute, blank
+):
+    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.md", omit=omitted_field)
+
+    assert getattr(extract_course_data(path).course, attribute) == blank
+
+
+def test_missing_course_title_falls_back_to_the_course_number(tmp_path):
+    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.md", omit="Course")
+
+    assert extract_course_data(path).course.title == "IS 4490"
+
+
+def test_unreadable_credits_value_is_left_blank(tmp_path):
+    path = build_syllabus_with_invalid_credits(tmp_path / "syllabus.md")
+
+    assert extract_course_data(path).course.credits is None
+
+
+def test_course_info_in_a_two_column_table_is_read(tmp_path):
+    path = tmp_path / "syllabus.md"
+    path.write_text(
+        "# Emerging Technologies\n\n"
+        "| Field | Value |\n| --- | --- |\n| Course Number | IS 4490 |\n| Semester | Spring 2027 |\n\n"
+        "| Week | Dates | Topic | Major Work |\n| --- | --- | --- | --- |\n"
+        "| 1 | 1/11 - 1/17 | Course Introduction |  |\n",
+        encoding="utf-8",
+    )
+
+    course = extract_course_data(path).course
+    assert (course.title, course.number, course.term) == (
+        "Emerging Technologies",
+        "IS 4490",
+        "Spring 2027",
+    )
 
 
 def test_term_without_a_parseable_year_raises_extraction_error(tmp_path):

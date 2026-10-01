@@ -89,7 +89,7 @@ def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> Non
 def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
     preview = plan.preview
     st.subheader(
-        f"Rollover preview: {plan.original.course.number} "
+        f"Rollover preview: {plan.original.course.number or plan.original.course.title} "
         f"({preview.source_duration_weeks} weeks) → {preview.target_term}"
     )
     st.markdown(

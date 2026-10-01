@@ -22,7 +22,17 @@ from tests.fixtures.docx_builder import (
 )
 
 
-def _rolled_over_copy(course_data, *, week_dates: dict, break_dates=None, term: str = "Fall 2027"):
+def _rolled_over_copy(
+    course_data,
+    *,
+    week_dates: dict,
+    break_dates=(dt.date(2027, 10, 9), dt.date(2027, 10, 17)),
+    term: str = "Fall 2027",
+):
+    # break_dates defaults to a Fall-2027-consistent range because the
+    # writer places each break row before the first week starting after
+    # it: a break left at 2026 dates beside 2027 weeks would sort first --
+    # a state roll_over_course() never produces (see test_markdown_rollover).
     new_weeks = []
     for week in course_data.weeks:
         if week.is_break:

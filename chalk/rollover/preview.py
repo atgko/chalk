@@ -36,8 +36,19 @@ from chalk.calendar_data import find_term
 from chalk.errors import LLMProviderError
 from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
+from chalk.rollover.season_change import (
+    is_season_change,
+    multi_day_breaks,
+    rebuild_break_weeks,
+    replacement_flag,
+    stale_break_flag,
+    unmatched_university_date_flag,
+)
 
 _DST_BOUNDARY_WINDOW_DAYS = 14
+_BREAK_MENTION_RE = re.compile(
+    r"\b(?:spring|fall|summer|winter|thanksgiving|holiday)\s+break\b|\bno class(?:es)?\b", re.IGNORECASE
+)
 
 # Stand-in date for weeks added by a duration increase — overwritten by
 # _shift_regular_weeks, and reported as "no old date" in the preview.
@@ -107,29 +118,52 @@ def roll_over_course(
     )
     original_break_weeks = [week for week in course_data.weeks if week.is_break]
 
+    season_changed = is_season_change(course_data.course.term, target_term)
+    general_flags = _general_flags(old_duration, new_duration)
+
     new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start)
-    new_break_weeks, break_changes = _shift_break_weeks(
-        original_break_weeks, target_breaks, new_term_start, course_data.course.term_start
-    )
+    if season_changed and original_break_weeks and term_data is not None:
+        new_break_weeks, break_changes = _rebuild_break_weeks_for_new_season(target_breaks, new_weeks)
+        general_flags.append(
+            replacement_flag(
+                course_data.course.term,
+                target_term,
+                removed=[break_name(week.label) for week in original_break_weeks],
+                added=[break_name(week.label) for week in new_break_weeks],
+            )
+        )
+    else:
+        new_break_weeks, break_changes = _shift_break_weeks(
+            original_break_weeks, target_breaks, new_term_start, course_data.course.term_start
+        )
+        if season_changed and original_break_weeks:
+            general_flags.append(
+                stale_break_flag(
+                    course_data.course.term,
+                    target_term,
+                    [break_name(week.label) for week in original_break_weeks],
+                )
+            )
     new_weeks.extend(new_break_weeks)
     week_changes.extend(break_changes)
 
     _flag_weeks_colliding_with_target_breaks(new_weeks, week_changes, target_breaks, new_term_start.year)
-
-    general_flags = _general_flags(old_duration, new_duration)
+    _flag_numbered_weeks_marked_as_breaks(new_weeks, week_changes, course_data.course.term, target_term)
 
     if course_data.course.source_format == "markdown":
         _flag_dst_boundary_weeks(new_weeks, week_changes)
 
     new_weeks.sort(key=_week_sort_key)
 
-    new_university_dates = _shift_university_dates(
+    new_university_dates, university_date_flags = _shift_university_dates(
         course_data.university_dates,
         term_data,
         target_breaks,
         new_term_start,
         course_data.course.term_start,
+        rename_for_term=target_term if season_changed else None,
     )
+    general_flags.extend(university_date_flags)
 
     new_course_info = course_data.course.model_copy(
         update={
@@ -280,6 +314,19 @@ def _shift_break_weeks(
     return new_weeks, changes
 
 
+def _rebuild_break_weeks_for_new_season(
+    target_breaks: list[dict], new_regular_weeks: list[Week]
+) -> tuple[list[Week], list[WeekChange]]:
+    """Season-change rollover: break rows come from the target calendar
+    (chalk.rollover.season_change), so none of them has an "old" date."""
+    new_break_weeks = rebuild_break_weeks(target_breaks, new_regular_weeks)
+    changes = [
+        WeekChange(week_number=None, label=week.label, old_date=None, new_date=week.date_start)
+        for week in new_break_weeks
+    ]
+    return new_break_weeks, changes
+
+
 # ---- University dates ---------------------------------------------------
 
 
@@ -289,13 +336,24 @@ def _shift_university_dates(
     target_breaks: list[dict],
     new_term_start: dt.date,
     old_term_start: dt.date,
-) -> list[UniversityDate]:
+    *,
+    rename_for_term: str | None = None,
+) -> tuple[list[UniversityDate], list[str]]:
     """Recompute the university-dates table for the target term: "begin"
     and "end" entries come from the target term's own start/end, entries
     matching a named break come from that break's target-term dates, and
-    anything else falls back to a same-offset shift as a best effort."""
+    anything else falls back to a same-offset shift as a best effort.
+
+    `rename_for_term` is set on a season-change rollover: an unmatched
+    break span then takes over the next unused target-term break (name and
+    dates), and anything still unmatched is flagged for review. Entries
+    keep their order and count either way, so the writers can pair them
+    with the source table's rows by position. Returns (entries, flags).
+    """
     offset_days = (new_term_start - old_term_start).days
     new_entries = []
+    flags: list[str] = []
+    unused_target_breaks = _target_breaks_not_named_in(university_dates, target_breaks)
 
     for entry in university_dates:
         event_lower = entry.event.lower()
@@ -319,9 +377,33 @@ def _shift_university_dates(
             )
             continue
 
+        if rename_for_term is not None and term_data is not None:
+            if entry.date_start is not None and unused_target_breaks:
+                new_entries.append(_university_date_from_break(entry, unused_target_breaks.pop(0)))
+                continue
+            flags.append(unmatched_university_date_flag(entry.event, rename_for_term))
+
         new_entries.append(_shift_university_date_by_offset(entry, offset_days))
 
-    return new_entries
+    return new_entries, flags
+
+
+def _target_breaks_not_named_in(
+    university_dates: list[UniversityDate], target_breaks: list[dict]
+) -> list[dict]:
+    named = [_match_break_in_calendar(entry.event, target_breaks) for entry in university_dates]
+    return [entry for entry in multi_day_breaks(target_breaks) if entry not in named]
+
+
+def _university_date_from_break(entry: UniversityDate, target_break: dict) -> UniversityDate:
+    return entry.model_copy(
+        update={
+            "event": target_break["label"],
+            "date": None,
+            "date_start": dt.date.fromisoformat(target_break["date_start"]),
+            "date_end": dt.date.fromisoformat(target_break["date_end"]),
+        }
+    )
 
 
 def _shift_university_date_by_offset(entry: UniversityDate, offset_days: int) -> UniversityDate:
@@ -377,6 +459,24 @@ def _flag_weeks_colliding_with_target_breaks(
                     f"{entry['label']} {year} is {_format_break_range(entry)} — "
                     f"confirm Week {week.week_number} timing"
                 )
+
+
+def _flag_numbered_weeks_marked_as_breaks(
+    weeks: list[Week], changes: list[WeekChange], source_term: str, target_term: str
+) -> None:
+    """Some syllabi number their break week ("Week 10 (Mar. 10) — Spring
+    Break"), so it rolls over as an ordinary week whose content is a break
+    that's probably no longer in that week. Flag it rather than guess."""
+    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
+    for week in weeks:
+        if week.is_break or week.week_number not in changes_by_week_number:
+            continue
+        match = _BREAK_MENTION_RE.search(" ".join([*week.topics, *week.assignments, week.notes or ""]))
+        if match:
+            changes_by_week_number[week.week_number].flags.append(
+                f"Week {week.week_number} was marked '{match.group(0)}' in {source_term} — check "
+                f"this week against the {target_term} calendar."
+            )
 
 
 def _date_in_break(date: dt.date, entry: dict) -> bool:

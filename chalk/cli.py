@@ -340,7 +340,7 @@ def _preview_with_week1_fallback(
 def format_preview(plan: RolloverPlan, paths: ProjectPaths) -> str:
     """Render a RolloverPlan in the PRD section 6.2 preview layout."""
     preview = plan.preview
-    number = plan.original.course.number
+    number = plan.original.course.number or plan.original.course.title
     lines = [
         f"ROLLOVER PREVIEW: {number} ({preview.source_duration_weeks} weeks) → {preview.target_term}",
         _RULE,

@@ -3,8 +3,9 @@
 Synthetic content, clearly labeled as such, shaped like the PRD's own
 examples: IS 6640 (Word, 10 weeks, Fall 2026 with a Fall Break row, the
 PRD section 6.2 worked example), the same course mislabeled "Spring 2026"
-(the sponsor's real term-label bug, PRD section 6.1), and IS 4490
-(markdown, with due dates near the November DST change).
+(the sponsor's real term-label bug, PRD section 6.1), IS 4490
+(markdown, with due dates near the November DST change), and OSC 6660
+(a 16-week Spring syllabus in a real-world layout Chalk had to learn).
 """
 
 from __future__ import annotations
@@ -200,3 +201,93 @@ def write_subnetting_notes(path: Path) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+# ---- OSC 6660: a real-world layout -------------------------------------
+
+_OSC6660_HEADER_LINES = [
+    "Project Management in Healthcare",
+    "OSC 6660 | Spring 2026",
+    "3 Credit Hours",
+    "Tuesday 6:00-9:00 pm CRCC 105",
+    "CONTACT",
+    "Professors: Alex Example & Sam Example",
+    "COURSE DESCRIPTION",
+    "Project management has become a way of life.",
+    "LEARNING OBJECTIVES",
+    "By the end of this course, you will be able to:",
+]
+OSC6660_OBJECTIVES = [
+    "Distinguish between projects and operations",
+    "Understand core project management terminology",
+    "Leave with a toolkit of templates",
+]
+_OSC6660_GRADING = [
+    ("Assignments", "30%"),
+    ("Discussion Posts", "10%"),
+    ("Final", "30%"),
+    ("Participation", "30%"),
+    ("Total:", "100%"),
+]
+# (module title, [(week number, date text, focus or None for a final-presentation week)])
+_OSC6660_MODULES = [
+    ("MODULE 1: Project Initiation", [(1, "Jan. 6", "Course Introduction"), (2, "Jan. 13", "Project Charter"), (3, "Jan. 20", "Stakeholders")]),
+    ("MODULE 2: Project Planning", [(4, "Jan. 27", "Scope"), (5, "Feb. 3", "Schedule"), (6, "Feb. 10", "Communication")]),
+    ("MODULE 3: Project Execution", [(7, "Feb. 17", "Status Reporting"), (8, "Feb. 24", "Risk"), (9, "Mar. 3", "Quality"), (10, "Mar. 10", "Spring Break")]),
+    ("MODULE 4: Project Control", [(11, "Mar. 17", "Change Management"), (12, "Mar. 24", "Metrics"), (13, "Mar. 31", "Closure")]),
+    ("MODULE 5: Project Closure", [(14, "Apr. 7", None), (15, "Apr. 14", None), (16, "Apr. 21", "Exam Review")]),
+]  # fmt: skip
+_OSC6660_COLUMN_HEADERS = ["Focus", "Pre-Work: Reading and Discussion", "Assignment Due"]
+
+
+def build_osc6660_module_syllabus(path: Path) -> Path:
+    """A 16-week Spring syllabus laid out the way real ones often are, not
+    the way Chalk's original convention expected: no "Label:" header lines
+    except "Professors:", an all-caps objectives heading with a lead-in,
+    an "Activity Type | Weight" table, and the schedule split across five
+    module tables using "Week 1 (Jan. 6)" labels, an "Assignment Due"
+    column, and a numbered Spring Break week. Shaped after a real
+    healthcare project management syllabus; all names and content are
+    invented. The sample notice goes last — at the top it would be read
+    as the course title."""
+    doc = Document()
+    for line in _OSC6660_HEADER_LINES:
+        doc.add_paragraph(line)
+    for objective in OSC6660_OBJECTIVES:
+        doc.add_paragraph(objective, style="List Bullet")
+    doc.add_paragraph("REQUIRED TEXT AND COURSE MATERIALS")
+    doc.add_paragraph("PMI Study Hall Basics")
+    doc.add_paragraph("EVALUATION METHODS")
+    _add_osc6660_grading_table(doc)
+    doc.add_paragraph("Course Schedule")
+    for title, weeks in _OSC6660_MODULES:
+        _add_osc6660_module_table(doc, title, weeks)
+    doc.add_paragraph(SAMPLE_NOTICE)
+    doc.save(str(path))
+    return path
+
+
+def _add_osc6660_grading_table(doc) -> None:
+    table = doc.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text, table.rows[0].cells[1].text = "Activity Type", "Weight"
+    for name, weight in _OSC6660_GRADING:
+        cells = table.add_row().cells
+        cells[0].text, cells[1].text = name, weight
+
+
+def _add_osc6660_module_table(doc, title: str, weeks) -> None:
+    table = doc.add_table(rows=2, cols=3)
+    table.rows[0].cells[0].merge(table.rows[0].cells[2]).text = title
+    for cell, text in zip(table.rows[1].cells, _OSC6660_COLUMN_HEADERS, strict=True):
+        cell.text = text
+    for number, date_text, focus in weeks:
+        cells = table.add_row().cells
+        if focus is None:
+            suffix = f"Final Part 1 (Session {number - 13}): Final Presentations"
+            cells[0].text = f"Week {number} ({date_text}) – {suffix}"
+        else:
+            cells[0].text = f"Week {number} ({date_text})"
+            cells[0].add_paragraph(focus)
+        is_break = focus == "Spring Break"
+        cells[1].text = "Spring Break" if is_break else f"Read: Article {number}"
+        cells[2].text = "Spring Break" if is_break else f"Project Artifact #{number}"

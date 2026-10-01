@@ -26,11 +26,15 @@ The IS 6640 Word syllabus was already extracted: course details, four learning o
 - *"It never renumbers quizzes or exams, and it never writes anything until you confirm."* Click **Confirm rollover**.
 - Download **outputs/syllabus.docx** and open it in Word: the formatting is untouched, and only the dates changed.
 
+**3b. A different season (1 min).** Change the target term to **Spring 2027** and preview again. The Fall Break row becomes **Spring Break (3/6 – 3/14)**, and the preview explains the swap: *"This is a Fall → Spring rollover, so breaks come from the Spring 2027 calendar."* It also flags MLK Day, Presidents Day, and Week 9 landing in Spring Break. (A teammate found the old behavior, which kept "Fall Break", while testing. It's fixed.)
+
 **4. Canvas in one paste (1 min). Export tab.**
 Show the Canvas HTML box and its copy button, plus **Download all as zip**. The course brief is a one-page summary built automatically, with no AI and no cost.
 
 **5. The bug it catches (1–2 min). Upload tab.**
 Upload **`IS-6640-Spring-2026-term-label-bug.docx`** and click **Extract course**. The warning appears: *term label says Spring 2026, but Week 1 is August*. *"This is the real mistake that prompted the check: the label was updated but the schedule wasn't."* Click **Cancel**. The saved course is untouched. (The Metrics tab counts this as a consistency-check catch.)
+
+**5b. A real-world syllabus (2 min). Upload tab.** Upload **`OSC-6660-Spring-2026-real-world-layout.docx`**. It's laid out the way real syllabi are, not the way Chalk first expected: no `Term:`-style labels, a 16-week schedule split across five module tables, dates like `Week 1 (Jan. 6)`, and a separate Assignment Due column. On **Review**, everything is filled in: title, OSC 6660, Spring 2026, 3 credits, Tuesday 6–9 pm, both professors, three objectives (the lead-in sentence skipped), four grading weights (the Total row ignored), and all 16 weeks with topics and assignments split out. Any blank detail can be typed in right there. *Don't* click Confirm and save, and point out the yellow note on the Rollover tab: it still shows the saved course until you do. To drop the unsaved upload, refresh the browser page (the saved demo course is untouched). (It's shaped after a real healthcare project management syllabus; the content is invented.)
 
 **6. Drafting course materials (3 min). Generate tab.** *Needs the AI provider from setup.*
 - Content type **Quiz**, **Week 3** (Protocols and subnetting), 5 questions, mixed.

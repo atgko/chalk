@@ -2,7 +2,7 @@
 
 Parses the schedule table (headers "| Week | Dates | Topic | Major Work
 |"), detects break rows (week cell literally "-"), and reads front-matter
-metadata using the same "Label: value" line convention as the Word path.
+metadata the same loose way as the Word path (chalk.extractors._front_matter).
 
 The PRD's markdown-path bullet list (section 6.1) only requires the
 schedule table and university dates. This extractor also looks for
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from chalk.errors import AmbiguousTableError, ExtractionError
 from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE, year_from_term
-from chalk.extractors._front_matter import finalize_front_matter, parse_labeled_line
+from chalk.extractors._front_matter import extract_front_matter
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
 _SEPARATOR_CELL_RE = re.compile(r"^:?-{3,}:?$")
@@ -88,17 +88,24 @@ def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> 
 
 
 def _extract_front_matter(text: str) -> dict:
-    raw_fields: dict[str, str] = {}
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("|"):
-            continue
-        parsed = parse_labeled_line(stripped)
-        if parsed:
-            field_name, value = parsed
-            if field_name not in raw_fields:
-                raw_fields[field_name] = value
-    return finalize_front_matter(raw_fields)
+    lines = text.splitlines()
+    return extract_front_matter(
+        [_front_matter_line(line) for line in lines],
+        header_lines=[line for line in lines if not line.strip().startswith("|")],
+    )
+
+
+def _front_matter_line(line: str) -> str:
+    """A two-cell table row ("| Term | Fall 2026 |") reads like a
+    "Term: Fall 2026" line; other table rows are dropped so schedule text
+    is never mistaken for the header."""
+    stripped = line.strip()
+    if not stripped.startswith("|"):
+        return line
+    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    if len(cells) == 2 and not _is_separator_row(cells):
+        return f"{cells[0].rstrip(':')}: {cells[1]}"
+    return ""
 
 
 def _year_from_term_or_raise(term: str) -> int:

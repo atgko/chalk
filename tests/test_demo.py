@@ -92,3 +92,11 @@ def test_never_touches_a_same_named_folder_that_is_not_the_demo(tmp_path):
 def test_an_empty_same_named_folder_becomes_the_demo(tmp_path):
     (tmp_path / demo_project_name()).mkdir()
     assert load_course(ProjectPaths(open_demo_project(tmp_path).root)) is not None
+
+
+def test_try_these_includes_a_real_world_layout_syllabus_that_extracts(tmp_path):
+    demo = open_demo_project(tmp_path)
+
+    course, _ = extract_syllabus(demo, demo.root / TRY_THESE_DIR / "OSC-6660-Spring-2026-real-world-layout.docx")
+
+    assert (course.course.number, course.course.term, course.course.duration_weeks) == ("OSC 6660", "Spring 2026", 16)

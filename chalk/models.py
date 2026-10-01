@@ -19,16 +19,20 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class CourseInfo(BaseModel):
+    """Course metadata. Section, credits, meeting pattern, and instructor
+    are often missing from real syllabi, so they may be blank ("" / None)
+    until the instructor fills them in on the Review tab."""
+
     title: str
     number: str
-    section: str
-    credits: int
+    section: str = ""
+    credits: int | None = None
     term: str
     term_start: dt.date
     term_end: dt.date
     duration_weeks: int = Field(gt=0)
-    meeting_pattern: str
-    instructor: str
+    meeting_pattern: str = ""
+    instructor: str = ""
     source_format: Literal["word", "markdown"]
     source_file: str
     extracted_at: dt.datetime

@@ -137,13 +137,10 @@ def test_objectives_collection_stops_at_the_next_heading(tmp_path):
     ]
 
 
-def test_invalid_credits_value_raises_extraction_error(tmp_path):
+def test_unreadable_credits_value_is_left_blank(tmp_path):
     path = build_syllabus_with_invalid_credits(tmp_path / "syllabus.docx")
 
-    with pytest.raises(ExtractionError) as exc_info:
-        extract_course_data(path)
-
-    assert "Credits" in exc_info.value.user_message
+    assert extract_course_data(path).course.credits is None
 
 
 def test_term_without_a_parseable_year_raises_extraction_error(tmp_path):
@@ -192,17 +189,34 @@ def test_unresolvable_break_row_raises_extraction_error(tmp_path):
     assert "Could not determine the dates for the break row" in exc_info.value.user_message
 
 
-@pytest.mark.parametrize(
-    "omitted_field",
-    ["course", "number", "section", "credits", "term", "instructor", "meeting_pattern"],
-)
-def test_missing_front_matter_field_raises_extraction_error(tmp_path, omitted_field):
-    path = build_syllabus_missing_front_matter_field(
-        tmp_path / "syllabus.docx", omit=omitted_field
-    )
+def test_missing_term_raises_extraction_error(tmp_path):
+    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.docx", omit="term")
 
-    with pytest.raises(ExtractionError):
+    with pytest.raises(ExtractionError) as exc_info:
         extract_course_data(path)
+
+    assert "term" in exc_info.value.user_message
+
+
+@pytest.mark.parametrize(
+    ("omitted_field", "attribute", "blank"),
+    [
+        ("section", "section", ""),
+        ("credits", "credits", None),
+        ("instructor", "instructor", ""),
+        ("meeting_pattern", "meeting_pattern", ""),
+    ],
+)
+def test_missing_optional_front_matter_field_is_left_blank(tmp_path, omitted_field, attribute, blank):
+    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.docx", omit=omitted_field)
+
+    assert getattr(extract_course_data(path).course, attribute) == blank
+
+
+def test_missing_course_title_falls_back_to_the_course_number(tmp_path):
+    path = build_syllabus_missing_front_matter_field(tmp_path / "syllabus.docx", omit="course")
+
+    assert extract_course_data(path).course.title == "IS 6640"
 
 
 def test_password_protected_file_raises_protected_file_error(tmp_path):

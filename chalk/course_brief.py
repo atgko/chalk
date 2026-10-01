@@ -43,18 +43,17 @@ def _render_overview(course_data: CourseData) -> str:
     term_range = (
         f"{_short_date(course.term_start)} – {_short_date(course.term_end)}, {course.term_end.year}"
     )
-    return "\n".join(
-        [
-            f"# {course.title}",
-            "",
-            f"- **Course:** {course.number} (Section {course.section})",
-            f"- **Term:** {course.term} ({term_range})",
-            f"- **Duration:** {course.duration_weeks} weeks",
-            f"- **Credits:** {course.credits}",
-            f"- **Meeting pattern:** {course.meeting_pattern}",
-            f"- **Instructor:** {course.instructor}",
-        ]
-    )
+    course_line = course.number + (f" (Section {course.section})" if course.section else "")
+    rows = [
+        ("Course", course_line),
+        ("Term", f"{course.term} ({term_range})"),
+        ("Duration", f"{course.duration_weeks} weeks"),
+        ("Credits", "" if course.credits is None else str(course.credits)),
+        ("Meeting pattern", course.meeting_pattern),
+        ("Instructor", course.instructor),
+    ]
+    # Details a syllabus didn't state are omitted rather than shown blank.
+    return "\n".join([f"# {course.title}", ""] + [f"- **{label}:** {value}" for label, value in rows if value])
 
 
 def _render_objectives(objectives: list[str]) -> str:
