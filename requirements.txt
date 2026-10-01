@@ -5,6 +5,7 @@ openai>=3.19,<4           # OpenAI SDK; also serves the Ollama path (OpenAI-comp
 anthropic>=1.8,<2         # Anthropic SDK — separate response shape, isolated inside llm_client.py
 python-docx>=1.2,<2       # Word (.docx) table read/write for extraction and rollover, in place
 pypdf>=6.19,<7            # Pure-Python PDF text extraction for source materials and rubric descriptions
+pdfplumber>=0.11.10,<0.12 # PDF syllabi: text with positions and ruled tables (MIT; pure Python via pdfminer.six)
 pydantic>=2.13,<3         # course.json schema as typed models with validation
 python-dotenv>=1.2,<2     # loads .env (LLM_PROVIDER/LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
 pandas>=3.0,<4            # Metrics tab chart data (also a Streamlit dependency)

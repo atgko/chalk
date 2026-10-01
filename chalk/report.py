@@ -16,7 +16,7 @@ from chalk.archiving import archive_before_write
 from chalk.metrics import read_events
 from chalk.project import ProjectPaths
 
-_FORMAT_BY_SUFFIX = {".docx": "word", ".md": "markdown"}
+_FORMAT_BY_SUFFIX = {".docx": "word", ".md": "markdown", ".pdf": "pdf"}
 
 
 def render_evaluation_report(events: list[dict[str, Any]], *, project_name: str, generated_on: dt.date) -> str:
@@ -54,8 +54,9 @@ def _when(event: dict[str, Any]) -> str:
 def _files_section(events: list[dict[str, Any]]) -> str:
     extracted: dict[str, int] = defaultdict(int)
     failed: dict[str, int] = defaultdict(int)
+    # A PDF is converted to Word before extraction; it's counted as "pdf".
     for event in _of_type(events, "extraction"):
-        extracted[event.get("source_format", "unknown")] += 1
+        extracted["pdf" if "pdf_method" in event else event.get("source_format", "unknown")] += 1
     for event in _of_type(events, "extraction_error"):
         failed[_FORMAT_BY_SUFFIX.get(Path(event.get("filename", "")).suffix.lower(), "other")] += 1
 

@@ -15,7 +15,7 @@ import streamlit as st
 from chalk.extractors.consistency import ConsistencyResult
 from chalk.generation.engine import GeneratedDraft
 from chalk.models import CourseData
-from chalk.pipeline import RolloverPlan
+from chalk.pipeline import PdfConversion, RolloverPlan
 from chalk.project import ProjectPaths
 
 PROJECT_ROOT_KEY = "chalk_project_root"
@@ -43,10 +43,12 @@ class PendingExtraction:
 @dataclass(frozen=True)
 class TableChoice:
     """An upload whose schedule table was ambiguous, awaiting the
-    instructor's pick (DECISIONS.md manual override)."""
+    instructor's pick (DECISIONS.md manual override). For a PDF, the
+    conversion is kept so the PDF isn't read (or paid for) twice."""
 
     upload_path: Path
     candidates: list[str]
+    pdf_conversion: PdfConversion | None = None
 
 
 @dataclass(frozen=True)

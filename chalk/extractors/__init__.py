@@ -1,7 +1,7 @@
 """Syllabus extraction (F-01): public entry point.
 
 `extract_course()` dispatches to the Word or markdown extractor by file
-extension and always runs the term/Week-1 consistency check on the result
+extension (a PDF is converted to Word first, in chalk.pipeline) and always runs the term/Week-1 consistency check on the result
 (PRD section 6.1) — extraction and the consistency check are never
 performed separately, so no caller can accidentally skip the check.
 """
@@ -42,7 +42,7 @@ def extract_course(
     extractor = _EXTRACTORS_BY_SUFFIX.get(path.suffix.lower())
     if extractor is None:
         raise ExtractionError(
-            f"Unsupported file type '{path.suffix}'. Upload a .docx or .md syllabus."
+            f"Unsupported file type '{path.suffix}'. Upload a .docx, .md, or .pdf syllabus."
         )
 
     course_data = extractor(path, schedule_table_index=schedule_table_index)

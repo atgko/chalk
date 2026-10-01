@@ -31,13 +31,13 @@ def test_dispatches_md_files_to_the_markdown_extractor(tmp_path):
 
 
 def test_unsupported_extension_raises_extraction_error(tmp_path):
-    path = tmp_path / "syllabus.pdf"
+    path = tmp_path / "syllabus.doc"
     path.write_text("not a syllabus", encoding="utf-8")
 
     with pytest.raises(ExtractionError) as exc_info:
         extract_course(path)
 
-    assert ".docx or .md" in exc_info.value.user_message
+    assert ".docx, .md, or .pdf" in exc_info.value.user_message
 
 
 def test_consistency_check_always_runs_and_catches_the_named_bug(tmp_path):

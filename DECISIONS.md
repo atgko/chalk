@@ -15,7 +15,7 @@
 
 ## Technology choices
 
-- **PDF parsing**: `pypdf` (pure-Python, no system deps — sufficient for instructor-authored summaries/excerpts).
+- **PDF parsing**: `pypdf` (pure-Python, no system deps — sufficient for instructor-authored summaries/excerpts). PDF *syllabi* use `pdfplumber` instead, which gives text positions and ruled tables (see below).
 - **Password-protected `.docx` detection**: Catch the exception python-docx raises (`BadZipFile`/`PackageNotFoundError`) rather than pre-checking the zip structure; surface the existing plain-English message.
 - **Test stack**: `pytest` + `pytest-cov`.
 - **Test fixtures for extractors**: Minimal synthetic `.docx`/`.md` documents generated programmatically (one fixture per parsing rule), not trimmed real test-corpus syllabi.
@@ -98,6 +98,14 @@
 - **Other tabs warn about an unsaved extraction.** Rollover/Generate/Export always use the saved `course.json`; with a newly extracted syllabus pending, they now say so. This is the likely cause of the "16-week syllabus showed 10 weeks" report (the 10-week demo course was still saved).
 - **The demo ships a real-world-layout sample** (`try-these/OSC-6660-Spring-2026-real-world-layout.docx`, synthetic content), built by `chalk.demo_content.build_osc6660_module_syllabus` and reused by the tests.
 - **Real syllabi live in the git-ignored `reference/` folder.** They contain instructor contact details (and the repo is public); tests use synthetic look-alikes. Open problems are tracked in BACKLOG.md.
+
+## PDF syllabi (Oct 1, 2026)
+
+- **A PDF is converted to Word, not parsed into `course.json` directly.** Chalk can't edit a PDF, so rollover has to write a new file anyway. Converting once, at upload, to `source/<name> (from PDF).docx` means extraction, review, rollover, and export all reuse the Word path unchanged, and rollover produces an editable `.docx`. Faculty can download the converted file. The original PDF isn't copied into `source/`, so it doesn't show up as a source material.
+- **Two readers, the instructor's choice** (upload screen, or `extract --read-pdf-with local|ai`). *Local* (default): `pdfplumber` (MIT), offline, free, deterministic. *AI*: the configured LLM turns the local reader's text into a fixed JSON schema (validated with Pydantic) that's written as a Word file in the layout the Word reader expects. It's for layouts the local reader can't follow, costs money, sends the text to the provider, and isn't deterministic; Review catches its mistakes. Its prompt lives in code, not `resources/prompts/`, because it's a contract with the parser rather than a writing style. A PDF→Word converter library was considered and not adopted (quality varies by layout; licensing needs checking).
+- **The local reader keeps only real tables.** pdfplumber reports every ruled box as a table; only schedules (a `Week N (date)` row) and grids with mostly filled rows stay tables, the rest is read as text. Schedule pieces split across pages are stitched together: repeated headers dropped, a row cut at a page break merged into the week above, one table per module when titles sit between them. Running headers and footers ("Page N", or a line repeated in the page margins) are dropped.
+- **Wrapped lines are rejoined by position.** A line that ended with room for the next line's first word (measured from its characters) ended on purpose; bullets, gaps, and sentence-ending punctuation also break; a lowercase start always continues. Characters are assigned to the table cell their center falls in, or the nearest cell on their line, because pdfplumber's cell borders are sometimes narrower than the text.
+- **An AI read is logged as a `generation` event** (`content_type: pdf_syllabus_reading`; tokens and cost, never content), so it counts toward the project's AI cost and the evaluation report. Extraction events for PDFs carry `pdf_method`, and the report counts them as format "pdf".
 
 ## Visual design
 

@@ -12,21 +12,37 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from chalk import metrics
+from chalk import costs, metrics
 from chalk.calendar_data import find_term, load_calendars
 from chalk.canvas_export import write_canvas_html
+from chalk.config import load_config
 from chalk.course_brief import write_course_brief
 from chalk.errors import ChalkError, ProjectError, TermNotInCalendarError
 from chalk.extractors import extract_course
 from chalk.extractors.consistency import ConsistencyResult
+from chalk.generation.engine import current_env
+from chalk.llm_client import CompletionResult
 from chalk.models import CourseData
+from chalk.pdf_import import PdfReadMethod, converted_docx_name
+from chalk.pdf_import.ai_reader import read_with_ai
+from chalk.pdf_import.docx_writer import write_docx
+from chalk.pdf_import.layout import read_pdf_blocks
 from chalk.project import ProjectPaths, copy_into_source, load_course, save_course
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
 from chalk.rollover.preview import RolloverPreview, roll_over_course
+
+# The metrics/report label for an AI read of a PDF syllabus.
+PDF_READING_CONTENT_TYPE = "pdf_syllabus_reading"
+# Measured on an 11-page syllabus (~2,800 characters of text per page):
+# the page's text goes in once and comes back out as JSON, plus the
+# model's thinking. Only used for the "about $X per page" hint.
+_AI_READING_INPUT_TOKENS_PER_PAGE = 800
+_AI_READING_OUTPUT_TOKENS_PER_PAGE = 1200
 
 
 @dataclass(frozen=True)
@@ -44,9 +60,20 @@ class RolloverPlan:
 
 
 def extract_syllabus(
-    paths: ProjectPaths, syllabus_path, *, schedule_table_index: int | None = None
+    paths: ProjectPaths,
+    syllabus_path,
+    *,
+    schedule_table_index: int | None = None,
+    pdf_method: PdfReadMethod = "local",
+    pdf_conversion: PdfConversion | None = None,
 ) -> tuple[CourseData, ConsistencyResult]:
     """Extract a syllabus and copy it into source/.
+
+    A PDF is first converted to Word (convert_pdf_syllabus, read the way
+    `pdf_method` says) and the Word file is what's extracted and stored.
+    Pass `pdf_conversion` instead to reuse an earlier conversion — e.g.
+    when the instructor picks a schedule table, so an AI read isn't paid
+    for twice.
 
     Does NOT save course.json — the instructor reviews the result first
     (and decides what to do about a failed consistency check), then calls
@@ -54,6 +81,12 @@ def extract_syllabus(
     events and re-raised for the caller to show.
     """
     syllabus_path = Path(syllabus_path)
+    if pdf_conversion is None and syllabus_path.suffix.lower() == ".pdf":
+        pdf_conversion = convert_pdf_syllabus(paths, syllabus_path, method=pdf_method)
+    pdf_details = {}
+    if pdf_conversion is not None:
+        syllabus_path = pdf_conversion.docx_path
+        pdf_details = {"filename": pdf_conversion.pdf_name, "pdf_method": pdf_conversion.method}
     try:
         course_data, consistency = extract_course(
             syllabus_path, eval_log_path=paths.eval_log, schedule_table_index=schedule_table_index
@@ -62,7 +95,7 @@ def extract_syllabus(
         metrics.append_event(
             paths.eval_log,
             "extraction_error",
-            {"error_type": type(exc).__name__, "filename": syllabus_path.name},
+            {"error_type": type(exc).__name__, "filename": syllabus_path.name, **pdf_details},
         )
         raise
 
@@ -85,9 +118,77 @@ def extract_syllabus(
             "source_format": course_data.course.source_format,
             "duration_weeks": course_data.course.duration_weeks,
             "week_rows": len(course_data.weeks),
+            **pdf_details,
         },
     )
     return course_data, consistency
+
+
+@dataclass(frozen=True)
+class PdfConversion:
+    """A PDF syllabus read into a Word file (in a private temp folder until
+    extraction copies it into source/). `cost_usd` is None for a local
+    read, or for an AI read with a model that has no cost rate."""
+
+    pdf_name: str
+    docx_path: Path
+    method: PdfReadMethod
+    cost_usd: float | None = None
+
+
+def convert_pdf_syllabus(paths: ProjectPaths, pdf_path, *, method: PdfReadMethod = "local") -> PdfConversion:
+    """Read a PDF syllabus into "<name> (from PDF).docx". An AI read logs
+    a `generation` event (tokens and cost, never content) so it counts
+    toward the project's AI cost. Failures are logged as
+    `extraction_error` events and re-raised."""
+    pdf_path = Path(pdf_path)
+    try:
+        blocks = read_pdf_blocks(pdf_path)
+        cost = None
+        if method == "ai":
+            blocks, completion = read_with_ai(blocks)
+            cost = _log_ai_reading(paths, pdf_path, completion)
+    except ChalkError as exc:
+        metrics.append_event(
+            paths.eval_log,
+            "extraction_error",
+            {"error_type": type(exc).__name__, "filename": pdf_path.name, "pdf_method": method},
+        )
+        raise
+    docx_path = Path(tempfile.mkdtemp(prefix="chalk-pdf-")) / converted_docx_name(pdf_path)
+    return PdfConversion(pdf_path.name, write_docx(blocks, docx_path), method, cost)
+
+
+def estimate_ai_reading_cost_per_page(paths: ProjectPaths) -> float | None:
+    """Rough cost of reading one PDF page with AI, shown before the
+    instructor picks a reader. None when the model has no cost rate."""
+    rate = costs.rate_for(load_config(paths.config_json), current_env())
+    return costs.cost_usd(rate, _AI_READING_INPUT_TOKENS_PER_PAGE, _AI_READING_OUTPUT_TOKENS_PER_PAGE)
+
+
+def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, completion: CompletionResult) -> float | None:
+    env = current_env()
+    cost = costs.cost_usd(
+        costs.rate_for(load_config(paths.config_json), env),
+        completion["input_tokens"],
+        completion["output_tokens"],
+    )
+    metrics.append_event(
+        paths.eval_log,
+        "generation",
+        {
+            "content_type": PDF_READING_CONTENT_TYPE,
+            "week_number": None,
+            "output_file": f"source/{converted_docx_name(pdf_path)}",
+            "provider": env["LLM_PROVIDER"],
+            "model": env["LLM_MODEL"] or "unknown model",
+            "input_tokens": completion["input_tokens"],
+            "output_tokens": completion["output_tokens"],
+            "cost_usd": cost,
+            "source_file_count": 0,
+        },
+    )
+    return cost
 
 
 def save_reviewed_course(paths: ProjectPaths, course_data: CourseData) -> list[Path]:

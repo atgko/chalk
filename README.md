@@ -80,7 +80,7 @@ streamlit run app.py -- --project "path/to/project"   # open a project directly
 
 The app has seven tabs. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
 
-**Upload.** Choose your `.docx` or `.md` syllabus and click **Extract course**. If the term label doesn't match the Week 1 date (for example, "Spring 2026" with an August Week 1), you'll see a warning. Fix the syllabus and re-upload, or click **Continue anyway**. The override is recorded in the metrics log. If the document has more than one table that looks like a schedule, you'll be asked to pick the right one.
+**Upload.** Choose your `.docx`, `.md`, or `.pdf` syllabus and click **Extract course**. For a PDF, first pick how Chalk should read it (see *PDF syllabi* in section 6). If the term label doesn't match the Week 1 date (for example, "Spring 2026" with an August Week 1), you'll see a warning. Fix the syllabus and re-upload, or click **Continue anyway**. The override is recorded in the metrics log. If the document has more than one table that looks like a schedule, you'll be asked to pick the right one.
 
 **Review.** Check what was extracted: course details, learning objectives, grading weights, and every week. `Duration (weeks)` is editable. Change it here to lengthen or shorten the course at the next rollover. Click **Confirm and save** to write `course.json` and the course brief. Nothing is saved until you do.
 
@@ -103,6 +103,7 @@ Everything the app does is also available from a terminal, which is useful for s
 ```bash
 python toolkit.py init --name "IS-6640-Fall-2027" [--dir <parent folder>]
 python toolkit.py extract path/to/syllabus.docx --project IS-6640-Fall-2027 [--continue-anyway]
+python toolkit.py extract path/to/syllabus.pdf --project IS-6640-Fall-2027 [--read-pdf-with local|ai]
 python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--weeks 12] [--week1-date 2027-08-23] [--no-llm] [--yes]
 python toolkit.py export --project IS-6640-Fall-2027
 python toolkit.py add path/to/chapter-3-summary.pdf --project IS-6640-Fall-2027
@@ -116,7 +117,7 @@ python toolkit.py demo [--reset]
 python toolkit.py status --project IS-6640-Fall-2027
 ```
 
-- `extract` asks before saving past a failed term/Week-1 check. `--continue-anyway` skips the question, and the override is still logged.
+- `extract` asks before saving past a failed term/Week-1 check. `--continue-anyway` skips the question, and the override is still logged. A PDF is read on this computer unless you pass `--read-pdf-with ai`.
 - `rollover` prints the full preview and asks before writing. `--yes` skips the question. If the term isn't in the calendar, it asks for the first day of classes (or pass `--week1-date`).
 - `generate` shows the estimated cost, asks before replacing an existing draft (`--yes` skips this), then saves the draft and prints tokens used and cost. `--source` can be repeated.
 - `report` writes `outputs/evaluation-report.md`.
@@ -173,7 +174,14 @@ IS-6640-Fall-2027/
 - **Word:** a schedule table whose first column has labels like `Week 1 (8/24)` or `Week 1 (Jan. 6)` (text after the label is fine), with break rows like `Fall Break (10/10 - 10/18)`. The schedule can be split across several tables (one per module), as long as the week numbers continue from table to table; title and header rows are skipped. A column headed like `Assignment Due` is read as assignments. Rollover keeps each label's date style (`Jan. 6` stays a month name).
 - **Markdown:** a table with header `| Week | Dates | Topic | Major Work |`, dates like `8/24 - 8/30`, and break rows with `-` as the week.
 - Optional: a "Learning Objectives" (or "Course Outcome and Objectives") heading followed by the objectives, up to the next heading (a Word heading style or an ALL-CAPS line); a lead-in like "By the end of this course, you will be able to:" is skipped. A grading table: one with a `Weight` (or `%`) column, or a two-column table of percentages with no header row; a `Total` row is ignored. A table with `Event` and `Date` columns for university dates.
-- PDF syllabi aren't supported yet. Export the document as Word (`.docx`) first (Google Docs: File → Download → Microsoft Word).
+- **PDF:** see below.
+
+**PDF syllabi.** Chalk can't edit a PDF, so it reads the PDF once into a Word file, `source/<name> (from PDF).docx`, and works from that: Review, Generate, Export, and rollover all behave as for a Word upload, and a rollover gives you an editable `outputs/syllabus.docx`. You can download the Word file from the Upload tab right after extracting. Two ways to read the PDF:
+
+- **Read it on this computer** (the default). Free, and nothing leaves your computer. Works when the schedule is a table with ruled lines and `Week N (date)` labels, like the Word layout above; a schedule that runs across pages is joined back up. Takes a few seconds per page.
+- **Read it with AI.** Uses your AI provider, so it needs one set up (section 8). For layouts the first option can't follow, such as a schedule that isn't a table. It sends the syllabus text to your provider and costs a few cents per page (the app shows an estimate for your model, and the actual cost afterwards; it counts toward the project's AI cost). The result can differ slightly from one run to the next.
+
+Either way, check the Review tab: a line that wrapped at a page break may be joined to, or split from, the line above. Scanned PDFs (pictures of pages) have no text to read; save the original document as Word or as a text PDF instead. Exporting to Word yourself (Google Docs: File → Download → Microsoft Word) is still a good option, and keeps your original formatting.
 
 ## 7. Updating the academic calendar
 
@@ -327,8 +335,23 @@ Add at least one week row below the table's header.
 **"This file doesn't look like a plain-text markdown file."**
 Save the `.md` file as UTF-8 text. Most editors have this under "Save with encoding".
 
-**"Unsupported file type '…'. Upload a .docx or .md syllabus."**
-Only Word (`.docx`) and markdown (`.md`) syllabi can be extracted. Save a PDF or `.doc` syllabus as `.docx` first.
+**"Unsupported file type '…'. Upload a .docx, .md, or .pdf syllabus."**
+Only Word (`.docx`), markdown (`.md`), and PDF syllabi can be extracted. Save a `.doc` syllabus as `.docx` first.
+
+**"This PDF has no text Chalk can read — it's probably a scanned image."**
+The PDF is pictures of pages. Open the original document and save it as Word, or as a PDF with text.
+
+**"Chalk couldn't open this PDF."**
+It's password-protected or damaged. Save a copy without the password, or save the original as Word.
+
+**"No schedule table found…" after reading a PDF on this computer**
+The schedule isn't a ruled table Chalk can follow. Try **Read it with AI**, or save the PDF as Word and fix the table there.
+
+**"The AI's reading of this PDF didn't come back in the expected form…"**
+The AI's answer wasn't usable (a very long syllabus can get cut off). Try again, or choose **Read it on this computer**.
+
+**"The AI couldn't find a week-by-week schedule in this PDF."**
+Check that the syllabus has a dated schedule. If it does, save it as Word and upload that.
 
 **"course.json couldn't be read — it may have been edited by hand."**
 A hand edit broke the file's format. Restore the previous version from `.archive/`, or re-extract the syllabus.
@@ -422,7 +445,7 @@ A bug. Your files were not changed. The terminal window running the app has the 
 ## 12. Data and privacy
 
 - **Everything stays local.** Projects, syllabi, outputs, and the metrics log live in folders on your computer. There is no Chalk server, account, or telemetry, and Streamlit's own anonymous usage statistics are switched off (`.streamlit/config.toml`).
-- **What goes to the AI provider:** only when you click Generate (or run `generate`), and only the filled-in prompt. That prompt contains the course title, learning objectives, the chosen week's topics, your options, and the text of the source materials you selected. With the Ollama option, nothing leaves the university network. Nothing is sent during extraction, rollover, or export, except that lengthening a course during rollover with "Draft topics for the added weeks with AI" ticked sends the recent weeks' topics.
+- **What goes to the AI provider:** only when you click Generate (or run `generate`), and only the filled-in prompt. That prompt contains the course title, learning objectives, the chosen week's topics, your options, and the text of the source materials you selected. With the Ollama option, nothing leaves the university network. Nothing is sent during extraction, rollover, or export, with two exceptions you choose: reading a PDF syllabus with **Read it with AI** sends the syllabus's full text, and lengthening a course during rollover with "Draft topics for the added weeks with AI" ticked sends the recent weeks' topics. Reading a PDF on this computer (the default) sends nothing.
 - **Your API key** is stored only in the project's `.env` file. The repo's `.gitignore` and each project's `.gitignore` keep it out of git. Never share or commit it.
 - **FERPA: course materials only.** Never upload student work, grades, rosters, emails, or anything that identifies a student. Chalk is designed for syllabi and instructor-authored materials, the app says so wherever files are uploaded, and every prompt template instructs the model not to request or invent student information.
 - **The metrics log** (`eval-log.json`) records counts, token usage, costs, file names, and timestamps, never the content of your syllabus or generated drafts.

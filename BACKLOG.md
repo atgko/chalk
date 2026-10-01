@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-09-30.
+Last updated: 2026-10-01.
 
 ## Open questions (need someone outside the code)
 
@@ -12,15 +12,11 @@ Last updated: 2026-09-30.
 
 ## Extraction
 
-- **P1 (explore, then decide): Should Chalk accept PDF syllabi?** Today uploads must be .docx or .md; the workaround is exporting to Word. Many syllabi are shared as PDFs or exported from Google Docs, so this will be an early stumbling block.
-  - **Product question first:** Chalk can't edit a PDF in place. A PDF could feed Review, Generate, Export, and the course brief, but rollover would have to write a *new* .docx/.md syllabus rather than update the original. Check with faculty or the sponsor whether that's acceptable.
-  - **Options to compare:**
-    1. *Status quo:* keep "export to Word" and say so clearly in the upload error. No cost.
-    2. *Layout-aware PDF table extraction* (e.g. pdfplumber): deterministic and offline, but results depend on each PDF's layout. pypdf (already a dependency) returned OSC 6660 one word per line with the tables lost.
-    3. *Convert PDF → .docx, then reuse the Word path:* reuses everything already built, but conversion quality varies; check the converter's license before adopting it.
-    4. *LLM-assisted extraction from the PDF text:* handles unusual layouts best, but costs money per upload, isn't deterministic, needs a provider configured, and sends the syllabus text to the provider. The Review step would catch its mistakes.
-    - Scanned (image-only) PDFs would also need OCR. Proposed: out of scope.
-  - **Suggested spike (½–1 day):** run options 2 and 3 on the OSC 6660 PDF and one or two other real PDFs in `reference/`. Record whether the weeks, dates, topics, and header details come through, then pick an option (or a fallback chain such as 2 → 4).
+- **P1: Try the AI PDF reader against a real provider.** It's only been tested with canned replies. Run OSC 6660 through it with Claude and OpenAI; check the weeks come through and record the real cost per page (the hint assumes ~800 tokens in / ~1,200 out per page).
+- **P2: Test the local PDF reader on more real PDFs.** Only OSC 6660 has been tried. Watch for schedules without ruling lines (pdfplumber can't see them as tables; the AI reader is the fallback), two-column page layouts, and Google Docs exports.
+- **P2: Rows cut at a page break are rejoined by a guess.** The first paragraph carried onto the next page is joined to the one above unless that ended a sentence. A complete line like "Project Artifact #2A: Scope Plan" followed by a new item on the next page would be wrongly joined. Keeping the previous page's line positions would make this exact.
+- **P3: Scanned PDFs (OCR).** Out of scope; Chalk explains and suggests saving as Word.
+- **P3: A sample PDF in the demo course** so teammates can try the PDF path without their own syllabus. Needs a small PDF writer (the tests hand-build theirs in `tests/fixtures/pdf_layout_builder.py`).
 - **P2: Markdown has none of the Word path's new tolerance.** No month-name dates, no split tables, no extra columns. Markdown is Chalk's own format, so this matters less, but the README should keep saying so.
 - **P2: Year inference uses the term's year for every date.** A Fall syllabus with a January row (e.g. finals week "Week 17 (1/4)") would get the wrong year.
 - **P2: Grading weights aren't checked to sum to 100%.** Review should warn when they don't (e.g. a missed row, or a points-based table).
@@ -51,6 +47,7 @@ Last updated: 2026-09-30.
 
 ## Done
 
+- 2026-10-01: PDF syllabi: read on this computer (pdfplumber) or with AI, converted to a Word file that the existing Word path extracts and rolls over.
 - 2026-09-30: Season-change rollovers rebuild break rows from the target calendar (Spring rollovers no longer say "Fall Break").
 - 2026-09-30: Loose front-matter extraction (only the term required; details editable on Review).
 - 2026-09-30: Word schedules: month-name dates, module tables, Assignment Due column, text after labels; objectives and grading-table detection loosened; unsaved-extraction warning.

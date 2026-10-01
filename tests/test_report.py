@@ -31,7 +31,7 @@ def test_files_processed_with_error_rate_by_format():
     report = render_evaluation_report(events, project_name="P", generated_on=ON)
     assert "| word | 2 | 1 | 33% |" in report
     assert "| markdown | 1 | 0 | 0% |" in report
-    assert "| other | 0 | 1 | 100% |" in report
+    assert "| pdf | 0 | 1 | 100% |" in report
     assert "- 2026-11-02 15:30 — locked.docx: ProtectedFileError" in report
 
 

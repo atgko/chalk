@@ -45,6 +45,7 @@ from chalk.generation.specs import (
     SPECS,
 )
 from chalk.models import CourseData
+from chalk.pdf_import import PDF_READ_METHODS
 from chalk.pipeline import (
     RolloverPlan,
     confirm_rollover,
@@ -127,7 +128,14 @@ def build_parser() -> argparse.ArgumentParser:
     add.set_defaults(handler=_cmd_add)
 
     extract = commands.add_parser("extract", parents=[project_arg], help="Extract course.json from a syllabus.")
-    extract.add_argument("file", type=Path, help="The .docx or .md syllabus.")
+    extract.add_argument("file", type=Path, help="The .docx, .md, or .pdf syllabus.")
+    extract.add_argument(
+        "--read-pdf-with",
+        choices=PDF_READ_METHODS,
+        default="local",
+        help="How to read a PDF: 'local' (this computer; free and private, the default) or "
+        "'ai' (your LLM provider; handles unusual layouts, costs a few cents).",
+    )
     extract.add_argument(
         "--continue-anyway",
         action="store_true",
@@ -202,8 +210,15 @@ def _cmd_add(args, console: _Console) -> int:
 
 def _cmd_extract(args, console: _Console) -> int:
     paths = open_project(args.project)
-    course_data, consistency = extract_syllabus(paths, args.file)
+    is_pdf = args.file.suffix.lower() == ".pdf"
+    if is_pdf and args.read_pdf_with == "ai":
+        _require_provider(paths)
+    if is_pdf:
+        console.say("Reading the PDF — this can take a minute for a long syllabus…")
+    course_data, consistency = extract_syllabus(paths, args.file, pdf_method=args.read_pdf_with)
     console.say(_format_course_summary(course_data))
+    if is_pdf:
+        console.say(f"Saved the PDF as a Word file for review and rollover: {course_data.course.source_file}")
 
     if not consistency.passed:
         console.say()
@@ -218,6 +233,18 @@ def _cmd_extract(args, console: _Console) -> int:
         console.say(f"Wrote {_relative(path, paths)}")
     console.say("Review course.json (especially duration_weeks) before rolling over.")
     return 0
+
+
+def _require_provider(paths: ProjectPaths) -> None:
+    """Load the project's .env and fail with setup instructions if no LLM
+    provider is configured."""
+    if paths.env.exists():
+        load_dotenv(paths.env, override=False)
+    if describe_provider(current_env()) == "Not configured":
+        raise ChalkError(
+            "No LLM provider is configured. Copy .env.example to this project's .env and fill it in, "
+            "or set one up in the app's Settings tab."
+        )
 
 
 def _cmd_rollover(args, console: _Console) -> int:
@@ -248,13 +275,7 @@ def _cmd_export(args, console: _Console) -> int:
 
 def _cmd_generate(args, console: _Console) -> int:
     paths = open_project(args.project)
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
-    if describe_provider(current_env()) == "Not configured":
-        raise ChalkError(
-            "No LLM provider is configured. Copy .env.example to this project's .env and fill it in, "
-            "or set one up in the app's Settings tab."
-        )
+    _require_provider(paths)
     course_data = require_course(paths)
     request = _generation_request(args)
     if spec_for(request.content_type).per_week and request.week_number is None:
