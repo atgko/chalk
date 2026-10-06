@@ -8,9 +8,24 @@ Last updated: 2026-10-05.
 
 - **P1: Get the Word (.docx) version of the OSC 6660 syllabus.** We only have the PDF. The module-table support was built against a synthetic look-alike reconstructed from the PDF's text (`chalk/demo_content.py`), so the real table structure (merged title rows, where the focus text sits, soft line breaks) is unverified.
 - **P1: Confirm the "16-week syllabus showed 10 weeks" report.** Most likely cause: the new syllabus was extracted into the demo project but not yet saved, so the Rollover tab still showed the saved 10-week demo course. The app now warns about this. Ask the teammate whether they clicked Confirm and save first.
-- **P1: Which AI providers are allowed for student data? (sponsor, Oct 5)** The University of Utah currently sanctions only ChatGPT (presumably its licensed ChatGPT Edu workspace, which is a different product from the OpenAI API that Chalk calls). Before any grading feature: confirm with the U's IT/privacy office (FERPA) which providers and contract terms are approved for student work. API data retention, training opt-outs, and zero-data-retention agreements differ by provider and contract.
-- **P2: Privacy guardrails before sending text to an AI (sponsor, Oct 5).** Idea: in Settings, classify each provider as university-approved or public, and redact student names, uNIDs, and emails before anything goes to a non-approved provider. Today nothing student-related is sent (syllabi and instructor source materials only), so this is a prerequisite for grading, not a current gap.
 - **P2: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). PLAN.md's Section 15 test corpus (before the Nov 8 readiness meeting) is the place to find new layouts. Keep them in the git-ignored `reference/` folder, since the repo is public.
+
+## AI providers and student data (sponsor discussion, Oct 5)
+
+Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI today (only syllabi and the instructor's own source materials), so these are prerequisites for a future grading feature, not current gaps. Next step: a discussion within the team, then with the sponsor.
+
+- **P1: Confirm which AI providers are approved for student work.** The University of Utah currently sanctions only ChatGPT. Grading could be built on it if licensing is approved; other frontier providers don't have that approval.
+  - "Sanctioned ChatGPT" most likely means the U's licensed ChatGPT Edu workspace, which runs under a university contract. Chalk calls the OpenAI API with an individual's key, and that contract doesn't automatically cover it.
+  - "APIs don't store data" isn't quite right. OpenAI's and Anthropic's APIs don't train on API data by default, but both keep requests for a period (typically up to ~30 days, for abuse monitoring). Zero-data-retention is a separate agreement. Check each provider's current terms before relying on this.
+  - Student work is an education record under FERPA, so the deciding question is contractual, not technical: which services have a data agreement with the university. The U's IT/privacy office owns that answer.
+  - Question to bring to the sponsor: "Which AI services and contract terms are approved for student work, and can Chalk use them through an API?"
+- **P2: Privacy guardrails before any text is sent to an AI.** If student data ever leaves the computer, enforce protection in code, configured on the Settings page.
+  - Classify each provider in Settings: university-approved, not approved (public), or local (a model running on the instructor's computer, so nothing leaves it).
+  - Block, or redact before sending, any student information going to a provider that isn't approved.
+  - Names: exact-match against an uploaded Canvas roster. This is far more reliable than guessing which words are names.
+  - IDs and contact details: strip uNIDs (`u` + 7 digits) and email addresses with pattern matching.
+  - Log what was redacted (counts only, never the content) in the existing metadata-only eval log, so the evaluation report can show the guardrail working.
+- **P3: Grading feature (blocked on the two items above).** Scope it only once a provider is approved: e.g. rubric-based draft feedback that the instructor reviews, never a final grade.
 
 ## Extraction
 
