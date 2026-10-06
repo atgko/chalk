@@ -107,6 +107,11 @@
 - **Wrapped lines are rejoined by position.** A line that ended with room for the next line's first word (measured from its characters) ended on purpose; bullets, gaps, and sentence-ending punctuation also break; a lowercase start always continues. Characters are assigned to the table cell their center falls in, or the nearest cell on their line, because pdfplumber's cell borders are sometimes narrower than the text.
 - **An AI read is logged as a `generation` event** (`content_type: pdf_syllabus_reading`; tokens and cost, never content), so it counts toward the project's AI cost and the evaluation report. Extraction events for PDFs carry `pdf_method`, and the report counts them as format "pdf".
 
+## Sponsor feedback (Oct 5, 2026)
+
+- **Rollover asks which days the class meets.** Classes move days between terms, so this is a rollover input, not a saved course field. It defaults to the days in the syllabus's meeting pattern ("MW 10:45", "TTh", "Tuesdays and Thursdays"; `chalk.rollover.meeting_days`). With days chosen, a holiday or break is flagged only when it lands on a class day (a Tue/Thu class isn't warned about Labor Day, and a Thursday class is now warned about Thanksgiving, which the week's-start-date check missed). With none chosen, the old check against each week's start date still applies. Picking days that differ from the syllabus adds a reminder to update the meeting-pattern line, which rollover never rewrites.
+- **Each multi-day break in the target term has an on/off toggle** (default on). Some graduate programs meet through Fall or Spring Break. A break that's switched off is removed from the schedule rows (or never added on a season change) and never flagged. Single-day holidays are still flagged, and the University Dates table still lists the break because it's the university's calendar, not the class's. CLI: `--meeting-days TR`, `--no-break "Fall Break"`.
+
 ## Visual design
 
 - **Theme**: University of Utah colors on the warm, editorial layout of the team's reference page (off-white background, cream panels, serif headings, sans-serif body), set entirely in `.streamlit/config.toml` with separate light and dark themes. No custom CSS, so Streamlit upgrades can't break it.

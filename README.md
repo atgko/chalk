@@ -84,7 +84,7 @@ The app has seven tabs. Rollover, Generate, Export, and Metrics unlock once a co
 
 **Review.** Check what was extracted: course details, learning objectives, grading weights, and every week. `Duration (weeks)` is editable. Change it here to lengthen or shorten the course at the next rollover. Click **Confirm and save** to write `course.json` and the course brief. Nothing is saved until you do.
 
-**Rollover.** Pick the target term. It defaults to the same season next year. For a term that isn't in the calendar data, choose **Another term** and enter the first day of classes. Click **Preview rollover** to see every week's old and new date, plus flags for anything to check by hand: a week landing on a holiday or break, a changed course length, or (markdown syllabi) due dates near the daylight-saving change. Click **Confirm rollover** to write the files. Previous versions are archived, never overwritten.
+**Rollover.** Pick the target term. It defaults to the same season next year. For a term that isn't in the calendar data, choose **Another term** and enter the first day of classes. Under **Class meets on**, pick the days the class meets in the new term (pre-filled from the syllabus's meeting pattern). Holiday and break warnings then appear only when one lands on a class day. Each of the term's breaks has a toggle: switch one off if the class meets through it (some graduate programs do), and it's left out of the schedule. Click **Preview rollover** to see every week's old and new date, plus flags for anything to check by hand: a week landing on a holiday or break, a changed course length, or (markdown syllabi) due dates near the daylight-saving change. Click **Confirm rollover** to write the files. Previous versions are archived, never overwritten.
 
 **Generate.** Choose a content type and week (or, for a rubric, the assignment name and description), then any source materials to ground the draft in. The estimated maximum cost is shown before you click **Generate**. The draft appears for review. **Save** writes it to `outputs/`, **Regenerate** makes a new call (after asking), and **Discard** throws it away. If a draft already exists for that week, you'll be asked before it's replaced (the old one is archived).
 
@@ -104,7 +104,7 @@ Everything the app does is also available from a terminal, which is useful for s
 python toolkit.py init --name "IS-6640-Fall-2027" [--dir <parent folder>]
 python toolkit.py extract path/to/syllabus.docx --project IS-6640-Fall-2027 [--continue-anyway]
 python toolkit.py extract path/to/syllabus.pdf --project IS-6640-Fall-2027 [--read-pdf-with local|ai]
-python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--weeks 12] [--week1-date 2027-08-23] [--no-llm] [--yes]
+python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--weeks 12] [--week1-date 2027-08-23] [--meeting-days TR] [--no-break "Fall Break"] [--no-llm] [--yes]
 python toolkit.py export --project IS-6640-Fall-2027
 python toolkit.py add path/to/chapter-3-summary.pdf --project IS-6640-Fall-2027
 python toolkit.py generate quiz --week 3 --project IS-6640-Fall-2027 [--count 5] [--format mixed] [--source chapter-3-summary.pdf]
@@ -118,7 +118,7 @@ python toolkit.py status --project IS-6640-Fall-2027
 ```
 
 - `extract` asks before saving past a failed term/Week-1 check. `--continue-anyway` skips the question, and the override is still logged. A PDF is read on this computer unless you pass `--read-pdf-with ai`.
-- `rollover` prints the full preview and asks before writing. `--yes` skips the question. If the term isn't in the calendar, it asks for the first day of classes (or pass `--week1-date`).
+- `rollover` prints the full preview and asks before writing. `--yes` skips the question. If the term isn't in the calendar, it asks for the first day of classes (or pass `--week1-date`). `--meeting-days` (e.g. `TR`, `MW`, `"Mon,Wed"`) limits holiday warnings to class days; `--no-break` (repeatable) drops a break the class meets through.
 - `generate` shows the estimated cost, asks before replacing an existing draft (`--yes` skips this), then saves the draft and prints tokens used and cost. `--source` can be repeated.
 - `report` writes `outputs/evaluation-report.md`.
 - Run `python toolkit.py <command> -h` for every option.

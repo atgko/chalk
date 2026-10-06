@@ -2,12 +2,14 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-01.
+Last updated: 2026-10-05.
 
 ## Open questions (need someone outside the code)
 
 - **P1: Get the Word (.docx) version of the OSC 6660 syllabus.** We only have the PDF. The module-table support was built against a synthetic look-alike reconstructed from the PDF's text (`chalk/demo_content.py`), so the real table structure (merged title rows, where the focus text sits, soft line breaks) is unverified.
 - **P1: Confirm the "16-week syllabus showed 10 weeks" report.** Most likely cause: the new syllabus was extracted into the demo project but not yet saved, so the Rollover tab still showed the saved 10-week demo course. The app now warns about this. Ask the teammate whether they clicked Confirm and save first.
+- **P1: Which AI providers are allowed for student data? (sponsor, Oct 5)** The University of Utah currently sanctions only ChatGPT (presumably its licensed ChatGPT Edu workspace, which is a different product from the OpenAI API that Chalk calls). Before any grading feature: confirm with the U's IT/privacy office (FERPA) which providers and contract terms are approved for student work. API data retention, training opt-outs, and zero-data-retention agreements differ by provider and contract.
+- **P2: Privacy guardrails before sending text to an AI (sponsor, Oct 5).** Idea: in Settings, classify each provider as university-approved or public, and redact student names, uNIDs, and emails before anything goes to a non-approved provider. Today nothing student-related is sent (syllabi and instructor source materials only), so this is a prerequisite for grading, not a current gap.
 - **P2: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). PLAN.md's Section 15 test corpus (before the Nov 8 readiness meeting) is the place to find new layouts. Keep them in the git-ignored `reference/` folder, since the repo is public.
 
 ## Extraction
@@ -47,6 +49,7 @@ Last updated: 2026-10-01.
 
 ## Done
 
+- 2026-10-05: Rollover asks which days the class meets (holiday warnings only on class days) and lets the instructor switch off breaks the class meets through.
 - 2026-10-01: PDF syllabi: read on this computer (pdfplumber) or with AI, converted to a Word file that the existing Word path extracts and rolls over.
 - 2026-09-30: Season-change rollovers rebuild break rows from the target calendar (Spring rollovers no longer say "Fall Break").
 - 2026-09-30: Loose front-matter extraction (only the term required; details editable on Review).

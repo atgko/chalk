@@ -64,6 +64,7 @@ from chalk.project import (
     require_course,
 )
 from chalk.report import write_evaluation_report
+from chalk.rollover.meeting_days import parse_meeting_days
 
 _RULE = "─" * 64
 
@@ -148,6 +149,19 @@ def build_parser() -> argparse.ArgumentParser:
     rollover.add_argument("--weeks", type=int, help="New course length in weeks (default: unchanged).")
     rollover.add_argument("--week1-date", type=_parse_date, help="First day of classes (YYYY-MM-DD), for terms not in the calendar.")
     rollover.add_argument("--no-llm", action="store_true", help="Don't ask the LLM to draft topics for added weeks.")
+    rollover.add_argument(
+        "--meeting-days",
+        type=_parse_meeting_days,
+        default=(),
+        help='Days the class meets in the new term, e.g. "TR" or "Mon,Wed" (narrows holiday warnings).',
+    )
+    rollover.add_argument(
+        "--no-break",
+        action="append",
+        default=[],
+        metavar="BREAK",
+        help='A break the class meets through, e.g. "Fall Break" (repeatable).',
+    )
     rollover.add_argument("--yes", action="store_true", help="Write the files without asking for confirmation.")
     rollover.set_defaults(handler=_cmd_rollover)
 
@@ -342,6 +356,8 @@ def _preview_with_week1_fallback(
     kwargs = {
         "target_duration_weeks": args.weeks,
         "llm_generate_topics": not args.no_llm,
+        "meeting_days": args.meeting_days,
+        "breaks_not_observed": frozenset(args.no_break),
     }
     try:
         return preview_rollover(paths, course_data, args.term, manual_week1_date=args.week1_date, **kwargs)
@@ -446,3 +462,10 @@ def _parse_date(text: str) -> dt.date:
         return dt.date.fromisoformat(text)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"'{text}' isn't a date in YYYY-MM-DD form.") from exc
+
+
+def _parse_meeting_days(text: str) -> tuple[int, ...]:
+    days = parse_meeting_days(text)
+    if not days:
+        raise argparse.ArgumentTypeError(f"'{text}' doesn't name any days — try \"TR\" or \"Mon,Wed\".")
+    return days

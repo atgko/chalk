@@ -408,6 +408,23 @@ def test_lengthening_offers_ai_drafts_and_shows_the_flags(saved_project):
     assert any("confirm Week 8 timing" in w for w in warnings)
 
 
+def test_meeting_days_and_break_toggles_narrow_the_flags(saved_project):
+    at = launch(saved_project)
+    widget(at.number_input, "Duration (weeks)").set_value(9)
+    at = at.run()
+    at.checkbox[0].uncheck()
+    widget(at.multiselect, "Class meets on").set_value(["Tue", "Thu"])
+    fall_break = next(t for t in at.toggle if t.label.startswith("Class takes Fall Break off"))
+    assert fall_break.value is True
+    fall_break.set_value(False)
+    at = click(at.run(), "Preview rollover")
+
+    assert_no_exception(at)
+    warnings = texts(at.warning)
+    assert not any("confirm Week 8 timing" in w for w in warnings)
+    assert any("meets through Fall Break" in w for w in warnings)
+
+
 def test_rollover_errors_are_shown_plainly(saved_project):
     (saved_project.source_dir / "syllabus.md").unlink()
     at = click(click(launch(saved_project), "Preview rollover"), "Confirm rollover")
@@ -449,7 +466,7 @@ def test_generate_shows_the_estimate_and_no_materials_nudge(saved_project):
 def test_generate_lists_source_materials_except_the_syllabus(saved_project):
     (saved_project.source_dir / "ch3.txt").write_text("notes", encoding="utf-8")
     at = launch(saved_project)
-    assert at.multiselect[0].options == ["ch3.txt"]
+    assert widget(at.multiselect, "Source materials to use").options == ["ch3.txt"]
 
 
 def test_generate_review_then_save(saved_project, llm):

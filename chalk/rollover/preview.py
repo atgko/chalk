@@ -24,6 +24,11 @@ IS 6640, Fall 2026 -> Fall 2027):
   falls inside one of the target term's break windows is flagged for
   human confirmation rather than silently rescheduled — reproducing the
   worked example's "Fall Break 2027 is Oct 9-17 — confirm Week 8 timing".
+  When the instructor gives the target term's meeting days, only a
+  holiday or break that lands on an actual class day is flagged.
+- Breaks the instructor says the class meets through (some graduate
+  programs hold class over Fall/Spring Break) are dropped from the
+  schedule and never flagged.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ from chalk.calendar_data import find_term
 from chalk.errors import LLMProviderError
 from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
+from chalk.rollover.meeting_days import class_dates_in_week, meeting_days_changed_flag
 from chalk.rollover.season_change import (
     is_season_change,
     multi_day_breaks,
@@ -82,6 +88,8 @@ def roll_over_course(
     target_duration_weeks: int | None = None,
     manual_week1_date: dt.date | None = None,
     llm_generate_topics: bool = True,
+    meeting_days: tuple[int, ...] = (),
+    breaks_not_observed: frozenset[str] = frozenset(),
 ) -> tuple[CourseData, RolloverPreview]:
     """Compute a rolled-over CourseData and its RolloverPreview.
 
@@ -97,6 +105,12 @@ def roll_over_course(
     `manual_week1_date` is used when `target_term` isn't found in
     `calendars` (graceful degradation, PRD section 5.3). Raises ValueError
     if the term isn't found and no manual date was given.
+
+    `meeting_days` (weekday numbers, 0 = Monday) narrows the holiday and
+    break warnings to days the class actually meets; empty keeps the old
+    check against each week's start date. `breaks_not_observed` names
+    target-calendar breaks (by label, e.g. "Fall Break") the class meets
+    through: they're dropped from the schedule and never flagged.
     """
     old_duration = course_data.course.duration_weeks
     new_duration = target_duration_weeks or old_duration
@@ -111,18 +125,23 @@ def roll_over_course(
             f"Term '{target_term}' is not in the calendar data and no manual "
             "Week 1 date was given."
         )
-    target_breaks = term_data["no_class_dates"] if term_data else []
+    calendar_breaks = term_data["no_class_dates"] if term_data else []
+    target_breaks = [entry for entry in calendar_breaks if entry["label"] not in breaks_not_observed]
 
     regular_weeks = _adjust_regular_week_count(
         [week for week in course_data.weeks if not week.is_break], new_duration, llm_generate_topics
     )
-    original_break_weeks = [week for week in course_data.weeks if week.is_break]
+    syllabus_break_weeks = [week for week in course_data.weeks if week.is_break]
+    original_break_weeks, dropped_breaks = _drop_breaks_not_observed(
+        syllabus_break_weeks, calendar_breaks, breaks_not_observed
+    )
 
     season_changed = is_season_change(course_data.course.term, target_term)
     general_flags = _general_flags(old_duration, new_duration)
+    general_flags.extend(_schedule_choice_flags(course_data, meeting_days, breaks_not_observed, dropped_breaks))
 
     new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start)
-    if season_changed and original_break_weeks and term_data is not None:
+    if season_changed and syllabus_break_weeks and term_data is not None:
         new_break_weeks, break_changes = _rebuild_break_weeks_for_new_season(target_breaks, new_weeks)
         general_flags.append(
             replacement_flag(
@@ -147,7 +166,9 @@ def roll_over_course(
     new_weeks.extend(new_break_weeks)
     week_changes.extend(break_changes)
 
-    _flag_weeks_colliding_with_target_breaks(new_weeks, week_changes, target_breaks, new_term_start.year)
+    _flag_weeks_colliding_with_target_breaks(
+        new_weeks, week_changes, target_breaks, new_term_start.year, meeting_days
+    )
     _flag_numbered_weeks_marked_as_breaks(new_weeks, week_changes, course_data.course.term, target_term)
 
     if course_data.course.source_format == "markdown":
@@ -158,7 +179,7 @@ def roll_over_course(
     new_university_dates, university_date_flags = _shift_university_dates(
         course_data.university_dates,
         term_data,
-        target_breaks,
+        calendar_breaks,
         new_term_start,
         course_data.course.term_start,
         rename_for_term=target_term if season_changed else None,
@@ -327,6 +348,16 @@ def _rebuild_break_weeks_for_new_season(
     return new_break_weeks, changes
 
 
+def _drop_breaks_not_observed(
+    break_weeks: list[Week], calendar_breaks: list[dict], breaks_not_observed: frozenset[str]
+) -> tuple[list[Week], list[str]]:
+    """Split the syllabus's break rows into (kept, names of dropped ones)."""
+    skipped = [entry for entry in calendar_breaks if entry["label"] in breaks_not_observed]
+    kept = [week for week in break_weeks if _match_break_in_calendar(week.label, skipped) is None]
+    dropped = [break_name(week.label) for week in break_weeks if week not in kept]
+    return kept, dropped
+
+
 # ---- University dates ---------------------------------------------------
 
 
@@ -447,14 +478,19 @@ def break_name(label: str) -> str:
 
 
 def _flag_weeks_colliding_with_target_breaks(
-    weeks: list[Week], changes: list[WeekChange], target_breaks: list[dict], year: int
+    weeks: list[Week],
+    changes: list[WeekChange],
+    target_breaks: list[dict],
+    year: int,
+    meeting_days: tuple[int, ...],
 ) -> None:
     changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
     for week in weeks:
         if week.is_break or week.date is None:
             continue
+        class_dates = class_dates_in_week(week.date, meeting_days)
         for entry in target_breaks:
-            if _date_in_break(week.date, entry):
+            if any(_date_in_break(class_date, entry) for class_date in class_dates):
                 changes_by_week_number[week.week_number].flags.append(
                     f"{entry['label']} {year} is {_format_break_range(entry)} — "
                     f"confirm Week {week.week_number} timing"
@@ -506,6 +542,25 @@ def _general_flags(old_duration: int, new_duration: int) -> list[str]:
         "Review quiz, exam, and lab numbering in the assignments below — "
         "the tool never renumbers them automatically."
     ]
+
+
+def _schedule_choice_flags(
+    course_data: CourseData,
+    meeting_days: tuple[int, ...],
+    breaks_not_observed: frozenset[str],
+    dropped_breaks: list[str],
+) -> list[str]:
+    flags = []
+    if breaks_not_observed:
+        removed = f" Removed from the schedule: {', '.join(dropped_breaks)}." if dropped_breaks else ""
+        flags.append(
+            f"This class meets through {', '.join(sorted(breaks_not_observed))}, so "
+            f"{'it is' if len(breaks_not_observed) == 1 else 'they are'} not treated as a break.{removed}"
+        )
+    meeting_flag = meeting_days_changed_flag(course_data.course.meeting_pattern, meeting_days)
+    if meeting_flag:
+        flags.append(meeting_flag)
+    return flags
 
 
 def _first_sunday_of_november(year: int) -> dt.date:

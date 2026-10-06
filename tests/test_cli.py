@@ -164,6 +164,25 @@ def test_rollover_shows_week_flags(project, tmp_path):
     assert "Course length changed from 2 to 9 weeks" in result.out
 
 
+def test_rollover_meeting_days_and_skipped_break_narrow_the_flags(project, tmp_path):
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+
+    result = run(
+        "rollover", "--term", "Fall 2027", "--weeks", "9", "--no-llm",
+        "--meeting-days", "TR", "--no-break", "Fall Break",
+        "--project", str(project), "--yes",
+    )  # fmt: skip
+
+    assert result.code == 0
+    assert "confirm Week 8 timing" not in result.out
+    assert "meets through Fall Break" in result.out
+
+
+def test_rollover_rejects_meeting_days_that_name_no_day(project):
+    with pytest.raises(SystemExit):
+        run("rollover", "--term", "Fall 2027", "--meeting-days", "soon", "--project", str(project))
+
+
 def test_rollover_cancel_writes_nothing(project, tmp_path):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
 

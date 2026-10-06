@@ -7,12 +7,14 @@ import datetime as dt
 
 import streamlit as st
 
-from chalk.calendar_data import load_calendars, suggest_target_term
+from chalk.calendar_data import find_term, load_calendars, suggest_target_term
 from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, preview_rollover
 from chalk.project import ProjectPaths
+from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
+from chalk.rollover.season_change import multi_day_breaks
 from ui import common, session, tables
 from ui.session import StoredPlan
 
@@ -32,8 +34,18 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             "Draft topics for the added weeks with AI (clearly labeled as drafts)",
             value=env_is_configured(paths.env),
         )
+    meeting_days, breaks_not_observed = _render_schedule_inputs(paths, course_data, term)
 
-    inputs = (term, week1_date, duration, use_llm, course_data.course.term, course_data.course.extracted_at)
+    inputs = (
+        term,
+        week1_date,
+        duration,
+        use_llm,
+        meeting_days,
+        breaks_not_observed,
+        course_data.course.term,
+        course_data.course.extracted_at,
+    )
     if st.button("Preview rollover", type="primary", disabled=not term):
         _preview(paths, course_data, inputs)
 
@@ -67,8 +79,43 @@ def _render_term_inputs(paths: ProjectPaths, course_data: CourseData) -> tuple[s
     return (term if week1_date else ""), week1_date
 
 
+def _render_schedule_inputs(
+    paths: ProjectPaths, course_data: CourseData, term: str
+) -> tuple[tuple[int, ...], frozenset[str]]:
+    """Meeting days (so holiday warnings only fire on real class days) and
+    which of the target term's breaks the class actually takes off."""
+    day_names = st.multiselect(
+        "Class meets on",
+        DAY_ABBREVIATIONS,
+        default=[DAY_ABBREVIATIONS[day] for day in parse_meeting_days(course_data.course.meeting_pattern)],
+        help="Holiday and break warnings are only shown for weeks where one lands on a class day. "
+        "Leave empty to check each week's start date instead.",
+    )
+    meeting_days = tuple(sorted(DAY_ABBREVIATIONS.index(name) for name in day_names))
+
+    term_data = find_term(load_calendars(paths.calendars_json), term) if term else None
+    breaks = multi_day_breaks(term_data["no_class_dates"]) if term_data else []
+    not_observed = frozenset(
+        entry["label"]
+        for entry in breaks
+        if not st.toggle(
+            f"Class takes {entry['label']} off ({_short_range(entry)})",
+            value=True,
+            key=f"observe-break-{term}-{entry['label']}",
+            help="Turn off if the class meets through this break (common in some graduate programs).",
+        )
+    )
+    return meeting_days, not_observed
+
+
+def _short_range(entry: dict) -> str:
+    start = dt.date.fromisoformat(entry["date_start"])
+    end = dt.date.fromisoformat(entry["date_end"])
+    return f"{start.strftime('%b')} {start.day} – {end.strftime('%b')} {end.day}"
+
+
 def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> None:
-    term, week1_date, duration, use_llm = inputs[:4]
+    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed = inputs[:6]
     try:
         with st.spinner("Computing the new schedule…"):
             plan = preview_rollover(
@@ -78,6 +125,8 @@ def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> Non
                 target_duration_weeks=duration,
                 manual_week1_date=week1_date,
                 llm_generate_topics=use_llm,
+                meeting_days=meeting_days,
+                breaks_not_observed=breaks_not_observed,
             )
     except ChalkError as exc:
         st.error(exc.user_message)

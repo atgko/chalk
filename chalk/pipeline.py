@@ -211,6 +211,8 @@ def preview_rollover(
     target_duration_weeks: int | None = None,
     manual_week1_date: dt.date | None = None,
     llm_generate_topics: bool = True,
+    meeting_days: tuple[int, ...] = (),
+    breaks_not_observed: frozenset[str] = frozenset(),
 ) -> RolloverPlan:
     """Compute a rollover without writing anything.
 
@@ -229,6 +231,8 @@ def preview_rollover(
         target_duration_weeks=target_duration_weeks,
         manual_week1_date=manual_week1_date,
         llm_generate_topics=llm_generate_topics,
+        meeting_days=meeting_days,
+        breaks_not_observed=breaks_not_observed,
     )
     mismatch_flag = _duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)
     if mismatch_flag:
