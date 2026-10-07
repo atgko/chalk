@@ -102,6 +102,22 @@ def openai_rate_limit_error():
     )
 
 
+def openai_out_of_credits_error():
+    # The OpenAI SDK passes the inner "error" object as the body.
+    body = {"message": "You exceeded your current quota.", "code": "insufficient_quota"}
+    return openai.RateLimitError(
+        "quota", response=httpx.Response(429, request=_request()), body=body
+    )
+
+
+def openai_status_error(error_cls, status, message):
+    return error_cls(
+        f"Error code: {status}",
+        response=httpx.Response(status, request=_request()),
+        body={"message": message},
+    )
+
+
 def openai_connection_error():
     return openai.APIConnectionError(request=_request())
 
@@ -271,7 +287,94 @@ def test_unexpected_error_is_wrapped_with_the_exception_type_name(monkeypatch):
     assert exc_info.value.user_message == "Unexpected error from LLM provider: ValueError"
 
 
+def test_permission_denied_explains_the_likely_causes_and_shows_the_provider_text(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_MODEL", "gpt-4o")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    error = openai_status_error(
+        openai.PermissionDeniedError, 403, "Country, region, or territory not supported"
+    )
+    patch_openai(monkeypatch, [error])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    message = exc_info.value.user_message
+    assert message.startswith("OpenAI refused this request (error 403).")
+    assert '"gpt-4o"' in message
+    assert message.endswith("Provider said: Country, region, or territory not supported")
+
+
+def test_anthropic_status_error_reads_the_nested_provider_message(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    body = {"type": "error", "error": {"type": "permission_error", "message": "Key lacks access"}}
+    error = anthropic.PermissionDeniedError(
+        "Error code: 403",
+        response=httpx.Response(403, request=_request("https://api.anthropic.com/v1/messages")),
+        body=body,
+    )
+    patch_anthropic(monkeypatch, [error])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert exc_info.value.user_message.startswith("Anthropic refused this request (error 403).")
+    assert exc_info.value.user_message.endswith("Provider said: Key lacks access")
+
+
+def test_unknown_model_names_the_model(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_MODEL", "gpt-retired")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    patch_openai(monkeypatch, [openai_status_error(openai.NotFoundError, 404, "no such model")])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert exc_info.value.user_message.startswith(
+        'The model "gpt-retired" isn\'t available to this OpenAI API key (error 404).'
+    )
+
+
+def test_other_status_errors_report_the_status_code(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    patch_openai(monkeypatch, [openai_status_error(openai.BadRequestError, 400, "bad param")])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert exc_info.value.user_message == (
+        "OpenAI returned an error (status 400). Provider said: bad param"
+    )
+
+
+def test_provider_text_is_hidden_when_details_are_switched_off(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.setattr("chalk.llm_client._SHOW_PROVIDER_DETAILS", False)
+    patch_openai(monkeypatch, [openai_status_error(openai.BadRequestError, 400, "bad param")])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert exc_info.value.user_message == "OpenAI returned an error (status 400)."
+
+
 # ---- Retry / backoff (DECISIONS.md) --------------------------------------
+
+
+def test_out_of_credits_is_not_retried_and_says_to_add_credits(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setattr("chalk.llm_client.time.sleep", lambda seconds: None)
+    instances = patch_openai(monkeypatch, [openai_out_of_credits_error(), openai_response()])
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        complete("prompt")
+
+    assert "no API credits" in exc_info.value.user_message
+    assert "ChatGPT subscription does not include API use" in exc_info.value.user_message
+    assert len(instances) == 1
 
 
 def test_transient_error_is_retried_and_can_still_succeed(monkeypatch):

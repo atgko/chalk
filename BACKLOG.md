@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-05.
+Last updated: 2026-10-07.
 
 ## Open questions (need someone outside the code)
 
@@ -26,6 +26,8 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
   - IDs and contact details: strip uNIDs (`u` + 7 digits) and email addresses with pattern matching.
   - Log what was redacted (counts only, never the content) in the existing metadata-only eval log, so the evaluation report can show the guardrail working.
 - **P3: Grading feature (blocked on the two items above).** Scope it only once a provider is approved: e.g. rubric-based draft feedback that the instructor reviews, never a final grade.
+- **P2: Find the most token-efficient way to grade.** Token cost is a main concern for the department, so compare approaches before building: grade each rubric criterion separately or all at once; send only the relevant parts of a submission; use a smaller model (e.g. `gpt-4o-mini`) for a first pass and a larger one only for borderline cases; reuse the fixed rubric and instructions across submissions with prompt caching or batch APIs where the provider offers them. Measure the cost per submission with the existing cost tracking (Metrics tab) and set a target.
+- **P2: Add Google Gemini as a provider option.** Needs a choice in the Settings/first-run form, Gemini cost rates in `config.json`, and a branch in `chalk/llm_client.py`. Gemini has an OpenAI-compatible endpoint, so it may fit the existing OpenAI path with a different base URL. Check it against the student-data approval question above before recommending it for grading.
 
 ## Extraction
 
@@ -57,13 +59,22 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P2: There's no button to discard an unsaved extraction** (Cancel only appears after a term mismatch). Refreshing the page clears it.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
 
+## Generation
+
+- **P1: Merge the teammate's assignment generator** (`feature/assignment-creator`). The branch has no commits pushed yet; the teammate had a git 403 caused by their saved GitHub credential, not repo permissions (their collaborator access is confirmed).
+- **P2: Use the assignment generator's formatting for the other documents** (quizzes, discussion prompts, rubrics, summaries) so all generated files look consistent. Do this after the branch is merged.
+- **P2: A tab for saved generated files.** Generated files are written to the project's output folders (older versions go to `.archive/`), but the app has no place to browse, open, or download them. The tab should list them by type and week.
+- **P2: Choose how many quiz questions are multiple choice vs. long form when the format is "mixed".** Today "mixed" only passes the total count and the word "mixed" to the prompt, so the model decides the split. Add two counts (shown only for "mixed") to `GenerationRequest` and the quiz prompt, and check they add up to the total.
+
 ## Engineering
 
+- **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
 - **P2: Lint debt.** `ruff check` reports about 30 existing findings (mostly UP017 `datetime.UTC`, DTZ, ISC004) because the selected rules are stricter than the code. Either fix them in one pass or relax the config, then add a lint check to CI.
 - **P3: `chalk/rollover/preview.py` is about 540 lines.** The flagging helpers could move to their own module.
 
 ## Done
 
+- 2026-10-07: Clearer provider errors: an OpenAI account with no API credits is no longer retried and reported as "temporarily unavailable"; 403 and 404 errors explain the likely causes (restricted key, blocked model or region, unknown model) and, for now, show the provider's own message.
 - 2026-10-05: Rollover asks which days the class meets (holiday warnings only on class days) and lets the instructor switch off breaks the class meets through.
 - 2026-10-01: PDF syllabi: read on this computer (pdfplumber) or with AI, converted to a Word file that the existing Word path extracts and rolls over.
 - 2026-09-30: Season-change rollovers rebuild break rows from the target calendar (Spring rollovers no longer say "Fall Break").

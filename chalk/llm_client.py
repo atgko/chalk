@@ -31,6 +31,15 @@ from chalk.errors import LLMProviderError
 _MAX_ATTEMPTS = 3
 _BACKOFF_BASE_SECONDS = 1.0
 
+# TEMPORARY, for testing (BACKLOG.md): append the provider's own error text
+# to refused-request messages so teammates can tell a restricted key from a
+# blocked model or region. Set to False before the presentation.
+_SHOW_PROVIDER_DETAILS = True
+
+# OpenAI answers an account with no API credits with a 429 carrying this
+# code. Retrying can't help, so it isn't treated as a transient rate limit.
+_OUT_OF_CREDITS_CODE = "insufficient_quota"
+
 _AUTH_EXCEPTIONS: tuple[type[Exception], ...] = (
     openai.AuthenticationError,
     anthropic.AuthenticationError,
@@ -44,6 +53,18 @@ _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
     openai.APITimeoutError,
     anthropic.RateLimitError,
     anthropic.APITimeoutError,
+)
+_STATUS_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.APIStatusError,
+    anthropic.APIStatusError,
+)
+_PERMISSION_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.PermissionDeniedError,
+    anthropic.PermissionDeniedError,
+)
+_NOT_FOUND_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.NotFoundError,
+    anthropic.NotFoundError,
 )
 
 
@@ -90,6 +111,60 @@ def _connection_error_message() -> str:
         "Could not reach the LLM provider. Check your connection. "
         "Extraction and rollover work without a connection."
     )
+
+
+def _provider_label() -> str:
+    if _local_base_url():
+        return "local model"
+    return "Anthropic" if _get_provider() == "anthropic" else "OpenAI"
+
+
+def _is_out_of_credits(exc: Exception) -> bool:
+    return getattr(exc, "code", None) == _OUT_OF_CREDITS_CODE
+
+
+def _out_of_credits_message() -> str:
+    return (
+        "Your OpenAI account has no API credits. Add credits at "
+        "platform.openai.com/settings/organization/billing and try again. "
+        "A ChatGPT subscription does not include API use."
+    )
+
+
+def _provider_detail(exc: Exception) -> str:
+    """The provider's own explanation, from the error body when there is one.
+    OpenAI's SDK passes the inner error object as the body; Anthropic's
+    passes the whole response, with the message under "error"."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error", body)
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])
+    return str(getattr(exc, "message", "") or exc)
+
+
+def _status_error_message(exc: Exception) -> str:
+    """Messages for a request the provider received and refused (403, 404,
+    and any other HTTP error without its own message)."""
+    label = _provider_label()
+    model = os.getenv("LLM_MODEL", "")
+    if isinstance(exc, _PERMISSION_EXCEPTIONS):
+        message = (
+            f"{label} refused this request (error 403). The API key may be restricted, "
+            f'the project may not allow the model "{model}", or the service may not be '
+            "available in your region or network."
+        )
+    elif isinstance(exc, _NOT_FOUND_EXCEPTIONS):
+        message = (
+            f'The model "{model}" isn\'t available to this {label} API key (error 404). '
+            "Choose a different model in Settings."
+        )
+    else:
+        status = getattr(exc, "status_code", "unknown")
+        message = f"{label} returned an error (status {status})."
+    if _SHOW_PROVIDER_DETAILS:
+        message += f" Provider said: {_provider_detail(exc)}"
+    return message
 
 
 def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
@@ -154,10 +229,15 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
             raise LLMProviderError(_connection_error_message()) from exc
 
         except _TRANSIENT_EXCEPTIONS as exc:
+            if _is_out_of_credits(exc):
+                raise LLMProviderError(_out_of_credits_message()) from exc
             last_transient_error = exc
             if attempt < _MAX_ATTEMPTS - 1:
                 time.sleep(_BACKOFF_BASE_SECONDS * (2**attempt))
                 continue
+
+        except _STATUS_EXCEPTIONS as exc:
+            raise LLMProviderError(_status_error_message(exc)) from exc
 
         except Exception as exc:
             raise LLMProviderError(
