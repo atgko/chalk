@@ -74,10 +74,10 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
 - **P2: Lint debt.** `ruff check` reports about 30 existing findings (mostly UP017 `datetime.UTC`, DTZ, ISC004) because the selected rules are stricter than the code. Either fix them in one pass or relax the config, then add a lint check to CI.
-- **P3: `chalk/rollover/preview.py` is about 540 lines.** The flagging helpers could move to their own module.
 
 ## Done
 
+- 2026-10-08: The rollover flag helpers moved from `chalk/rollover/preview.py` (now ~515 lines) to `chalk/rollover/flags.py`.
 - 2026-10-08: Season-change rollovers replace single-day holidays in the University Dates table (Labor Day becomes Martin Luther King Jr. Day in a Fall → Spring rollover) and flag any target-term holiday left without a row. Every rollover now takes a holiday's date from the calendar by name, and "Independence Day" is no longer read as the end of term.
 - 2026-10-07: Google Gemini as a fourth provider (through Google's OpenAI-compatible endpoint, no new package); labeled as not university-approved. Older projects pick up new providers' cost rates automatically.
 - 2026-10-07: Word rollover with a changed course length adds rows for new weeks (a copy of the last week's row, with placeholder or AI-drafted topics) and removes rows for dropped weeks.
