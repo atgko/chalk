@@ -104,6 +104,23 @@ def test_docx_university_dates_row_is_renamed_for_the_new_season(tmp_path):
     ]
 
 
+
+def test_docx_holiday_row_is_renamed_for_the_new_season(tmp_path):
+    output = _roll_docx(
+        tmp_path,
+        "Spring 2027",
+        university_dates=[
+            ("Classes begin", "8/24/2026"),
+            ("Labor Day", "9/7/2026"),
+            ("Fall Break", "10/10 - 10/18"),
+            ("Classes end", "12/10/2026"),
+        ],
+    )
+
+    dates_table = Document(str(output)).tables[1]
+    rows = [(row.cells[0].text, row.cells[1].text) for row in dates_table.rows[1:]]
+    assert rows[1] == ("Martin Luther King Jr. Day", "1/18/2027")
+
 def test_markdown_fall_to_spring_renames_breaks_in_schedule_and_dates(tmp_path):
     source = build_minimal_md_syllabus(tmp_path / "syllabus.md")
     course_data = markdown_extractor.extract_course_data(source)

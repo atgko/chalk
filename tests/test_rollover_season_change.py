@@ -246,10 +246,191 @@ def test_fall_to_spring_flags_university_dates_with_no_spring_equivalent():
     )
 
     assert [entry.event for entry in new_course_data.university_dates] == [
-        "Labor Day",
+        "Martin Luther King Jr. Day",
         "Spring Break",
         "Thanksgiving Break",
     ]
     flags = " ".join(preview.general_flags)
-    assert "Labor Day" in flags
+    assert "'Labor Day'" not in flags
     assert "Thanksgiving Break" in flags
+
+
+# ---- Single-day holidays in the University Dates table -----------------------
+
+
+def _calendars_with(term: str, start: str, end: str, no_class_dates: list[dict]) -> dict:
+    return {"terms": [{"term": term, "start": start, "end": end, "no_class_dates": no_class_dates}]}
+
+
+# Fall 2027 stays in, so Labor Day is a holiday the calendar data knows.
+SPRING_2027_TWO_HOLIDAYS = {
+    "terms": [
+        *_calendars_with(
+            "Spring 2027",
+            "2027-01-11",
+            "2027-04-27",
+            [
+                {"label": "Martin Luther King Jr. Day", "date": "2027-01-18"},
+                {"label": "Presidents Day", "date": "2027-02-15"},
+                {"label": "Spring Break", "date_start": "2027-03-06", "date_end": "2027-03-14"},
+            ],
+        )["terms"],
+        *[term for term in CALENDARS["terms"] if term["term"] == "Fall 2027"],
+    ]
+}
+
+
+def test_fall_to_spring_replaces_labor_day_with_the_spring_holiday():
+    university_dates = [
+        UniversityDate(event="Classes begin", date=dt.date(2026, 8, 24)),
+        UniversityDate(event="Labor Day", date=dt.date(2026, 9, 7)),
+        UniversityDate(event="Classes end", date=dt.date(2026, 12, 10)),
+    ]
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=CALENDARS,
+    )
+
+    holiday = new_course_data.university_dates[1]
+    assert (holiday.event, holiday.date) == ("Martin Luther King Jr. Day", dt.date(2027, 1, 18))
+    assert not any("Labor Day" in flag for flag in preview.general_flags)
+
+
+def test_fall_to_spring_fills_holidays_in_order_and_flags_the_ones_left_over():
+    university_dates = [UniversityDate(event="Labor Day", date=dt.date(2026, 9, 7))]
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=SPRING_2027_TWO_HOLIDAYS,
+    )
+
+    assert [entry.event for entry in new_course_data.university_dates] == ["Martin Luther King Jr. Day"]
+    flags = " ".join(preview.general_flags)
+    assert "Presidents Day" in flags
+    assert "2/15" in flags
+
+
+def test_fall_to_spring_with_more_holidays_than_the_target_flags_the_extra_one():
+    university_dates = [
+        UniversityDate(event="Labor Day", date=dt.date(2026, 9, 7)),
+        UniversityDate(event="Veterans Day", date=dt.date(2026, 11, 11)),
+    ]
+    calendars = {
+        "terms": [
+            *CALENDARS["terms"],
+            {
+                "term": "Fall 2030",
+                "start": "2030-08-26",
+                "end": "2030-12-12",
+                "no_class_dates": [{"label": "Veterans Day", "date": "2030-11-11"}],
+            },
+        ]
+    }
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=calendars,
+    )
+
+    assert [entry.event for entry in new_course_data.university_dates] == [
+        "Martin Luther King Jr. Day",
+        "Veterans Day",
+    ]
+    assert any("'Veterans Day'" in flag for flag in preview.general_flags)
+
+
+def test_season_change_never_renames_a_deadline_as_a_holiday():
+    university_dates = [UniversityDate(event="Last day to drop", date=dt.date(2026, 9, 4))]
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=CALENDARS,
+    )
+
+    assert new_course_data.university_dates[0].event == "Last day to drop"
+    assert any("'Last day to drop'" in flag for flag in preview.general_flags)
+
+
+def test_season_change_without_holidays_in_the_table_adds_no_missing_holiday_flag():
+    university_dates = [UniversityDate(event="Classes begin", date=dt.date(2026, 8, 24))]
+
+    _, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=SPRING_2027_TWO_HOLIDAYS,
+    )
+
+    assert not any("Presidents Day" in flag for flag in preview.general_flags)
+
+
+def test_same_season_holiday_takes_its_date_from_the_calendar():
+    # 9/8 is a typo in the source; shifting by the term offset would keep it.
+    university_dates = [UniversityDate(event="Labor Day", date=dt.date(2026, 9, 8))]
+
+    new_course_data, _ = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Fall 2027",
+        calendars=CALENDARS,
+    )
+
+    assert new_course_data.university_dates[0].date == dt.date(2027, 9, 6)
+
+
+def test_independence_day_is_a_holiday_not_the_end_of_term():
+    university_dates = [
+        UniversityDate(event="Memorial Day", date=dt.date(2026, 5, 25)),
+        UniversityDate(event="Independence Day (observed)", date=dt.date(2026, 7, 3)),
+    ]
+    calendars = _calendars_with(
+        "Summer 2027",
+        "2027-05-17",
+        "2027-08-04",
+        [
+            {"label": "Memorial Day", "date": "2027-05-31"},
+            {"label": "Independence Day (observed)", "date": "2027-07-05"},
+        ],
+    )
+    course = _course(
+        term="Summer 2026",
+        term_start=dt.date(2026, 5, 18),
+        weeks_count=10,
+        breaks=[],
+        university_dates=university_dates,
+    )
+
+    new_course_data, _ = roll_over_course(course, target_term="Summer 2027", calendars=calendars)
+
+    assert [entry.date for entry in new_course_data.university_dates] == [
+        dt.date(2027, 5, 31),
+        dt.date(2027, 7, 5),
+    ]
+
+
+def test_season_change_recognizes_a_holiday_written_with_extra_words():
+    university_dates = [UniversityDate(event="Labor Day (no class)", date=dt.date(2026, 9, 7))]
+
+    new_course_data, _ = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=CALENDARS,
+    )
+
+    assert new_course_data.university_dates[0].event == "Martin Luther King Jr. Day"
+
+
+def test_an_event_with_no_letters_matches_no_break_or_holiday():
+    university_dates = [UniversityDate(event="—", date=dt.date(2026, 9, 7))]
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=CALENDARS,
+    )
+
+    assert new_course_data.university_dates[0].event == "—"
+    assert any("'—'" in flag for flag in preview.general_flags)

@@ -43,15 +43,23 @@ from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
 from chalk.rollover.meeting_days import class_dates_in_week, meeting_days_changed_flag
 from chalk.rollover.season_change import (
+    holiday_names,
+    is_holiday_name,
     is_season_change,
+    match_calendar_entry,
+    missing_holiday_flag,
     multi_day_breaks,
     rebuild_break_weeks,
     replacement_flag,
+    single_day_holidays,
     stale_break_flag,
     unmatched_university_date_flag,
 )
 
 _DST_BOUNDARY_WINDOW_DAYS = 14
+# Word boundaries, so "Independence Day" isn't read as the end of term.
+_TERM_BEGINS_RE = re.compile(r"\bbegin", re.IGNORECASE)
+_TERM_ENDS_RE = re.compile(r"\bend", re.IGNORECASE)
 _BREAK_MENTION_RE = re.compile(
     r"\b(?:spring|fall|summer|winter|thanksgiving|holiday)\s+break\b|\bno class(?:es)?\b", re.IGNORECASE
 )
@@ -183,6 +191,7 @@ def roll_over_course(
         new_term_start,
         course_data.course.term_start,
         rename_for_term=target_term if season_changed else None,
+        known_holidays=holiday_names(calendars),
     )
     general_flags.extend(university_date_flags)
 
@@ -369,72 +378,101 @@ def _shift_university_dates(
     old_term_start: dt.date,
     *,
     rename_for_term: str | None = None,
+    known_holidays: frozenset[str] = frozenset(),
 ) -> tuple[list[UniversityDate], list[str]]:
     """Recompute the university-dates table for the target term: "begin"
     and "end" entries come from the target term's own start/end, entries
-    matching a named break come from that break's target-term dates, and
+    matching a named break or holiday come from its target-term dates, and
     anything else falls back to a same-offset shift as a best effort.
 
     `rename_for_term` is set on a season-change rollover: an unmatched
-    break span then takes over the next unused target-term break (name and
-    dates), and anything still unmatched is flagged for review. Entries
-    keep their order and count either way, so the writers can pair them
-    with the source table's rows by position. Returns (entries, flags).
+    break span takes over the next unused target-term break, and an
+    unmatched holiday (one named in `known_holidays`, e.g. Labor Day) the
+    next unused target-term holiday, name and dates. Anything still
+    unmatched is flagged for review, as is any target-term holiday left
+    over. Entries keep their order and count either way, so the writers
+    can pair them with the source table's rows by position. Returns
+    (entries, flags).
     """
     offset_days = (new_term_start - old_term_start).days
+    target_holidays = single_day_holidays(target_breaks)
+    unused_breaks = _calendar_entries_not_named_in(university_dates, multi_day_breaks(target_breaks))
+    unused_holidays = _calendar_entries_not_named_in(university_dates, target_holidays)
+    renaming = rename_for_term is not None and term_data is not None
     new_entries = []
     flags: list[str] = []
-    unused_target_breaks = _target_breaks_not_named_in(university_dates, target_breaks)
 
     for entry in university_dates:
-        event_lower = entry.event.lower()
-        if term_data is not None and "begin" in event_lower:
-            new_entries.append(entry.model_copy(update={"date": dt.date.fromisoformat(term_data["start"])}))
-            continue
-        if term_data is not None and "end" in event_lower:
-            new_entries.append(entry.model_copy(update={"date": dt.date.fromisoformat(term_data["end"])}))
-            continue
+        new_entry = _university_date_from_calendar(entry, term_data, target_breaks, target_holidays)
+        if new_entry is None and renaming:
+            new_entry = _university_date_for_new_season(entry, unused_breaks, unused_holidays, known_holidays)
+            if new_entry is None:
+                flags.append(unmatched_university_date_flag(entry.event, rename_for_term))
+        new_entries.append(new_entry or _shift_university_date_by_offset(entry, offset_days))
 
-        matched = _match_break_in_calendar(entry.event, target_breaks)
-        if matched is not None:
-            new_entries.append(
-                entry.model_copy(
-                    update={
-                        "date": None,
-                        "date_start": dt.date.fromisoformat(matched["date_start"]),
-                        "date_end": dt.date.fromisoformat(matched["date_end"]),
-                    }
-                )
-            )
-            continue
-
-        if rename_for_term is not None and term_data is not None:
-            if entry.date_start is not None and unused_target_breaks:
-                new_entries.append(_university_date_from_break(entry, unused_target_breaks.pop(0)))
-                continue
-            flags.append(unmatched_university_date_flag(entry.event, rename_for_term))
-
-        new_entries.append(_shift_university_date_by_offset(entry, offset_days))
-
+    had_holidays = any(is_holiday_name(entry.event, known_holidays) for entry in university_dates)
+    if renaming and had_holidays and unused_holidays:
+        flags.append(missing_holiday_flag(unused_holidays, rename_for_term))
     return new_entries, flags
 
 
-def _target_breaks_not_named_in(
-    university_dates: list[UniversityDate], target_breaks: list[dict]
+def _university_date_from_calendar(
+    entry: UniversityDate, term_data: dict | None, target_breaks: list[dict], target_holidays: list[dict]
+) -> UniversityDate | None:
+    """The entry with its target-term date, if the calendar names it."""
+    if term_data is not None and _TERM_BEGINS_RE.search(entry.event):
+        return entry.model_copy(update={"date": dt.date.fromisoformat(term_data["start"])})
+    if term_data is not None and _TERM_ENDS_RE.search(entry.event):
+        return entry.model_copy(update={"date": dt.date.fromisoformat(term_data["end"])})
+    matched_break = _match_break_in_calendar(entry.event, target_breaks)
+    if matched_break is not None:
+        return _university_date_from_break(entry, matched_break, rename=False)
+    matched_holiday = match_calendar_entry(entry.event, target_holidays)
+    if matched_holiday is not None and entry.date is not None:
+        return _university_date_from_holiday(entry, matched_holiday, rename=False)
+    return None
+
+
+def _university_date_for_new_season(
+    entry: UniversityDate,
+    unused_breaks: list[dict],
+    unused_holidays: list[dict],
+    known_holidays: frozenset[str],
+) -> UniversityDate | None:
+    """Season change: the entry renamed to the next unused target-term
+    break or holiday of its kind; None if there's none to take over.
+    Consumes the entry it takes from `unused_breaks`/`unused_holidays`."""
+    if entry.date_start is not None and unused_breaks:
+        return _university_date_from_break(entry, unused_breaks.pop(0), rename=True)
+    is_holiday = entry.date is not None and is_holiday_name(entry.event, known_holidays)
+    if is_holiday and unused_holidays:
+        return _university_date_from_holiday(entry, unused_holidays.pop(0), rename=True)
+    return None
+
+
+def _calendar_entries_not_named_in(
+    university_dates: list[UniversityDate], calendar_entries: list[dict]
 ) -> list[dict]:
-    named = [_match_break_in_calendar(entry.event, target_breaks) for entry in university_dates]
-    return [entry for entry in multi_day_breaks(target_breaks) if entry not in named]
+    named = [match_calendar_entry(entry.event, calendar_entries) for entry in university_dates]
+    return [entry for entry in calendar_entries if entry not in named]
 
 
-def _university_date_from_break(entry: UniversityDate, target_break: dict) -> UniversityDate:
-    return entry.model_copy(
-        update={
-            "event": target_break["label"],
-            "date": None,
-            "date_start": dt.date.fromisoformat(target_break["date_start"]),
-            "date_end": dt.date.fromisoformat(target_break["date_end"]),
-        }
-    )
+def _university_date_from_break(entry: UniversityDate, target_break: dict, *, rename: bool) -> UniversityDate:
+    updates = {
+        "date": None,
+        "date_start": dt.date.fromisoformat(target_break["date_start"]),
+        "date_end": dt.date.fromisoformat(target_break["date_end"]),
+    }
+    if rename:
+        updates["event"] = target_break["label"]
+    return entry.model_copy(update=updates)
+
+
+def _university_date_from_holiday(entry: UniversityDate, holiday: dict, *, rename: bool) -> UniversityDate:
+    updates = {"date": dt.date.fromisoformat(holiday["date"])}
+    if rename:
+        updates["event"] = holiday["label"]
+    return entry.model_copy(update=updates)
 
 
 def _shift_university_date_by_offset(entry: UniversityDate, offset_days: int) -> UniversityDate:
@@ -449,18 +487,7 @@ def _shift_university_date_by_offset(entry: UniversityDate, offset_days: int) ->
 
 
 def _match_break_in_calendar(label: str, target_breaks: list[dict]) -> dict | None:
-    normalized_label = _normalize_break_label(label)
-    for entry in target_breaks:
-        if "date_start" not in entry or "date_end" not in entry:
-            continue  # a single-day holiday (e.g. Labor Day), not a break span
-        normalized_entry = _normalize_break_label(entry["label"])
-        if normalized_entry in normalized_label or normalized_label in normalized_entry:
-            return entry
-    return None
-
-
-def _normalize_break_label(label: str) -> str:
-    return re.sub(r"[^a-z ]", "", label.lower()).strip()
+    return match_calendar_entry(label, multi_day_breaks(target_breaks))
 
 
 _PARENTHETICAL_SUFFIX_RE = re.compile(r"\s*\([^)]*\)\s*$")
