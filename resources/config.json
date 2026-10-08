@@ -13,6 +13,10 @@
       "claude-sonnet-5": { "input_per_1k": 0.003, "output_per_1k": 0.015 },
       "claude-haiku-4-5-20251001": { "input_per_1k": 0.0008, "output_per_1k": 0.004 }
     },
+    "gemini": {
+      "gemini-3.5-flash-lite": { "input_per_1k": 0.0003, "output_per_1k": 0.0025 },
+      "gemini-3.5-flash":      { "input_per_1k": 0.0015, "output_per_1k": 0.009 }
+    },
     "local": {
       "default":         { "input_per_1k": 0.0, "output_per_1k": 0.0 }
     }

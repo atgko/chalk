@@ -21,15 +21,28 @@ from dotenv import dotenv_values, set_key
 
 from chalk.errors import ChalkError
 from chalk.llm_client import complete
+from chalk.project import RESOURCES_DIR
 
+_BUNDLED_CONFIG = (RESOURCES_DIR / "config.json").resolve()
 _REQUIRED_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL")
 _ALL_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
-    """Load a project's config.json."""
+    """Load a project's config.json.
+
+    A project created before a provider was added (e.g. Gemini) has no
+    cost_rates section for it; the bundled defaults fill that in, so the
+    model dropdown and cost tracking work without editing old projects.
+    Sections the project does have are never touched.
+    """
     with config_path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        config = json.load(f)
+    if config_path.resolve() == _BUNDLED_CONFIG:
+        return config
+    with _BUNDLED_CONFIG.open("r", encoding="utf-8") as f:
+        bundled_rates = json.load(f).get("cost_rates", {})
+    return {**config, "cost_rates": {**bundled_rates, **config.get("cost_rates", {})}}
 
 
 def read_env(env_path: Path) -> dict[str, str]:
@@ -113,13 +126,19 @@ def validate_provider(provider: str, api_key: str, base_url: str, model: str) ->
 
 # ---- Provider form (first-run setup + Settings tab) --------------------------
 
-PROVIDER_CHOICES = ("OpenAI", "Anthropic Claude", "Local model (Ollama)")
+PROVIDER_CHOICES = ("OpenAI", "Anthropic Claude", "Google Gemini", "Local model (Ollama)")
 OPENAI_BASE_URL = "https://api.openai.com/v1"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 DEFAULT_OLLAMA_URL = "http://localhost:11434/v1"
 DEFAULT_OLLAMA_MODEL = "llama3.1:70b"
 
-_COST_RATE_SECTION = {"OpenAI": "openai", "Anthropic Claude": "anthropic"}
-_FOOTER_LABEL = {"OpenAI": "OpenAI", "Anthropic Claude": "Anthropic", "Local model (Ollama)": "Local model"}
+COST_RATE_SECTION = {"OpenAI": "openai", "Anthropic Claude": "anthropic", "Google Gemini": "gemini"}
+_FOOTER_LABEL = {
+    "OpenAI": "OpenAI",
+    "Anthropic Claude": "Anthropic",
+    "Google Gemini": "Gemini",
+    "Local model (Ollama)": "Local model",
+}
 
 
 @dataclass(frozen=True)
@@ -144,7 +163,7 @@ def provider_settings(
             base_url=base_url or DEFAULT_OLLAMA_URL,
             model=model or DEFAULT_OLLAMA_MODEL,
         )
-    if choice not in _COST_RATE_SECTION:
+    if choice not in COST_RATE_SECTION:
         raise ValueError(f"Unknown provider choice: {choice!r}")
     if not api_key:
         raise ChalkError(f"Paste your {choice} API key to continue.")
@@ -152,13 +171,18 @@ def provider_settings(
         raise ChalkError("Choose a model to continue.")
     if choice == "OpenAI":
         return ProviderSettings("openai", api_key, OPENAI_BASE_URL, model)
+    if choice == "Google Gemini":
+        return ProviderSettings("gemini", api_key, GEMINI_BASE_URL, model)
     return ProviderSettings("anthropic", api_key, "", model)
 
 
 def choice_for_env(env: dict[str, str]) -> str:
     """Which PROVIDER_CHOICES entry an existing .env corresponds to."""
-    if env.get("LLM_PROVIDER", "").lower() == "anthropic":
+    provider = env.get("LLM_PROVIDER", "").lower()
+    if provider == "anthropic":
         return "Anthropic Claude"
+    if provider == "gemini":
+        return "Google Gemini"
     base_url = env.get("LLM_BASE_URL", "")
     if base_url and "api.openai.com" not in base_url:
         return "Local model (Ollama)"
@@ -166,10 +190,10 @@ def choice_for_env(env: dict[str, str]) -> str:
 
 
 def model_options(config: dict[str, Any], choice: str) -> list[str]:
-    """Model dropdown choices: the cost_rates keys for OpenAI/Anthropic, so
+    """Model dropdown choices: the cost_rates keys for a hosted provider, so
     every selectable model has a cost rate (DECISIONS.md). Empty for
     Ollama, whose model name stays free text."""
-    section = _COST_RATE_SECTION.get(choice)
+    section = COST_RATE_SECTION.get(choice)
     if section is None:
         return []
     return list(config.get("cost_rates", {}).get(section, {}))

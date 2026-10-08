@@ -23,6 +23,7 @@ _LOCAL = "Local model (Ollama)"
 _CAPTIONS = (
     "Paste an API key from platform.openai.com",
     "Paste an API key from console.anthropic.com",
+    "Paste an API key from aistudio.google.com. Not approved by the university for student data.",
     "Enter your endpoint URL (e.g. http://localhost:11434/v1) and model name",
 )
 

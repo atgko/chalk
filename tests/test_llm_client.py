@@ -166,6 +166,39 @@ def test_openai_call_uses_configured_model_system_and_max_tokens(monkeypatch):
     ]
 
 
+def test_gemini_uses_the_openai_client_with_googles_url_and_low_reasoning(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_API_KEY", "AIza-test")
+    monkeypatch.setenv("LLM_MODEL", "gemini-3.5-flash")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    instances = patch_openai(monkeypatch, [openai_response(text="quiz draft")])
+
+    result = complete("Write a quiz.")
+
+    assert result["text"] == "quiz draft"
+    assert instances[0].init_kwargs["base_url"] == "https://generativelanguage.googleapis.com/v1beta/openai/"
+    call = instances[0].chat.completions.calls[0]
+    assert call["model"] == "gemini-3.5-flash"
+    assert call["reasoning_effort"] == "low"
+
+
+def test_openai_requests_do_not_send_reasoning_effort(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    instances = patch_openai(monkeypatch, [openai_response()])
+
+    complete("prompt")
+
+    assert "reasoning_effort" not in instances[0].chat.completions.calls[0]
+
+
+def test_missing_answer_text_becomes_an_empty_string(monkeypatch):
+    # A thinking model can spend the whole token limit before answering.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    patch_openai(monkeypatch, [openai_response(text=None)])
+
+    assert complete("prompt")["text"] == ""
+
+
 def test_anthropic_provider_routes_to_the_anthropic_client(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
     monkeypatch.setenv("LLM_MODEL", "claude-sonnet-5")
@@ -213,6 +246,12 @@ def test_anthropic_skips_thinking_blocks_and_joins_text_blocks(monkeypatch):
             patch_anthropic,
             anthropic_auth_error,
             "The Anthropic API key was not accepted. Check it at console.anthropic.com and try again.",
+        ),
+        (
+            "gemini",
+            patch_openai,
+            openai_auth_error,
+            "The Gemini API key was not accepted. Check it at aistudio.google.com and try again.",
         ),
     ],
 )

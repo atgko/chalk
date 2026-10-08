@@ -2,7 +2,7 @@
 
 Rates are looked up per provider (PLAN.md Risk #10): a local/Ollama
 endpoint always uses `cost_rates.local.default`, never a lookup of its
-free-text model name; OpenAI and Anthropic use the rate for the exact
+free-text model name; OpenAI, Anthropic, and Gemini use the rate for the exact
 model. A hosted model with no rate in config.json yields None ("unknown"),
 never a silent $0.
 """
@@ -11,12 +11,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from chalk.config import choice_for_env
+from chalk.config import COST_RATE_SECTION, choice_for_env
 
 # DECISIONS.md estimate heuristic: ~4 characters per token.
 CHARS_PER_TOKEN = 4
-
-_SECTION_BY_CHOICE = {"OpenAI": "openai", "Anthropic Claude": "anthropic"}
 
 
 def rate_for(config: dict[str, Any], env: dict[str, str]) -> dict[str, float] | None:
@@ -24,7 +22,7 @@ def rate_for(config: dict[str, Any], env: dict[str, str]) -> dict[str, float] | 
     choice = choice_for_env(env)
     if choice == "Local model (Ollama)":
         return rates.get("local", {}).get("default", {"input_per_1k": 0.0, "output_per_1k": 0.0})
-    return rates.get(_SECTION_BY_CHOICE[choice], {}).get(env.get("LLM_MODEL", ""))
+    return rates.get(COST_RATE_SECTION[choice], {}).get(env.get("LLM_MODEL", ""))
 
 
 def cost_usd(rate: dict[str, float] | None, input_tokens: int, output_tokens: int) -> float | None:

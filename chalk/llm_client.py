@@ -4,9 +4,9 @@ This is the only module in Chalk that imports `openai` or `anthropic`
 directly. Every other module calls `complete()` and never touches a
 provider SDK — swapping providers is a `.env` change only
 (`LLM_PROVIDER`/`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`), never a code
-change. OpenAI and Ollama share one code path because Ollama exposes an
-OpenAI-compatible API; Anthropic has a different response shape and is
-handled in its own branch.
+change. OpenAI, Google Gemini, and Ollama share one code path because
+Gemini and Ollama expose OpenAI-compatible APIs; Anthropic has a different
+response shape and is handled in its own branch.
 
 DECISIONS.md adds retry-with-backoff on top of the PRD's original sketch:
 a transient rate-limit or timeout shouldn't force the instructor to
@@ -75,6 +75,11 @@ class CompletionResult(TypedDict):
 
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1"
+_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+# Gemini 3 models always think, and thinking tokens count against
+# max_tokens, so ask for the lowest level that every current model accepts.
+_GEMINI_REASONING_EFFORT = "low"
 
 
 def _get_provider() -> str:
@@ -97,6 +102,8 @@ def _auth_error_message() -> str:
         return f"The endpoint at {local_url} did not accept the API key. Check LLM_API_KEY in your .env."
     if _get_provider() == "anthropic":
         return "The Anthropic API key was not accepted. Check it at console.anthropic.com and try again."
+    if _get_provider() == "gemini":
+        return "The Gemini API key was not accepted. Check it at aistudio.google.com and try again."
     return "The OpenAI API key was not accepted. Check it at platform.openai.com and try again."
 
 
@@ -116,7 +123,7 @@ def _connection_error_message() -> str:
 def _provider_label() -> str:
     if _local_base_url():
         return "local model"
-    return "Anthropic" if _get_provider() == "anthropic" else "OpenAI"
+    return {"anthropic": "Anthropic", "gemini": "Gemini"}.get(_get_provider(), "OpenAI")
 
 
 def _is_out_of_credits(exc: Exception) -> bool:
@@ -168,10 +175,13 @@ def _status_error_message(exc: Exception) -> str:
 
 
 def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
+    """OpenAI, Gemini, and Ollama: all speak the OpenAI chat API."""
+    is_gemini = _get_provider() == "gemini"
     client = openai.OpenAI(
         api_key=os.getenv("LLM_API_KEY", "ollama"),
-        base_url=os.getenv("LLM_BASE_URL") or _OPENAI_BASE_URL,
+        base_url=os.getenv("LLM_BASE_URL") or (_GEMINI_BASE_URL if is_gemini else _OPENAI_BASE_URL),
     )
+    extra = {"reasoning_effort": _GEMINI_REASONING_EFFORT} if is_gemini else {}
     response = client.chat.completions.create(
         model=os.getenv("LLM_MODEL", "gpt-4o"),
         messages=[
@@ -179,9 +189,11 @@ def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
             {"role": "user", "content": prompt},
         ],
         max_tokens=max_tokens,
+        **extra,
     )
     return {
-        "text": response.choices[0].message.content,
+        # None when the token limit ran out before any answer text.
+        "text": response.choices[0].message.content or "",
         "input_tokens": response.usage.prompt_tokens,
         "output_tokens": response.usage.completion_tokens,
     }

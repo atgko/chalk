@@ -263,6 +263,28 @@ Quality note:
   Set cost_rates.local.default to 0.0 in config.json (already the default).
 ```
 
+### 8d. Google Gemini
+
+```
+Get your key at aistudio.google.com under "Get API key".
+Gemini is NOT sanctioned by the University of Utah. Like Anthropic,
+it has no university data agreement: use it only for course materials
+(syllabi, your own source files), never for student work. Any future
+feature that sends student data applies the same privacy rules to
+Gemini as to every other unapproved provider.
+Faculty use a personal API key and pay their own usage costs.
+
+  LLM_PROVIDER=gemini
+  LLM_API_KEY=AIza...
+  LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+  LLM_MODEL=gemini-3.5-flash-lite
+
+Cost: gemini-3.5-flash-lite is among the cheapest hosted options;
+gemini-3.5-flash costs a little less than GPT-4o.
+Chalk uses Google's OpenAI-compatible endpoint, so no extra
+package is needed.
+```
+
 **Cost rates.** Costs are calculated from the per-1,000-token rates in each project's `config.json` under `cost_rates`. When a provider changes its prices, edit the numbers there. The app's model dropdown lists exactly the models that have a rate. If you set a model by hand that has no rate, its cost is shown as "unknown" rather than $0.
 
 ## 9. Customizing prompt templates
@@ -383,6 +405,15 @@ Create or copy a key at console.anthropic.com under API keys and enter it in Set
 
 **I want to use Anthropic Claude instead. How do I switch?**
 In the app: Settings → Anthropic Claude → paste your key → choose a model → Test connection and save. By hand: in `.env`, set `LLM_PROVIDER=anthropic`, `LLM_API_KEY=<your key>`, `LLM_BASE_URL=` (blank), and `LLM_MODEL=claude-sonnet-5`.
+
+**"The Gemini API key was not accepted. Check it at aistudio.google.com and try again."**
+Create a key in Google AI Studio and enter it in Settings. Keys usually start with `AIza`.
+
+**"… refused this request (error 403) …"**
+The provider recognized the key but won't run the request. Usually the key is restricted, the project doesn't allow the chosen model, or the service isn't offered in your region or network (try without a VPN). The "Provider said:" part gives the exact reason.
+
+**"Your OpenAI account has no API credits…"**
+API use is billed separately from a ChatGPT subscription. Add credits at platform.openai.com under Billing.
 
 **"Could not reach the LLM provider. Check your connection. Extraction and rollover work without a connection."**
 No internet, or the provider is down. Everything except generation still works.

@@ -21,6 +21,7 @@ CONFIG = {
     "cost_rates": {
         "openai": {"gpt-4o": {"input_per_1k": 0.0025, "output_per_1k": 0.010}},
         "anthropic": {"claude-sonnet-5": {"input_per_1k": 0.003, "output_per_1k": 0.015}},
+        "gemini": {"gemini-3.5-flash": {"input_per_1k": 0.0015, "output_per_1k": 0.009}},
         "local": {"default": {"input_per_1k": 0.0, "output_per_1k": 0.0}},
     }
 }
@@ -127,6 +128,7 @@ def test_context_is_truncated_to_the_token_budget(tmp_project):
 def test_rates_are_looked_up_per_provider_and_model():
     assert rate_for(CONFIG, {"LLM_PROVIDER": "openai", "LLM_MODEL": "gpt-4o"})["output_per_1k"] == 0.010
     assert rate_for(CONFIG, {"LLM_PROVIDER": "anthropic", "LLM_MODEL": "claude-sonnet-5"})["input_per_1k"] == 0.003
+    assert rate_for(CONFIG, {"LLM_PROVIDER": "gemini", "LLM_MODEL": "gemini-3.5-flash"})["output_per_1k"] == 0.009
 
 
 def test_local_endpoints_always_use_the_local_default_rate():

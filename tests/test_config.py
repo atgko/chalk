@@ -81,6 +81,17 @@ def test_load_config_reads_json_file(tmp_path):
     assert config["institution"] == "University of Utah"
 
 
+def test_load_config_fills_in_provider_rates_an_older_project_is_missing(tmp_path):
+    config_path = tmp_path / "config.json"
+    old_project = {"cost_rates": {"openai": {"gpt-custom": {"input_per_1k": 1, "output_per_1k": 2}}}}
+    config_path.write_text(json.dumps(old_project), encoding="utf-8")
+
+    rates = load_config(config_path)["cost_rates"]
+
+    assert rates["openai"] == {"gpt-custom": {"input_per_1k": 1, "output_per_1k": 2}}
+    assert "gemini-3.5-flash" in rates["gemini"]
+
+
 def test_validate_provider_succeeds_and_restores_previous_env(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("LLM_API_KEY", "sk-original")
@@ -140,6 +151,13 @@ def test_anthropic_settings_leave_base_url_blank():
     assert settings == ProviderSettings("anthropic", "sk-ant", "", "claude-sonnet-5")
 
 
+def test_gemini_settings_use_googles_openai_compatible_url():
+    settings = provider_settings("Google Gemini", api_key="AIza", model="gemini-3.5-flash")
+    assert settings == ProviderSettings(
+        "gemini", "AIza", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-3.5-flash"
+    )
+
+
 def test_ollama_settings_fill_in_prd_defaults():
     settings = provider_settings("Local model (Ollama)")
     assert settings == ProviderSettings("openai", "ollama", "http://localhost:11434/v1", "llama3.1:70b")
@@ -161,7 +179,7 @@ def test_hosted_providers_require_key_and_model(kwargs, message):
 
 def test_unknown_choice_is_a_programming_error():
     with pytest.raises(ValueError):
-        provider_settings("Gemini", api_key="x", model="y")
+        provider_settings("Mistral", api_key="x", model="y")
 
 
 @pytest.mark.parametrize(
@@ -170,6 +188,8 @@ def test_unknown_choice_is_a_programming_error():
         ({}, "OpenAI"),
         ({"LLM_PROVIDER": "openai", "LLM_BASE_URL": "https://api.openai.com/v1"}, "OpenAI"),
         ({"LLM_PROVIDER": "ANTHROPIC"}, "Anthropic Claude"),
+        ({"LLM_PROVIDER": "gemini", "LLM_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+         "Google Gemini"),
         ({"LLM_PROVIDER": "openai", "LLM_BASE_URL": "http://localhost:11434/v1"}, "Local model (Ollama)"),
     ],
 )
@@ -178,8 +198,15 @@ def test_choice_for_env(env, choice):
 
 
 def test_model_options_come_from_cost_rates():
-    config = {"cost_rates": {"openai": {"gpt-4o": {}, "gpt-4o-mini": {}}, "anthropic": {"claude-sonnet-5": {}}}}
+    config = {
+        "cost_rates": {
+            "openai": {"gpt-4o": {}, "gpt-4o-mini": {}},
+            "anthropic": {"claude-sonnet-5": {}},
+            "gemini": {"gemini-3.5-flash-lite": {}},
+        }
+    }
     assert model_options(config, "OpenAI") == ["gpt-4o", "gpt-4o-mini"]
+    assert model_options(config, "Google Gemini") == ["gemini-3.5-flash-lite"]
     assert model_options(config, "Anthropic Claude") == ["claude-sonnet-5"]
     assert model_options(config, "Local model (Ollama)") == []
     assert model_options({}, "OpenAI") == []
@@ -193,6 +220,10 @@ def test_model_options_come_from_cost_rates():
         (
             {"LLM_PROVIDER": "anthropic", "LLM_API_KEY": "k", "LLM_MODEL": "claude-sonnet-5"},
             "Anthropic claude-sonnet-5",
+        ),
+        (
+            {"LLM_PROVIDER": "gemini", "LLM_API_KEY": "k", "LLM_MODEL": "gemini-3.5-flash"},
+            "Gemini gemini-3.5-flash",
         ),
         (
             {"LLM_PROVIDER": "openai", "LLM_API_KEY": "ollama", "LLM_BASE_URL": "http://x/v1", "LLM_MODEL": "llama3"},
