@@ -287,6 +287,25 @@ def test_review_then_confirm_and_save_writes_course_json_and_brief(project, tmp_
     assert "Saved course.json and regenerated the course brief." in texts(at.success)
 
 
+def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_project, tmp_path):
+    saved_title = load_course(saved_project).course.title
+    pending = _pending(saved_project, tmp_path, docx_builder.build_minimal_syllabus, "new.docx")
+    at = launch(saved_project, chalk_pending_extraction=pending)
+    assert "Newly extracted — not saved yet." in texts(at.caption)
+
+    at = click(at, "Discard")
+
+    assert_no_exception(at)
+    assert at.session_state[session._PENDING_EXTRACTION_KEY] is None
+    assert "Discarded the new extraction. The saved course is unchanged." in texts(at.success)
+    assert "Showing the saved course.json." in texts(at.caption)
+    assert load_course(saved_project).course.title == saved_title
+
+
+def test_discard_is_only_offered_for_an_unsaved_extraction(saved_project):
+    assert "Discard" not in [b.label for b in launch(saved_project).button]
+
+
 def _save_course_missing_details(project, tmp_path):
     course_data, _ = extract_syllabus(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
     blank = course_data.course.model_copy(update={"section": "", "credits": None, "instructor": ""})
@@ -335,6 +354,15 @@ def test_review_handles_a_course_without_objectives_or_assessments(project, tmp_
     )
     at = launch(project)
     assert texts(at.caption).count("None found in the syllabus.") == 2
+
+
+def test_review_warns_when_assessment_weights_do_not_add_up(project, tmp_path):
+    from chalk.models import Assessment
+
+    course_data, _ = extract_syllabus(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+    save_course(project, course_data.model_copy(update={"assessments": [Assessment(name="Labs", weight=0.4)]}))
+    at = launch(project)
+    assert any("add up to 40%, not 100%" in w for w in texts(at.warning))
 
 
 def test_other_tabs_warn_while_a_new_extraction_is_unsaved(saved_project, tmp_path):

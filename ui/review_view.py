@@ -9,6 +9,7 @@ from __future__ import annotations
 import streamlit as st
 
 from chalk.errors import ChalkError
+from chalk.extractors.consistency import grading_weight_warning
 from chalk.models import CourseData
 from chalk.pipeline import save_reviewed_course
 from chalk.project import ProjectPaths
@@ -31,7 +32,16 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
     duration = _render_duration(course_data)
     _render_lists(course_data)
 
-    if st.button("Confirm and save", type="primary"):
+    save_col, discard_col = st.columns(2)
+    if pending is not None and discard_col.button("Discard", key="discard-extraction"):
+        session.set_pending_extraction(None)
+        session.flash(
+            "Discarded the new extraction. Nothing was saved."
+            if saved_course is None
+            else "Discarded the new extraction. The saved course is unchanged."
+        )
+        st.rerun()
+    if save_col.button("Confirm and save", type="primary"):
         credits_error = _credits_error(details["credits"])
         if credits_error:
             st.error(credits_error)
@@ -115,6 +125,9 @@ def _render_lists(course_data: CourseData) -> None:
     st.markdown("#### Assessment weights")
     if course_data.assessments:
         st.dataframe(tables.assessment_rows(course_data), hide_index=True)
+        weight_warning = grading_weight_warning(course_data)
+        if weight_warning:
+            st.warning(weight_warning)
     else:
         st.caption("None found in the syllabus.")
 

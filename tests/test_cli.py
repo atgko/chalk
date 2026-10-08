@@ -91,6 +91,8 @@ def test_extract_saves_course_json_and_brief(project, tmp_path):
 
     assert result.code == 0
     assert "Extracted: IS 6640 Networking and Servers — Fall 2026" in result.out
+    # The fixture's grading table lists only Video Quizzes (5%) and Labs (25%).
+    assert "Warning: The assessment weights add up to 30%, not 100%." in result.out
     assert "Wrote course.json" in result.out
     assert "Wrote outputs/course-brief.md" in result.out
     assert load_course(ProjectPaths(project)).course.term == "Fall 2026"

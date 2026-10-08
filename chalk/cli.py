@@ -27,6 +27,7 @@ from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
+from chalk.extractors.consistency import grading_weight_warning
 from chalk.generation.engine import (
     GenerationRequest,
     current_env,
@@ -415,6 +416,7 @@ def _preview_date(date: dt.date) -> str:
 def _format_course_summary(course_data: CourseData) -> str:
     course = course_data.course
     breaks = sum(1 for week in course_data.weeks if week.is_break)
+    weight_warning = grading_weight_warning(course_data)
     return "\n".join(
         [
             f"Extracted: {course.title} — {course.term}",
@@ -424,6 +426,7 @@ def _format_course_summary(course_data: CourseData) -> str:
                 f"{len(course_data.assessments)} assessments, "
                 f"{len(course_data.university_dates)} university dates"
             ),
+            *([f"  Warning: {weight_warning}"] if weight_warning else []),
         ]
     )
 

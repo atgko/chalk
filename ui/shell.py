@@ -117,7 +117,7 @@ def _warn_if_unsaved_extraction(course_data: CourseData | None) -> None:
     st.warning(
         f"You extracted {pending.course_data.course.title} but haven't saved it yet. This tab still "
         f"shows the saved course ({course_data.course.title}). Click **Confirm and save** on the "
-        "Review tab to use the new syllabus."
+        "Review tab to use the new syllabus, or **Discard** there to drop it."
     )
 
 

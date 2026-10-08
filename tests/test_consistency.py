@@ -1,7 +1,9 @@
 import datetime as dt
 
-from chalk.extractors.consistency import check_term_consistency
-from chalk.models import CourseData, CourseInfo, Week
+import pytest
+
+from chalk.extractors.consistency import check_term_consistency, grading_weight_warning
+from chalk.models import Assessment, CourseData, CourseInfo, Week
 
 
 def _course_data(term: str, week1_date: dt.date) -> CourseData:
@@ -115,3 +117,30 @@ def test_mismatch_message_fallback_guesses_summer_as_the_last_resort():
 
     assert result.passed is False
     assert "summer semester start" in result.detail
+
+
+# ---- Grading weights ----------------------------------------------------------
+
+
+def _with_weights(*weights: float) -> CourseData:
+    assessments = [Assessment(name=f"Item {i}", weight=w) for i, w in enumerate(weights, 1)]
+    return _course_data("Fall 2026", dt.date(2026, 8, 24)).model_copy(update={"assessments": assessments})
+
+
+@pytest.mark.parametrize("weights", [(0.5, 0.3, 0.2), (0.333, 0.333, 0.334), (1 / 3, 1 / 3, 1 / 3)])
+def test_weights_that_add_up_to_100_percent_are_not_flagged(weights):
+    assert grading_weight_warning(_with_weights(*weights)) is None
+
+
+def test_no_assessments_is_not_flagged():
+    assert grading_weight_warning(_with_weights()) is None
+
+
+def test_weights_short_of_100_percent_are_flagged_with_the_total():
+    warning = grading_weight_warning(_with_weights(0.5, 0.25))
+    assert warning.startswith("The assessment weights add up to 75%, not 100%.")
+    assert "points-based" in warning
+
+
+def test_weights_over_100_percent_are_flagged():
+    assert "add up to 110%" in grading_weight_warning(_with_weights(0.6, 0.5))

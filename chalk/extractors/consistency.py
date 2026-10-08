@@ -103,3 +103,24 @@ def _likely_season_for_month(month: int) -> str:
     if month in (3, 4):
         return "spring"
     return "summer"
+
+
+# Weights are stored as fractions; a table of whole percentages that sums
+# to 100 can still come out a hair off after rounding.
+_WEIGHT_TOLERANCE = 0.005
+
+
+def grading_weight_warning(course_data: CourseData) -> str | None:
+    """A warning when the assessment weights don't add up to 100%, else
+    None. Usually a grading-table row the extractor missed, or a
+    points-based table it can't read. No assessments at all isn't flagged:
+    Review already says none were found."""
+    if not course_data.assessments:
+        return None
+    total = sum(assessment.weight for assessment in course_data.assessments)
+    if abs(total - 1) <= _WEIGHT_TOLERANCE:
+        return None
+    return (
+        f"The assessment weights add up to {total * 100:g}%, not 100%. Check the syllabus's "
+        "grading table for a row that wasn't read, or a points-based table (only percentages are read)."
+    )
