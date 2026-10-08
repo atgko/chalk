@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-07.
+Last updated: 2026-10-08 @ 9:00 AM MST.
 
 ## Open questions (need someone outside the code)
 
@@ -62,6 +62,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P2: Course details edited on Review aren't written back into the syllabus document**, only into `course.json` and the course brief.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
+- **P3: During extraction of course syllabus, Review tab should be either combined so review is immediate or at least automatically pans over to Review Tab. It should only stay on the upload page if extraction results in failure.
 
 ## Generation
 
