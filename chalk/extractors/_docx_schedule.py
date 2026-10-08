@@ -209,7 +209,7 @@ def _build_regular_week(row, assignment_columns: set[int], year: int) -> Week:
     first_cell_lines = [label_paragraph[label.end :].strip(_LABEL_SUFFIX_EDGE)] + other_paragraphs
     topics, assignments, notes = _classify_lines([line for line in first_cell_lines if line])
 
-    for index, cell in enumerate(_distinct_cells(row)[1:], start=1):
+    for index, cell in enumerate(distinct_cells(row)[1:], start=1):
         lines = cell_lines(cell)
         if index in assignment_columns:
             more_topics, more_assignments, more_notes = [], *_split_notes(lines)
@@ -241,7 +241,7 @@ def _build_break_week(row, year: int) -> Week:
     )
 
 
-def _distinct_cells(row) -> list:
+def distinct_cells(row) -> list:
     """A row's cells with horizontally merged duplicates removed."""
     seen, cells = set(), []
     for cell in row.cells:

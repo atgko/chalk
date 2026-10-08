@@ -123,3 +123,36 @@ def test_markdown_fall_to_spring_renames_breaks_in_schedule_and_dates(tmp_path):
     assert "Fall Break" not in text
     assert "| - | 3/6 - 3/14 | Spring Break |  |" in text
     assert "| Spring Break | 3/6 - 3/14 |" in text
+
+
+def test_docx_rollover_with_a_longer_course_writes_and_rereads_every_week(tmp_path):
+    source = build_syllabus_with_full_schedule(tmp_path / "syllabus.docx")
+    course_data = docx_extractor.extract_course_data(source)
+    weeks_before = sum(1 for week in course_data.weeks if not week.is_break)
+    new_course_data, _ = roll_over_course(
+        course_data,
+        target_term="Fall 2027",
+        calendars=CALENDARS,
+        target_duration_weeks=weeks_before + 2,
+        llm_generate_topics=False,
+    )
+    output = tmp_path / "out" / "syllabus.docx"
+    write_rolled_over_docx(source, new_course_data, output)
+
+    reread = [w for w in docx_extractor.extract_course_data(output).weeks if not w.is_break]
+    expected = {w.week_number: w.date for w in new_course_data.weeks if not w.is_break}
+    assert {w.week_number: w.date for w in reread} == expected
+    assert reread[-1].notes == "No LLM available — fill in this week's content manually."
+
+
+def test_docx_rollover_with_a_shorter_course_drops_the_trailing_rows(tmp_path):
+    source = build_syllabus_with_full_schedule(tmp_path / "syllabus.docx")
+    course_data = docx_extractor.extract_course_data(source)
+    new_course_data, _ = roll_over_course(
+        course_data, target_term="Fall 2027", calendars=CALENDARS, target_duration_weeks=3
+    )
+    output = tmp_path / "out" / "syllabus.docx"
+    write_rolled_over_docx(source, new_course_data, output)
+
+    reread = [w for w in docx_extractor.extract_course_data(output).weeks if not w.is_break]
+    assert [w.week_number for w in reread] == [1, 2, 3]

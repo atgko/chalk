@@ -14,6 +14,7 @@ from docx import Document
 
 from chalk.extractors.docx_extractor import extract_course_data
 from chalk.metrics import read_events_by_type
+from chalk.models import Week
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from tests.fixtures.docx_builder import (
     build_minimal_syllabus,
@@ -103,6 +104,80 @@ def test_term_label_is_updated_so_reextraction_uses_the_right_year(tmp_path):
     # The whole point: without updating the Term line, re-extraction would
     # derive 2026 from the stale term label instead of 2027 from here.
     assert rolled_data.weeks[0].date == dt.date(2027, 8, 23)
+
+
+def _schedule_labels(path):
+    table = next(t for t in Document(str(path)).tables if t.rows[0].cells[0].text.strip() == "Week")
+    return [row.cells[0].text.strip() for row in table.rows[1:]]
+
+
+def test_a_shorter_course_removes_the_dropped_weeks_rows(tmp_path):
+    source_path = build_minimal_syllabus(tmp_path / "syllabus.docx")
+    course_data = extract_course_data(source_path)
+    rolled = _rolled_over_copy(course_data, week_dates={1: dt.date(2027, 8, 23)})
+    shorter = rolled.model_copy(update={"weeks": [w for w in rolled.weeks if w.week_number != 2]})
+
+    output_path = tmp_path / "outputs" / "syllabus.docx"
+    write_rolled_over_docx(source_path, shorter, output_path)
+
+    labels = _schedule_labels(output_path)
+    assert labels[0].startswith("Week 1 (8/23)")
+    assert not any(label.startswith("Week 2") for label in labels)
+
+
+def test_a_longer_course_adds_rows_for_the_new_weeks_after_the_last_week(tmp_path):
+    source_path = build_minimal_syllabus(tmp_path / "syllabus.docx")
+    course_data = extract_course_data(source_path)
+    rolled = _rolled_over_copy(
+        course_data, week_dates={1: dt.date(2027, 8, 23), 2: dt.date(2027, 10, 18)}
+    )
+    added = [
+        Week(
+            week_number=3,
+            date=dt.date(2027, 10, 25),
+            label="Week 3",
+            topics=["Draft topic A", "Draft topic B"],
+            notes="AI-generated draft — review and edit before use.",
+        ),
+        Week(
+            week_number=4,
+            date=dt.date(2027, 11, 1),
+            label="Week 4",
+            notes="No LLM available — fill in this week's content manually.",
+        ),
+    ]
+    longer = rolled.model_copy(update={"weeks": [*rolled.weeks, *added]})
+
+    output_path = tmp_path / "outputs" / "syllabus.docx"
+    write_rolled_over_docx(source_path, longer, output_path)
+
+    labels = _schedule_labels(output_path)
+    assert labels[-2:] == ["Week 3 (10/25)", "Week 4 (11/1)"]
+    reread = {w.week_number: w for w in extract_course_data(output_path).weeks if not w.is_break}
+    assert reread[3].date == dt.date(2027, 10, 25)
+    assert reread[3].topics == ["Draft topic A", "Draft topic B"]
+    assert reread[3].assignments == []
+    assert reread[3].notes == "AI-generated draft — review and edit before use."
+    assert reread[4].topics == []
+    assert reread[4].notes == "No LLM available — fill in this week's content manually."
+    # The copied row is the last week's: its old content must not leak in.
+    assert "Network+ Lab B Due" not in reread[4].assignments
+
+
+def test_added_week_rows_keep_the_label_formatting(tmp_path):
+    source_path = build_syllabus_with_bold_week_label(tmp_path / "syllabus.docx")
+    course_data = extract_course_data(source_path)
+    last = max(w.week_number for w in course_data.weeks if not w.is_break)
+    new_week = Week(week_number=last + 1, date=dt.date(2027, 12, 6), label=f"Week {last + 1}")
+    longer = course_data.model_copy(update={"weeks": [*course_data.weeks, new_week]})
+
+    output_path = tmp_path / "outputs" / "syllabus.docx"
+    write_rolled_over_docx(source_path, longer, output_path)
+
+    table = next(t for t in Document(str(output_path)).tables if t.rows[0].cells[0].text.strip() == "Week")
+    new_row = table.rows[-1]
+    assert new_row.cells[0].text.startswith(f"Week {last + 1} (12/6)")
+    assert new_row.cells[0].paragraphs[0].runs[0].bold
 
 
 def test_topics_assignments_and_notes_are_preserved_untouched(tmp_path):

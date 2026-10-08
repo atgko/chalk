@@ -6,7 +6,9 @@ text in place rather than clearing and rebuilding the paragraph, so
 formatting (bold, color, font) survives (python-openxml/python-docx#290;
 see PLAN.md Risk #1). All other cell content (topics, assignments, notes)
 is left untouched, per PRD section 6.2: "All other cell content
-preserved." Quiz/exam/lab numbering embedded in that untouched text is
+preserved." When the course length changes, rows of dropped weeks are
+removed and added weeks get a copy of the last week row with placeholder
+content. Quiz/exam/lab numbering embedded in untouched text is
 therefore never renumbered — flagging that for human review is
 roll_over_course()'s job (chalk.rollover.preview), not this writer's.
 
@@ -21,11 +23,13 @@ from pathlib import Path
 
 from docx import Document
 from docx.table import _Row
+from docx.text.paragraph import Paragraph
 
 from chalk.archiving import archive_before_write
 from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE
 from chalk.extractors._docx_schedule import (
     classify_row,
+    distinct_cells,
     format_week_label,
     looks_like_schedule_table,
     parse_week_label,
@@ -50,15 +54,15 @@ def write_rolled_over_docx(
 
     _update_front_matter_term(document, new_course_data.course.term)
 
-    new_dates_by_week_number = {
-        week.week_number: week.date
+    new_weeks_by_number = {
+        week.week_number: week
         for week in new_course_data.weeks
         if not week.is_break and week.date is not None
     }
     new_break_weeks = [week for week in new_course_data.weeks if week.is_break]
 
     schedule_tables = [table for table in document.tables if looks_like_schedule_table(table)]
-    _update_schedule(schedule_tables, new_dates_by_week_number, new_break_weeks)
+    _update_schedule(schedule_tables, new_weeks_by_number, new_break_weeks)
     for table in document.tables:
         if table not in schedule_tables and _looks_like_university_dates_table(table):
             _update_university_dates_table(table, new_course_data.university_dates)
@@ -69,34 +73,72 @@ def write_rolled_over_docx(
     document.save(str(output_path))
 
 
-def _update_schedule(
-    tables: list, new_dates_by_week_number: dict, new_break_weeks: list[Week]
-) -> None:
-    """Relabel every week row and rewrite the break rows, across all the
-    schedule's tables (a schedule may be split into one table per module).
-    Header and module-title rows are left alone (chalk.extractors.
-    _docx_schedule.classify_row)."""
-    week_rows: list[tuple] = []  # (new date or None, row)
+def _update_schedule(tables: list, new_weeks_by_number: dict, new_break_weeks: list[Week]) -> None:
+    """Make the week rows match the new schedule, then rewrite the break
+    rows, across all the schedule's tables (a schedule may be split into
+    one table per module). Header and module-title rows are left alone
+    (chalk.extractors._docx_schedule.classify_row)."""
+    week_rows: list[tuple] = []  # (row, its table)
     break_rows: list[tuple] = []  # (row, its table)
     for table in tables:
         for row in table.rows[1:]:  # row 0 is a header
             kind = classify_row(row)
             if kind == "week":
-                week_rows.append((_relabel_week_row(row, new_dates_by_week_number), row))
+                week_rows.append((row, table))
             elif kind == "break":
                 break_rows.append((row, table))
-    _rewrite_break_rows(tables, break_rows, week_rows, new_break_weeks)
+    dated_rows = _update_week_rows(tables, week_rows, new_weeks_by_number)
+    _rewrite_break_rows(tables, break_rows, dated_rows, new_break_weeks)
 
 
-def _relabel_week_row(row, new_dates_by_week_number: dict):
-    """Swap the date inside the row's "Week N (date)" label, in the label's
-    own style ("8/24" or "Jan. 6") and keeping any text around it. Returns
-    the week's new date (None if this week isn't in the new schedule)."""
+def _update_week_rows(tables: list, week_rows: list[tuple], new_weeks_by_number: dict) -> list[tuple]:
+    """Relabel the rows of weeks that stay, remove the rows of weeks a
+    shorter course drops, and add a row after the last week for each week
+    a longer course adds. Returns (new date, row) for every week row left.
+
+    An added row is a copy of the last week row, so it keeps the table's
+    formatting; its cells get the new week's label and placeholder content
+    instead of the copied text."""
+    if not week_rows:  # pragma: no cover - extraction requires a week row
+        return []
+    template_row, template_table = week_rows[-1]
+    template_tr = deepcopy(template_row._tr)
+    template_label = _label_paragraph_and_label(template_row)[1]
+
+    dated_rows: list[tuple] = []
+    kept_numbers: set[int] = set()
+    for row, _table in week_rows:
+        week = new_weeks_by_number.get(_label_paragraph_and_label(row)[1].week_number)
+        if week is None:
+            row._tr.getparent().remove(row._tr)
+            continue
+        _relabel_week_row(row, week.date)
+        dated_rows.append((week.date, row))
+        kept_numbers.add(week.week_number)
+
+    anchor_tr = dated_rows[-1][1]._tr if dated_rows else None
+    for number in sorted(set(new_weeks_by_number) - kept_numbers):
+        week = new_weeks_by_number[number]
+        row = _Row(deepcopy(template_tr), template_table)
+        _fill_new_week_row(row, week, template_label)
+        if anchor_tr is not None:
+            anchor_tr.addnext(row._tr)
+        else:  # pragma: no cover - a course always keeps at least one week
+            tables[-1]._tbl.append(row._tr)
+        anchor_tr = row._tr
+        dated_rows.append((week.date, row))
+    return dated_rows
+
+
+def _label_paragraph_and_label(row) -> tuple:
     paragraph = next(p for p in row.cells[0].paragraphs if parse_week_label(p.text))
-    label = parse_week_label(paragraph.text)
-    new_date = new_dates_by_week_number.get(label.week_number)
-    if new_date is None:
-        return None
+    return paragraph, parse_week_label(paragraph.text)
+
+
+def _relabel_week_row(row, new_date) -> None:
+    """Swap the date inside the row's "Week N (date)" label, in the label's
+    own style ("8/24" or "Jan. 6") and keeping any text around it."""
+    paragraph, label = _label_paragraph_and_label(row)
     old_label_text = paragraph.text[label.start : label.end]
     new_label_text = format_week_label(label.week_number, new_date, like=label)
     if not _replace_in_single_run(paragraph, old_label_text, new_label_text):
@@ -104,7 +146,38 @@ def _relabel_week_row(row, new_dates_by_week_number: dict):
         _set_paragraph_text_preserving_format(
             paragraph, text[: label.start] + new_label_text + text[label.end :]
         )
-    return new_date
+
+
+def _fill_new_week_row(row, week: Week, like) -> None:
+    """Label cell: the new "Week N (date)". Second cell: the week's topics,
+    assignments, and a "Note:" line (so re-extraction reads it back as the
+    note). Any other cells are emptied. A one-column table gets it all in
+    the label cell."""
+    label = format_week_label(week.week_number, week.date, like=like)
+    content = [*week.topics, *week.assignments, *([f"Note: {week.notes}"] if week.notes else [])]
+    cells = distinct_cells(row)
+    if len(cells) == 1:
+        _fill_cell(cells[0], [label, *content])
+        return
+    _fill_cell(cells[0], [label])
+    _fill_cell(cells[1], content)
+    for cell in cells[2:]:
+        _fill_cell(cell, [])
+
+
+def _fill_cell(cell, lines: list[str]) -> None:
+    """Replace a copied cell's text with one paragraph per line, each a
+    copy of the cell's first paragraph so the formatting carries over."""
+    first, *rest = cell.paragraphs
+    for paragraph in rest:
+        paragraph._p.getparent().remove(paragraph._p)
+    _set_paragraph_text_preserving_format(first, lines[0] if lines else "")
+    previous = first._p
+    for line in lines[1:]:
+        new_p = deepcopy(first._p)
+        previous.addnext(new_p)
+        _set_paragraph_text_preserving_format(Paragraph(new_p, cell), line)
+        previous = new_p
 
 
 def _rewrite_break_rows(
@@ -240,7 +313,7 @@ def _set_paragraph_text_preserving_format(paragraph, new_text: str) -> None:
     clear-and-rebuild would silently drop bold/color/font formatting —
     see python-openxml/python-docx#290."""
     runs = paragraph.runs
-    if not runs:  # pragma: no cover - a paragraph with visible text always has >=1 run
+    if not runs:  # an empty cell in a copied row
         paragraph.add_run(new_text)
         return
     runs[0].text = new_text
