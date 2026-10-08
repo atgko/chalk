@@ -176,6 +176,9 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--count", type=int, help="Quiz questions (default 5) or discussion prompts (default 3).")
     generate.add_argument("--format", choices=QUIZ_FORMATS, default="mixed", help="Quiz question format.")
     generate.add_argument("--assignment", help="Rubric: the assignment's name.")
+    generate.add_argument("--assignment-goal", default="", help="Assignment: required learning goal.")
+    generate.add_argument("--assignment-mode", choices=("create", "enhance"), default="create", help="Assignment: create or enhance an existing assignment.")
+
     generate.add_argument("--description", help="Rubric: the assignment description, as text.")
     generate.add_argument("--description-file", type=Path, help="Rubric: read the description from a file.")
     generate.add_argument("--points", type=int, default=DEFAULT_RUBRIC_POINTS, help="Rubric: total points.")
@@ -325,6 +328,9 @@ def _generation_request(args) -> GenerationRequest:
         quiz_format=args.format,
         prompt_count=args.count or DEFAULT_PROMPT_COUNT,
         assignment_name=args.assignment or "",
+        assignment_goal=args.assignment_goal,
+        assignment_mode=args.assignment_mode,
+
         assignment_description=description,
         total_points=args.points,
         slide_notes=args.notes or "",

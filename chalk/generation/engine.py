@@ -144,7 +144,11 @@ def _type_variables(spec: ContentSpec, course_data: CourseData, request: Generat
                 [
                     f"- {label}: PROVIDED BY INSTRUCTOR"
                     if value.strip()
-                    else f"- {label}: NOT PROVIDED — do not invent this requirement"
+                    else (
+                    f"- {label}: NOT SPECIFIED IN THIS FIELD — "
+                    "preserve any existing requirement found in the original assignment "
+                    "or other instructor-provided fields; do not invent new requirements"
+                )
                     for label, value in (
                         ("Requirements / constraints", request.assignment_requirements),
                         ("Scenario / context", request.assignment_scenario),

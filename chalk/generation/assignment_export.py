@@ -296,7 +296,8 @@ def export_pdf(text: str) -> bytes:
             continue
 
         if re.match(r"^\d+\.\s", line):
-            flush_lists()
+            if pending_bullets:
+                flush_lists()
             pending_numbers.append(
                 _clean_line(re.sub(r"^\d+\.\s*", "", line))
             )
