@@ -20,14 +20,20 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
   - Student work is an education record under FERPA, so the deciding question is contractual, not technical: which services have a data agreement with the university. The U's IT/privacy office owns that answer.
   - Question to bring to the sponsor: "Which AI services and contract terms are approved for student work, and can Chalk use them through an API?"
 - **P2: Privacy guardrails before any text is sent to an AI.** If student data ever leaves the computer, enforce protection in code, configured on the Settings page.
-  - Classify each provider in Settings: university-approved, not approved (public), or local (a model running on the instructor's computer, so nothing leaves it).
+  - Classify each provider in Settings: university-approved, not approved (public), or local (a model running on the instructor's computer, so nothing leaves it). Google Gemini (added Oct 7) and Anthropic are "not approved" today and get the same rules.
   - Block, or redact before sending, any student information going to a provider that isn't approved.
   - Names: exact-match against an uploaded Canvas roster. This is far more reliable than guessing which words are names.
   - IDs and contact details: strip uNIDs (`u` + 7 digits) and email addresses with pattern matching.
   - Log what was redacted (counts only, never the content) in the existing metadata-only eval log, so the evaluation report can show the guardrail working.
 - **P3: Grading feature (blocked on the two items above).** Scope it only once a provider is approved: e.g. rubric-based draft feedback that the instructor reviews, never a final grade.
 - **P2: Find the most token-efficient way to grade.** Token cost is a main concern for the department, so compare approaches before building: grade each rubric criterion separately or all at once; send only the relevant parts of a submission; use a smaller model (e.g. `gpt-4o-mini`) for a first pass and a larger one only for borderline cases; reuse the fixed rubric and instructions across submissions with prompt caching or batch APIs where the provider offers them. Measure the cost per submission with the existing cost tracking (Metrics tab) and set a target.
-- **P2: Add Google Gemini as a provider option.** Needs a choice in the Settings/first-run form, Gemini cost rates in `config.json`, and a branch in `chalk/llm_client.py`. Gemini has an OpenAI-compatible endpoint, so it may fit the existing OpenAI path with a different base URL. Check it against the student-data approval question above before recommending it for grading.
+- **P1: Try Gemini with a real API key.** Gemini is built (Settings → Google Gemini) but only tested with simulated replies. With a key from aistudio.google.com, run Test connection and one generation of each type; check the answers aren't cut short (Gemini 3 models "think", and that counts against Chalk's token limits; Chalk asks for low thinking) and compare the recorded cost with Google's billing page.
+- **Gemini is NOT sanctioned by the University of Utah.** It has no university data agreement, so it's for course materials only (syllabi, the instructor's own files), never student work. The provider form and README say so, and any student-data feature must apply the privacy guardrails above to it like every other unapproved provider.
+- **P2: Let instructors choose any model, and keep the model list from going stale.** Today the dropdown only lists the models that have a cost rate in `config.json` (e.g. `gpt-4o`, `claude-sonnet-5`, `gemini-3.5-flash`), so when a provider releases a better model or retires one, Chalk lags until someone edits the file. Ideas to compare:
+  - An "Other model…" choice where the instructor types any model name. Test connection already proves it works; its cost would show as "unknown" unless they also enter a rate.
+  - Ask the provider for its current model list (OpenAI, Anthropic, and Gemini all have a list-models API) when the key is tested, and offer those.
+  - Keep the bundled rates current: review `resources/config.json` each term, with a "prices last checked" date in the file. Gemini's were checked 2026-10-07.
+  - When a saved model is retired, the new 404 message already says to choose another one in Settings; a startup check could warn sooner.
 
 ## Extraction
 
@@ -37,8 +43,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P3: Scanned PDFs (OCR).** Out of scope; Chalk explains and suggests saving as Word.
 - **P3: A sample PDF in the demo course** so teammates can try the PDF path without their own syllabus. Needs a small PDF writer (the tests hand-build theirs in `tests/fixtures/pdf_layout_builder.py`).
 - **P2: Markdown has none of the Word path's new tolerance.** No month-name dates, no split tables, no extra columns. Markdown is Chalk's own format, so this matters less, but the README should keep saying so.
-- **P2: Year inference uses the term's year for every date.** A Fall syllabus with a January row (e.g. finals week "Week 17 (1/4)") would get the wrong year.
-- **P2: Grading weights aren't checked to sum to 100%.** Review should warn when they don't (e.g. a missed row, or a points-based table).
+- **P3: A Spring syllabus with a December row** (e.g. an orientation "Week 0 (12/15)") still gets the term's year for that row. Rows only move forward a year when the schedule crosses New Year after them.
 - **P3: Points-based grading tables** ("Labs — 250 pts") aren't recognized; only percentages are.
 - **P3: Title guesses can include the modality**, e.g. "Networking and Servers – Online". This is editable on Review.
 - **P3: Meeting pattern stays blank when it's only in a labeled line like "Time:"**. That's deliberate (in IS 6640, "Time:" is the webinar, not the class).
@@ -46,7 +51,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Rollover
 
-- **P1: Word rollover with a changed duration doesn't add or remove table rows.** Added weeks appear in the preview, `course.json`, and the course brief, but not in the .docx. Dropped weeks keep their old labels in the document. Markdown rollover does handle this, because it rewrites the whole table.
+- **P3: Changing the length of a split (per-module) Word schedule.** Added weeks go after the last week of the last module table; dropped weeks can leave a module table with only its title and header rows. Untested on a real split schedule.
 - **P2: Numbered break weeks are only flagged.** In "Week 10 — Spring Break", Week 10 rolls over as an ordinary week with a flag. It isn't turned into a break row or moved.
 - **P2: Single-day holidays in the University Dates table aren't replaced on a season change** (e.g. Labor Day in a Spring rollover). They're flagged for manual removal.
 - **P3: Break rows in a split (per-module) schedule** are placed by date across all the tables; a break after the last week goes at the end of the last table. This is untested on a real split schedule that has break rows.
@@ -56,7 +61,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 ## App / UX
 
 - **P2: Course details edited on Review aren't written back into the syllabus document**, only into `course.json` and the course brief.
-- **P2: There's no button to discard an unsaved extraction** (Cancel only appears after a term mismatch). Refreshing the page clears it.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
 
 ## Generation
@@ -74,6 +78,11 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Done
 
+- 2026-10-07: Google Gemini as a fourth provider (through Google's OpenAI-compatible endpoint, no new package); labeled as not university-approved. Older projects pick up new providers' cost rates automatically.
+- 2026-10-07: Word rollover with a changed course length adds rows for new weeks (a copy of the last week's row, with placeholder or AI-drafted topics) and removes rows for dropped weeks.
+- 2026-10-07: Review and the CLI warn when assessment weights don't add up to 100%.
+- 2026-10-07: Schedules that cross New Year (e.g. a January finals week in a Fall syllabus) get the next year for the later dates.
+- 2026-10-07: A Discard button on Review drops an unsaved extraction.
 - 2026-10-07: Clearer provider errors: an OpenAI account with no API credits is no longer retried and reported as "temporarily unavailable"; 403 and 404 errors explain the likely causes (restricted key, blocked model or region, unknown model) and, for now, show the provider's own message.
 - 2026-10-05: Rollover asks which days the class meets (holiday warnings only on class days) and lets the instructor switch off breaks the class meets through.
 - 2026-10-01: PDF syllabi: read on this computer (pdfplumber) or with AI, converted to a Word file that the existing Word path extracts and rolls over.

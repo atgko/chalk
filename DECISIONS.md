@@ -112,6 +112,20 @@
 - **Rollover asks which days the class meets.** Classes move days between terms, so this is a rollover input, not a saved course field. It defaults to the days in the syllabus's meeting pattern ("MW 10:45", "TTh", "Tuesdays and Thursdays"; `chalk.rollover.meeting_days`). With days chosen, a holiday or break is flagged only when it lands on a class day (a Tue/Thu class isn't warned about Labor Day, and a Thursday class is now warned about Thanksgiving, which the week's-start-date check missed). With none chosen, the old check against each week's start date still applies. Picking days that differ from the syllabus adds a reminder to update the meeting-pattern line, which rollover never rewrites.
 - **Each multi-day break in the target term has an on/off toggle** (default on). Some graduate programs meet through Fall or Spring Break. A break that's switched off is removed from the schedule rows (or never added on a season change) and never flagged. Single-day holidays are still flagged, and the University Dates table still lists the break because it's the university's calendar, not the class's. CLI: `--meeting-days TR`, `--no-break "Fall Break"`.
 
+## Providers (Oct 7, 2026)
+
+- **Google Gemini is a fourth provider, through Google's OpenAI-compatible endpoint** (`LLM_PROVIDER=gemini`). It reuses the OpenAI SDK path in `chalk/llm_client.py` with Google's base URL, so no new dependency. Gemini 3 models always "think", and thinking tokens count against `max_tokens`, so Chalk sends `reasoning_effort="low"` for Gemini only. The dropdown offers `gemini-3.5-flash-lite` and `gemini-3.5-flash`; Google limits the 2.5 models to accounts that already used them.
+- **Gemini is not sanctioned by the University of Utah.** It's labeled as not approved for student data in the provider form and README, and the privacy guardrails planned for any student-data feature (BACKLOG.md) treat it like every other unapproved provider.
+- **Older projects get new providers' cost rates automatically.** `load_config` fills in any `cost_rates` provider section a project's `config.json` lacks from the bundled defaults; sections the project has are never changed.
+- **Provider errors are explicit, temporarily with the provider's own text.** An OpenAI `insufficient_quota` 429 isn't retried and says to add credits; 403 and 404 name the likely causes. `_SHOW_PROVIDER_DETAILS` appends the provider's message while the team debugs setups; it's switched off before the presentation (BACKLOG.md).
+
+## Backlog fixes (Oct 7, 2026)
+
+- **Word rollover changes the number of week rows with the course length.** A dropped week's row is removed. An added week gets a copy of the last week row (keeping the table's formatting) with the new label, its topics, and a `Note:` line (placeholder or "AI-generated draft"), so re-extracting the document reads it back the same way. Added rows go after the last week, in the last table.
+- **Dates that cross New Year get the next year.** Rows are read with the term's year, then a pass over the weeks in order adds a year from the first date that falls more than 180 days before the previous one. Using a pass after extraction keeps Word, Markdown, and PDF on the same rule.
+- **Grading weights that don't add up to 100% are a warning, not an error** (Review and the CLI's extract summary), with 0.5% tolerance for rounding. No assessments at all isn't flagged, since Review already says none were found.
+- **Discard on Review** drops an unsaved extraction; the saved course is never touched.
+
 ## Visual design
 
 - **Theme**: University of Utah colors on the warm, editorial layout of the team's reference page (off-white background, cream panels, serif headings, sans-serif body), set entirely in `.streamlit/config.toml` with separate light and dark themes. No custom CSS, so Streamlit upgrades can't break it.
