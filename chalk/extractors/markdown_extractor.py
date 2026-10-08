@@ -22,7 +22,12 @@ import re
 from pathlib import Path
 
 from chalk.errors import AmbiguousTableError, ExtractionError
-from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE, year_from_term
+from chalk.extractors._dates import (
+    DATE_RANGE_RE,
+    FULL_DATE_RE,
+    roll_dates_past_new_year,
+    year_from_term,
+)
 from chalk.extractors._front_matter import extract_front_matter
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
@@ -57,7 +62,7 @@ def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> 
 
     tables = _parse_markdown_tables(text)
     schedule_table = _find_schedule_table(tables, schedule_table_index)
-    weeks = _extract_weeks(schedule_table, year)
+    weeks = roll_dates_past_new_year(_extract_weeks(schedule_table, year))
 
     course_info = CourseInfo(
         title=front_matter["title"],

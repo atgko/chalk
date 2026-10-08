@@ -27,7 +27,12 @@ from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
 
 from chalk.errors import ExtractionError, ProtectedFileError
-from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE, year_from_term
+from chalk.extractors._dates import (
+    DATE_RANGE_RE,
+    FULL_DATE_RE,
+    roll_dates_past_new_year,
+    year_from_term,
+)
 from chalk.extractors._docx_schedule import extract_weeks, find_schedule_tables
 from chalk.extractors._front_matter import extract_front_matter
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
@@ -65,7 +70,7 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
     year = _year_from_term_or_raise(front_matter["term"])
 
     schedule_tables = find_schedule_tables(document, schedule_table_index)
-    weeks = extract_weeks(schedule_tables, year)
+    weeks = roll_dates_past_new_year(extract_weeks(schedule_tables, year))
 
     course_info = CourseInfo(
         title=front_matter["title"],
