@@ -16,8 +16,8 @@ Four of us share this repo. `master` is what we demo from, so every change reach
 4. **Run the tests locally** before pushing: `python -m pytest -q` (the run fails if coverage drops under 80%).
 5. **Stay current.** If master moves while you work, merge it in (`git pull origin master`) and rerun the tests. Small, frequent catch-ups beat one big conflict at the end.
 6. **Push and open a PR.** `git push -u origin <branch>`, then open the PR on GitHub. Fill in the template's test plan, including any manual check in the app.
-7. **Get one review and a green CI.** Any teammate can review. The **Tests** workflow runs on Windows, macOS, and Linux.
-8. **Merge, then delete the branch.** Use **Merge pull request**. The branch is done once merged. Start the next change from master again.
+7. **Wait for a green CI.** The **Tests** workflow runs on Windows, macOS, and Linux, and master only accepts a PR once it passes. No approval is needed, so merge your own PR. Ask a teammate to look first only if you want a second opinion.
+8. **Merge, then delete the branch.** Use **Merge pull request** (GitHub deletes the branch on GitHub for you). The branch is done once merged. Start the next change from master again.
 
 ## Things that conflict easily
 
