@@ -53,6 +53,14 @@ class GenerationRequest:
     prompt_count: int = DEFAULT_PROMPT_COUNT
     assignment_name: str = ""
     assignment_description: str = ""
+    assignment_mode: str = "create"
+    assignment_goal: str = ""
+    assignment_requirements: str = ""
+    assignment_scenario: str = ""
+    assignment_deliverables: str = ""
+    assignment_format: str = ""
+    assignment_evaluation: str = ""
+    assignment_submission: str = ""
     total_points: int = DEFAULT_RUBRIC_POINTS
     slide_notes: str = ""
     source_files: tuple[str, ...] = ()
@@ -87,7 +95,8 @@ def output_path_for(paths: ProjectPaths, request: GenerationRequest) -> Path:
     if spec.per_week:
         return folder / f"week-{request.week_number}-{spec.key}.md"
     slug = _SLUG_RE.sub("-", request.assignment_name.lower()).strip("-") or "assignment"
-    return folder / f"{slug}-rubric.md"
+    suffix = "rubric" if spec.key == "rubric" else spec.key
+    return folder / f"{slug}-{suffix}.md"
 
 
 def build_prompt(paths: ProjectPaths, course_data: CourseData, request: GenerationRequest) -> str:
@@ -105,14 +114,80 @@ def build_prompt(paths: ProjectPaths, course_data: CourseData, request: Generati
 
 def _type_variables(spec: ContentSpec, course_data: CourseData, request: GenerationRequest) -> dict[str, str]:
     if not spec.per_week:
-        if not request.assignment_name.strip() or not request.assignment_description.strip():
-            raise GenerationError("A rubric needs an assignment name and a description of the assignment.")
-        _require_positive(request.total_points, "Total points")
-        return {
-            "assignment_name": request.assignment_name.strip(),
-            "assignment_description": request.assignment_description.strip(),
-            "total_points": str(request.total_points),
-        }
+        if spec.key == "assignment":
+            if not request.assignment_name.strip() or not request.assignment_goal.strip():
+                raise GenerationError("An assignment needs a name and a learning goal.")
+            if request.assignment_mode not in ("create", "enhance"):
+                raise GenerationError("Assignment mode must be create or enhance.")
+            if request.assignment_mode == "enhance" and not request.assignment_description.strip():
+                raise GenerationError("Enhance mode needs the existing assignment text or an uploaded assignment.")
+
+            if request.assignment_mode == "create":
+                mode_instructions = (
+                    "Create a new assignment using only the supplied learning goal, "
+                    "requirements, course objectives, and relevant source material. "
+                    "Do not discuss enhancing or revising an existing assignment. "
+                    "Where details are missing, use [Faculty decision needed]."
+                )
+            else:
+                mode_instructions = (
+                    "Improve the existing assignment while preserving the instructor's "
+                    "original purpose, requirements, and useful content. Improve clarity, "
+                    "alignment, organization, student directions, and assessability without "
+                    "silently changing the assignment. Do not discuss creating a new assignment. "
+                    "Do not add new requirements unless supported by the instructor's information "
+                    "or source materials. Where details are missing, use [Faculty decision needed]."
+                )
+
+            return {
+                "assignment_detail_status": "\n".join(
+                [
+                    f"- {label}: PROVIDED BY INSTRUCTOR"
+                    if value.strip()
+                    else (
+                    f"- {label}: NOT SPECIFIED IN THIS FIELD — "
+                    "preserve any existing requirement found in the original assignment "
+                    "or other instructor-provided fields; do not invent new requirements"
+                )
+                    for label, value in (
+                        ("Requirements / constraints", request.assignment_requirements),
+                        ("Scenario / context", request.assignment_scenario),
+                        ("Required deliverables", request.assignment_deliverables),
+                        ("Format / length", request.assignment_format),
+                        ("Evaluation expectations", request.assignment_evaluation),
+                        ("Submission details", request.assignment_submission),
+                    )
+                ]
+            ),
+            "assignment_mode": request.assignment_mode,
+                "assignment_name": request.assignment_name.strip(),
+                "assignment_goal": request.assignment_goal.strip(),
+                "assignment_description": request.assignment_description.strip()
+                or "(none - create a new assignment from the course context and goal)",
+                "assignment_requirements": request.assignment_requirements.strip()
+                or "(none specified)",
+                "assignment_scenario": request.assignment_scenario.strip()
+            or "(none specified)",
+            "assignment_deliverables": request.assignment_deliverables.strip()
+            or "(none specified)",
+            "assignment_format": request.assignment_format.strip()
+            or "(none specified)",
+            "assignment_evaluation": request.assignment_evaluation.strip()
+            or "(none specified)",
+            "assignment_submission": request.assignment_submission.strip()
+            or "(none specified)",
+            "assignment_mode_instructions": mode_instructions,
+            }
+
+        if spec.key == "rubric":
+            if not request.assignment_name.strip() or not request.assignment_description.strip():
+                raise GenerationError("A rubric needs an assignment name and a description of the assignment.")
+            _require_positive(request.total_points, "Total points")
+            return {
+                "assignment_name": request.assignment_name.strip(),
+                "assignment_description": request.assignment_description.strip(),
+                "total_points": str(request.total_points),
+            }
 
     week = _find_week(course_data, request.week_number)
     variables = {
@@ -130,7 +205,6 @@ def _type_variables(spec: ContentSpec, course_data: CourseData, request: Generat
     elif spec.key == "slides":
         variables["slide_notes"] = request.slide_notes.strip() or "(none — use the week's topics)"
     return variables
-
 
 def _find_week(course_data: CourseData, week_number: int | None) -> Week:
     for week in course_data.weeks:
@@ -206,6 +280,8 @@ def generate(
             author=course_data.course.instructor,
             banner=f"AI-generated draft — review and edit before use. {banner}",
         )
+    elif spec.key == "assignment":
+        text = body
     else:
         text = f"> **AI-generated draft** — review and edit before use. {banner}\n\n{body}\n"
 
