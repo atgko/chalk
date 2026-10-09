@@ -264,6 +264,38 @@ def test_table_picker_resolves_an_ambiguous_upload(project, tmp_path):
     assert at.session_state["chalk_table_choice"] is None
 
 
+
+def test_continue_anyway_opens_the_review_tab(project, tmp_path):
+    pending = _pending(
+        project, tmp_path, docx_builder.build_syllabus_with_term_mismatch, "bad.docx"
+    )
+    at = launch(project, chalk_pending_extraction=pending)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Upload"
+
+    at = click(at, "Continue anyway")
+
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Review"
+
+
+def test_extraction_opens_the_review_tab(project, tmp_path):
+    upload = md_builder.build_syllabus_with_multiple_candidate_tables(tmp_path / "two.md")
+    choice = TableChoice(upload, ["Week | Dates / 1 | first", "Week | Dates / 1 | Duplicate"])
+
+    at = click(launch(project, chalk_table_choice=choice), "Use this table")
+
+    assert_no_exception(at)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Review"
+
+
+def test_failed_extraction_stays_on_the_upload_tab(project, tmp_path):
+    upload = md_builder.build_syllabus_with_no_schedule_table(tmp_path / "bad.md")
+    choice = TableChoice(upload, ["a", "b"])
+
+    at = click(launch(project, chalk_table_choice=choice), "Use this table")
+
+    assert at.error
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Upload"
+
 def test_table_picker_can_be_cancelled(project, tmp_path):
     choice = TableChoice(tmp_path / "x.md", ["a", "b"])
     at = click(launch(project, chalk_table_choice=choice), "Cancel")

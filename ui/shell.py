@@ -61,7 +61,10 @@ def main(argv: list[str] | None = None) -> None:
         st.success(message)
 
     course_data = _load_course_or_warn(paths)
-    upload, review, rollover, generate, export, metrics, settings = st.tabs(TAB_NAMES)
+    session.apply_tab_request()
+    upload, review, rollover, generate, export, metrics, settings = st.tabs(
+        TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
+    )
     with upload:
         _guarded(upload_view.render, paths)
     with review:

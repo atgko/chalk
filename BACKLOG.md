@@ -61,7 +61,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P2: Course details edited on Review aren't written back into the syllabus document**, only into `course.json` and the course brief.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
-- **P3: During extraction of course syllabus, Review tab should be either combined so review is immediate or at least automatically pans over to Review Tab.** It should only stay on the upload page if extraction results in failure.
 
 ## Generation
 
@@ -79,6 +78,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - 2026-10-08: The rollover flag helpers moved from `chalk/rollover/preview.py` (now ~515 lines) to `chalk/rollover/flags.py`.
 - 2026-10-08: Season-change rollovers replace single-day holidays in the University Dates table (Labor Day becomes Martin Luther King Jr. Day in a Fall → Spring rollover) and flag any target-term holiday left without a row. Every rollover now takes a holiday's date from the calendar by name, and "Independence Day" is no longer read as the end of term.
+- 2026-10-08: A successful extraction opens the Review tab (also after picking a schedule table or clicking Continue anyway). A failed extraction, or a term/schedule warning still to resolve, stays on Upload.
 - 2026-10-07: Google Gemini as a fourth provider (through Google's OpenAI-compatible endpoint, no new package); labeled as not university-approved. Older projects pick up new providers' cost rates automatically.
 - 2026-10-07: Word rollover with a changed course length adds rows for new weeks (a copy of the last week's row, with placeholder or AI-drafted topics) and removes rows for dropped weeks.
 - 2026-10-07: Review and the CLI warn when assessment weights don't add up to 100%.

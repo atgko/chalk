@@ -179,6 +179,8 @@ def _apply(outcome: UploadOutcome) -> None:
     if outcome.pending is not None:
         session.set_pending_extraction(outcome.pending)
         session.set_rollover_plan(None)
+        if outcome.pending.acknowledged:  # otherwise the term warning stays on Upload
+            session.go_to_tab("Review")
     if outcome.notice:
         session.flash(outcome.notice)
     st.rerun()
@@ -207,6 +209,7 @@ def _render_consistency_warning(paths: ProjectPaths, pending: PendingExtraction)
     if continue_col.button("Continue anyway"):
         log_consistency_override(paths.eval_log, pending.consistency)
         session.set_pending_extraction(dataclasses.replace(pending, acknowledged=True))
+        session.go_to_tab("Review")
         st.rerun()
     if cancel_col.button("Cancel", key="cancel-extraction"):
         session.set_pending_extraction(None)
