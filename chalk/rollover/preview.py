@@ -35,26 +35,38 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from chalk.calendar_data import find_term
 from chalk.errors import LLMProviderError
 from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
-from chalk.rollover.meeting_days import class_dates_in_week, meeting_days_changed_flag
+from chalk.rollover.flags import (
+    duration_change_flags,
+    flag_dst_boundary_weeks,
+    flag_numbered_weeks_marked_as_breaks,
+    flag_weeks_colliding_with_target_breaks,
+    schedule_choice_flags,
+)
 from chalk.rollover.season_change import (
+    holiday_names,
+    is_holiday_name,
     is_season_change,
+    match_calendar_entry,
+    match_holiday,
+    missing_holiday_flag,
     multi_day_breaks,
     rebuild_break_weeks,
     replacement_flag,
+    single_day_holidays,
     stale_break_flag,
     unmatched_university_date_flag,
 )
 
-_DST_BOUNDARY_WINDOW_DAYS = 14
-_BREAK_MENTION_RE = re.compile(
-    r"\b(?:spring|fall|summer|winter|thanksgiving|holiday)\s+break\b|\bno class(?:es)?\b", re.IGNORECASE
-)
+# Word boundaries, so "Independence Day" isn't read as the end of term.
+_TERM_BEGINS_RE = re.compile(r"\bbegin", re.IGNORECASE)
+_TERM_ENDS_RE = re.compile(r"\bend", re.IGNORECASE)
 
 # Stand-in date for weeks added by a duration increase — overwritten by
 # _shift_regular_weeks, and reported as "no old date" in the preview.
@@ -137,8 +149,8 @@ def roll_over_course(
     )
 
     season_changed = is_season_change(course_data.course.term, target_term)
-    general_flags = _general_flags(old_duration, new_duration)
-    general_flags.extend(_schedule_choice_flags(course_data, meeting_days, breaks_not_observed, dropped_breaks))
+    general_flags = duration_change_flags(old_duration, new_duration)
+    general_flags.extend(schedule_choice_flags(course_data, meeting_days, breaks_not_observed, dropped_breaks))
 
     new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start)
     if season_changed and syllabus_break_weeks and term_data is not None:
@@ -166,13 +178,13 @@ def roll_over_course(
     new_weeks.extend(new_break_weeks)
     week_changes.extend(break_changes)
 
-    _flag_weeks_colliding_with_target_breaks(
+    flag_weeks_colliding_with_target_breaks(
         new_weeks, week_changes, target_breaks, new_term_start.year, meeting_days
     )
-    _flag_numbered_weeks_marked_as_breaks(new_weeks, week_changes, course_data.course.term, target_term)
+    flag_numbered_weeks_marked_as_breaks(new_weeks, week_changes, course_data.course.term, target_term)
 
     if course_data.course.source_format == "markdown":
-        _flag_dst_boundary_weeks(new_weeks, week_changes)
+        flag_dst_boundary_weeks(new_weeks, week_changes)
 
     new_weeks.sort(key=_week_sort_key)
 
@@ -183,6 +195,7 @@ def roll_over_course(
         new_term_start,
         course_data.course.term_start,
         rename_for_term=target_term if season_changed else None,
+        known_holidays=holiday_names(calendars),
     )
     general_flags.extend(university_date_flags)
 
@@ -369,72 +382,105 @@ def _shift_university_dates(
     old_term_start: dt.date,
     *,
     rename_for_term: str | None = None,
+    known_holidays: frozenset[str] = frozenset(),
 ) -> tuple[list[UniversityDate], list[str]]:
     """Recompute the university-dates table for the target term: "begin"
     and "end" entries come from the target term's own start/end, entries
-    matching a named break come from that break's target-term dates, and
+    matching a named break or holiday come from its target-term dates, and
     anything else falls back to a same-offset shift as a best effort.
 
     `rename_for_term` is set on a season-change rollover: an unmatched
-    break span then takes over the next unused target-term break (name and
-    dates), and anything still unmatched is flagged for review. Entries
-    keep their order and count either way, so the writers can pair them
-    with the source table's rows by position. Returns (entries, flags).
+    break span takes over the next unused target-term break, and an
+    unmatched holiday (one named in `known_holidays`, e.g. Labor Day) the
+    next unused target-term holiday, name and dates. Anything still
+    unmatched is flagged for review, as is any target-term holiday left
+    over. Entries keep their order and count either way, so the writers
+    can pair them with the source table's rows by position. Returns
+    (entries, flags).
     """
     offset_days = (new_term_start - old_term_start).days
+    target_holidays = single_day_holidays(target_breaks)
+    unused_breaks = _calendar_entries_not_named_in(
+        university_dates, multi_day_breaks(target_breaks), match_calendar_entry
+    )
+    unused_holidays = _calendar_entries_not_named_in(university_dates, target_holidays, match_holiday)
+    renaming = rename_for_term is not None and term_data is not None
     new_entries = []
     flags: list[str] = []
-    unused_target_breaks = _target_breaks_not_named_in(university_dates, target_breaks)
 
     for entry in university_dates:
-        event_lower = entry.event.lower()
-        if term_data is not None and "begin" in event_lower:
-            new_entries.append(entry.model_copy(update={"date": dt.date.fromisoformat(term_data["start"])}))
-            continue
-        if term_data is not None and "end" in event_lower:
-            new_entries.append(entry.model_copy(update={"date": dt.date.fromisoformat(term_data["end"])}))
-            continue
+        new_entry = _university_date_from_calendar(entry, term_data, target_breaks, target_holidays)
+        if new_entry is None and renaming:
+            new_entry = _university_date_for_new_season(entry, unused_breaks, unused_holidays, known_holidays)
+            if new_entry is None:
+                flags.append(unmatched_university_date_flag(entry.event, rename_for_term))
+        new_entries.append(new_entry or _shift_university_date_by_offset(entry, offset_days))
 
-        matched = _match_break_in_calendar(entry.event, target_breaks)
-        if matched is not None:
-            new_entries.append(
-                entry.model_copy(
-                    update={
-                        "date": None,
-                        "date_start": dt.date.fromisoformat(matched["date_start"]),
-                        "date_end": dt.date.fromisoformat(matched["date_end"]),
-                    }
-                )
-            )
-            continue
-
-        if rename_for_term is not None and term_data is not None:
-            if entry.date_start is not None and unused_target_breaks:
-                new_entries.append(_university_date_from_break(entry, unused_target_breaks.pop(0)))
-                continue
-            flags.append(unmatched_university_date_flag(entry.event, rename_for_term))
-
-        new_entries.append(_shift_university_date_by_offset(entry, offset_days))
-
+    had_holidays = any(is_holiday_name(entry.event, known_holidays) for entry in university_dates)
+    if renaming and had_holidays and unused_holidays:
+        flags.append(missing_holiday_flag(unused_holidays, rename_for_term))
     return new_entries, flags
 
 
-def _target_breaks_not_named_in(
-    university_dates: list[UniversityDate], target_breaks: list[dict]
+def _university_date_from_calendar(
+    entry: UniversityDate, term_data: dict | None, target_breaks: list[dict], target_holidays: list[dict]
+) -> UniversityDate | None:
+    """The entry with its target-term date, if the calendar names it."""
+    if term_data is not None and _TERM_BEGINS_RE.search(entry.event):
+        return entry.model_copy(update={"date": dt.date.fromisoformat(term_data["start"])})
+    if term_data is not None and _TERM_ENDS_RE.search(entry.event):
+        return entry.model_copy(update={"date": dt.date.fromisoformat(term_data["end"])})
+    matched_break = _match_break_in_calendar(entry.event, target_breaks)
+    if matched_break is not None:
+        return _university_date_from_break(entry, matched_break, rename=False)
+    matched_holiday = match_holiday(entry.event, target_holidays)
+    if matched_holiday is not None and entry.date is not None:
+        return _university_date_from_holiday(entry, matched_holiday, rename=False)
+    return None
+
+
+def _university_date_for_new_season(
+    entry: UniversityDate,
+    unused_breaks: list[dict],
+    unused_holidays: list[dict],
+    known_holidays: frozenset[str],
+) -> UniversityDate | None:
+    """Season change: the entry renamed to the next unused target-term
+    break or holiday of its kind; None if there's none to take over.
+    Consumes the entry it takes from `unused_breaks`/`unused_holidays`."""
+    if entry.date_start is not None and unused_breaks:
+        return _university_date_from_break(entry, unused_breaks.pop(0), rename=True)
+    is_holiday = entry.date is not None and is_holiday_name(entry.event, known_holidays)
+    if is_holiday and unused_holidays:
+        return _university_date_from_holiday(entry, unused_holidays.pop(0), rename=True)
+    return None
+
+
+def _calendar_entries_not_named_in(
+    university_dates: list[UniversityDate],
+    calendar_entries: list[dict],
+    match: Callable[[str, list[dict]], dict | None],
 ) -> list[dict]:
-    named = [_match_break_in_calendar(entry.event, target_breaks) for entry in university_dates]
-    return [entry for entry in multi_day_breaks(target_breaks) if entry not in named]
+    named = [match(entry.event, calendar_entries) for entry in university_dates]
+    return [entry for entry in calendar_entries if entry not in named]
 
 
-def _university_date_from_break(entry: UniversityDate, target_break: dict) -> UniversityDate:
-    return entry.model_copy(
-        update={
-            "event": target_break["label"],
-            "date": None,
-            "date_start": dt.date.fromisoformat(target_break["date_start"]),
-            "date_end": dt.date.fromisoformat(target_break["date_end"]),
-        }
-    )
+def _university_date_from_break(entry: UniversityDate, target_break: dict, *, rename: bool) -> UniversityDate:
+    updates = {
+        "date": None,
+        "date_start": dt.date.fromisoformat(target_break["date_start"]),
+        "date_end": dt.date.fromisoformat(target_break["date_end"]),
+    }
+    if rename:
+        updates["event"] = target_break["label"]
+    return entry.model_copy(update=updates)
+
+
+def _university_date_from_holiday(entry: UniversityDate, holiday: dict, *, rename: bool) -> UniversityDate:
+    updates = {"date": dt.date.fromisoformat(holiday["date"])}
+    if rename:
+        updates["event"] = holiday["label"]
+    return entry.model_copy(update=updates)
 
 
 def _shift_university_date_by_offset(entry: UniversityDate, offset_days: int) -> UniversityDate:
@@ -449,18 +495,7 @@ def _shift_university_date_by_offset(entry: UniversityDate, offset_days: int) ->
 
 
 def _match_break_in_calendar(label: str, target_breaks: list[dict]) -> dict | None:
-    normalized_label = _normalize_break_label(label)
-    for entry in target_breaks:
-        if "date_start" not in entry or "date_end" not in entry:
-            continue  # a single-day holiday (e.g. Labor Day), not a break span
-        normalized_entry = _normalize_break_label(entry["label"])
-        if normalized_entry in normalized_label or normalized_label in normalized_entry:
-            return entry
-    return None
-
-
-def _normalize_break_label(label: str) -> str:
-    return re.sub(r"[^a-z ]", "", label.lower()).strip()
+    return match_calendar_entry(label, multi_day_breaks(target_breaks))
 
 
 _PARENTHETICAL_SUFFIX_RE = re.compile(r"\s*\([^)]*\)\s*$")
@@ -472,118 +507,6 @@ def break_name(label: str) -> str:
     range can be appended for the new term."""
     stripped = _PARENTHETICAL_SUFFIX_RE.sub("", label).strip()
     return stripped or label
-
-
-# ---- Flags -------------------------------------------------------------------
-
-
-def _flag_weeks_colliding_with_target_breaks(
-    weeks: list[Week],
-    changes: list[WeekChange],
-    target_breaks: list[dict],
-    year: int,
-    meeting_days: tuple[int, ...],
-) -> None:
-    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
-    for week in weeks:
-        if week.is_break or week.date is None:
-            continue
-        class_dates = class_dates_in_week(week.date, meeting_days)
-        for entry in target_breaks:
-            if any(_date_in_break(class_date, entry) for class_date in class_dates):
-                changes_by_week_number[week.week_number].flags.append(
-                    f"{entry['label']} {year} is {_format_break_range(entry)} — "
-                    f"confirm Week {week.week_number} timing"
-                )
-
-
-def _flag_numbered_weeks_marked_as_breaks(
-    weeks: list[Week], changes: list[WeekChange], source_term: str, target_term: str
-) -> None:
-    """Some syllabi number their break week ("Week 10 (Mar. 10) — Spring
-    Break"), so it rolls over as an ordinary week whose content is a break
-    that's probably no longer in that week. Flag it rather than guess."""
-    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
-    for week in weeks:
-        if week.is_break or week.week_number not in changes_by_week_number:
-            continue
-        match = _BREAK_MENTION_RE.search(" ".join([*week.topics, *week.assignments, week.notes or ""]))
-        if match:
-            changes_by_week_number[week.week_number].flags.append(
-                f"Week {week.week_number} was marked '{match.group(0)}' in {source_term} — check "
-                f"this week against the {target_term} calendar."
-            )
-
-
-def _date_in_break(date: dt.date, entry: dict) -> bool:
-    if "date" in entry:
-        return date == dt.date.fromisoformat(entry["date"])
-    if "date_start" in entry and "date_end" in entry:
-        return dt.date.fromisoformat(entry["date_start"]) <= date <= dt.date.fromisoformat(
-            entry["date_end"]
-        )
-    return False  # pragma: no cover - calendars.json entries always have one or the other
-
-
-def _format_break_range(entry: dict) -> str:
-    if "date" in entry:
-        d = dt.date.fromisoformat(entry["date"])
-        return f"{d.strftime('%b')} {d.day}"
-    start = dt.date.fromisoformat(entry["date_start"])
-    end = dt.date.fromisoformat(entry["date_end"])
-    return f"{start.strftime('%b')} {start.day}–{end.day}"
-
-
-def _general_flags(old_duration: int, new_duration: int) -> list[str]:
-    if old_duration == new_duration:
-        return []
-    return [
-        f"Course length changed from {old_duration} to {new_duration} weeks. "
-        "Review quiz, exam, and lab numbering in the assignments below — "
-        "the tool never renumbers them automatically."
-    ]
-
-
-def _schedule_choice_flags(
-    course_data: CourseData,
-    meeting_days: tuple[int, ...],
-    breaks_not_observed: frozenset[str],
-    dropped_breaks: list[str],
-) -> list[str]:
-    flags = []
-    if breaks_not_observed:
-        removed = f" Removed from the schedule: {', '.join(dropped_breaks)}." if dropped_breaks else ""
-        flags.append(
-            f"This class meets through {', '.join(sorted(breaks_not_observed))}, so "
-            f"{'it is' if len(breaks_not_observed) == 1 else 'they are'} not treated as a break.{removed}"
-        )
-    meeting_flag = meeting_days_changed_flag(course_data.course.meeting_pattern, meeting_days)
-    if meeting_flag:
-        flags.append(meeting_flag)
-    return flags
-
-
-def _first_sunday_of_november(year: int) -> dt.date:
-    november_first = dt.date(year, 11, 1)
-    days_until_sunday = (6 - november_first.weekday()) % 7
-    return november_first + dt.timedelta(days=days_until_sunday)
-
-
-def _flag_dst_boundary_weeks(weeks: list[Week], changes: list[WeekChange]) -> None:
-    """Markdown-only (PRD section 6.2): flag any week with assignments
-    that falls within two weeks of the DST boundary, for human review.
-    Never automates a timezone suffix."""
-    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
-    for week in weeks:
-        if week.is_break or week.date is None or not week.assignments:
-            continue
-        boundary = _first_sunday_of_november(week.date.year)
-        if abs((week.date - boundary).days) <= _DST_BOUNDARY_WINDOW_DAYS:
-            changes_by_week_number[week.week_number].flags.append(
-                "This week's assignments fall within two weeks of the DST "
-                "boundary (first Sunday of November). Double-check due "
-                "times/timezones by hand — this is never automated."
-            )
 
 
 # ---- Small shared helpers ------------------------------------------------

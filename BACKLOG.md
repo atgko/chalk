@@ -53,7 +53,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P3: Changing the length of a split (per-module) Word schedule.** Added weeks go after the last week of the last module table; dropped weeks can leave a module table with only its title and header rows. Untested on a real split schedule.
 - **P2: Numbered break weeks are only flagged.** In "Week 10 — Spring Break", Week 10 rolls over as an ordinary week with a flag. It isn't turned into a break row or moved.
-- **P2: Single-day holidays in the University Dates table aren't replaced on a season change** (e.g. Labor Day in a Spring rollover). They're flagged for manual removal.
 - **P3: Break rows in a split (per-module) schedule** are placed by date across all the tables; a break after the last week goes at the end of the last table. This is untested on a real split schedule that has break rows.
 - **P3: When the instructor picked one table from an ambiguous set, the writer still updates every schedule-like table.**
 - **P3: The preview always shows dates as M/D**, even when the syllabus uses "Jan. 6" (the written document keeps the original style).
@@ -74,10 +73,11 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
 - **P2: Lint debt.** `ruff check` reports about 30 existing findings (mostly UP017 `datetime.UTC`, DTZ, ISC004) because the selected rules are stricter than the code. Either fix them in one pass or relax the config, then add a lint check to CI.
-- **P3: `chalk/rollover/preview.py` is about 540 lines.** The flagging helpers could move to their own module.
 
 ## Done
 
+- 2026-10-08: The rollover flag helpers moved from `chalk/rollover/preview.py` (now ~515 lines) to `chalk/rollover/flags.py`.
+- 2026-10-08: Season-change rollovers replace single-day holidays in the University Dates table (Labor Day becomes Martin Luther King Jr. Day in a Fall → Spring rollover) and flag any target-term holiday left without a row. Every rollover now takes a holiday's date from the calendar by name, and "Independence Day" is no longer read as the end of term.
 - 2026-10-08: A successful extraction opens the Review tab (also after picking a schedule table or clicking Continue anyway). A failed extraction, or a term/schedule warning still to resolve, stays on Upload.
 - 2026-10-07: Google Gemini as a fourth provider (through Google's OpenAI-compatible endpoint, no new package); labeled as not university-approved. Older projects pick up new providers' cost rates automatically.
 - 2026-10-07: Word rollover with a changed course length adds rows for new weeks (a copy of the last week's row, with placeholder or AI-drafted topics) and removes rows for dropped weeks.
