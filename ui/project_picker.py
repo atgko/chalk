@@ -38,18 +38,20 @@ def render() -> None:
     )
     open_col, create_col = st.columns(2)
 
-    with open_col:
+    # Forms read the fields on click: typing doesn't rerun (and grey out)
+    # the page, and Enter in a field submits.
+    with open_col, st.form("open-project", border=False):
         st.subheader("Open a course project")
         folder = st.text_input("Project folder", placeholder=str(DEFAULT_PARENT / "IS-6640-Fall-2027"))
-        if st.button("Open project", disabled=not folder.strip()):
-            _enter(lambda: open_project(folder.strip()))
+        if st.form_submit_button("Open project"):
+            _open(folder.strip())
 
-    with create_col:
+    with create_col, st.form("create-project", border=False):
         st.subheader("Create a new one")
         parent = st.text_input("Create it inside", value=str(DEFAULT_PARENT))
         name = st.text_input("Project name", placeholder="IS-6640-Fall-2027")
-        if st.button("Create project", type="primary", disabled=not name.strip()):
-            _enter(lambda: init_project(parent.strip(), name))
+        if st.form_submit_button("Create project", type="primary"):
+            _create(parent.strip(), name.strip())
 
     st.divider()
     st.subheader("Just looking?")
@@ -59,16 +61,39 @@ def render() -> None:
     )
     demo_col, reset_col = st.columns(2)
     if demo_col.button("Open the demo course"):
-        _enter(lambda: open_demo_project(DEFAULT_PARENT))
+        _enter(lambda: open_demo_project(DEFAULT_PARENT), "Opening the demo course…", "Opened the demo course.")
     if reset_col.button("Reset the demo course", help="Rebuild it from scratch. Keeps your saved AI key."):
-        _enter(lambda: open_demo_project(DEFAULT_PARENT, reset=True))
+        _enter(
+            lambda: open_demo_project(DEFAULT_PARENT, reset=True),
+            "Rebuilding the demo course…",
+            "Reset the demo course.",
+        )
 
 
-def _enter(get_paths) -> None:
+def _open(folder: str) -> None:
+    if not folder:
+        st.warning("Enter the project folder, then click Open project.")
+        return
+    name = Path(folder).name
+    _enter(lambda: open_project(folder), f"Opening {name}…", f"Opened project {name}.")
+
+
+def _create(parent: str, name: str) -> None:
+    if not name:
+        st.warning("Enter a project name, then click Create project.")
+        return
+    _enter(lambda: init_project(parent, name), f"Creating {name}…", f"Created project {name} in {parent}.")
+
+
+def _enter(get_paths, working: str, done: str) -> None:
+    """Run `get_paths` under a status spinner, then enter the project with
+    `done` shown on the next screen."""
     try:
-        paths = get_paths()
+        with st.spinner(working):
+            paths = get_paths()
     except ChalkError as exc:
         st.error(exc.user_message)
         return
     session.set_project(paths)
+    session.flash(done)
     st.rerun()

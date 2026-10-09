@@ -13,6 +13,9 @@ from ui.common import render_header
 
 def render(paths: ProjectPaths) -> None:
     render_header(f"Welcome to {branding.PROJECT_NAME}")
+    message = session.pop_flash()  # e.g. "Created project …" from the launch screen
+    if message:
+        st.success(message)
     st.write(
         f"{branding.PROJECT_NAME} reads your syllabus, rolls it forward to a new term, and drafts "
         "quizzes, discussion prompts, and rubrics from it. Connect an AI model provider to "
