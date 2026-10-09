@@ -466,3 +466,40 @@ def test_an_event_with_no_letters_matches_no_break_or_holiday():
 
     assert new_course_data.university_dates[0].event == "—"
     assert any("'—'" in flag for flag in preview.general_flags)
+
+
+# ---- Deadlines that name a break -------------------------------------------
+
+
+def test_same_season_deadline_naming_a_break_keeps_a_single_date():
+    university_dates = [
+        UniversityDate(event="Last day before Fall Break", date=dt.date(2026, 10, 9)),
+    ]
+
+    new_course_data, _ = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Fall 2027",
+        calendars=CALENDARS,
+    )
+
+    entry = new_course_data.university_dates[0]
+    assert (entry.event, entry.date_start, entry.date_end) == ("Last day before Fall Break", None, None)
+    assert entry.date is not None
+
+
+def test_season_change_deadline_naming_a_break_doesnt_use_up_the_break():
+    university_dates = [
+        UniversityDate(event="Last day before Fall Break", date=dt.date(2026, 10, 9)),
+        UniversityDate(event="Fall Break", date_start=dt.date(2026, 10, 10), date_end=dt.date(2026, 10, 18)),
+    ]
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=CALENDARS,
+    )
+
+    deadline, break_row = new_course_data.university_dates
+    assert (deadline.event, deadline.date_start) == ("Last day before Fall Break", None)
+    assert any("'Last day before Fall Break'" in flag for flag in preview.general_flags)
+    assert (break_row.event, break_row.date_start) == ("Spring Break", dt.date(2027, 3, 6))
