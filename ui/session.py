@@ -19,6 +19,8 @@ from chalk.pipeline import PdfConversion, RolloverPlan
 from chalk.project import ProjectPaths
 
 PROJECT_ROOT_KEY = "chalk_project_root"
+ACTIVE_TAB_KEY = "chalk_active_tab"
+_NEXT_TAB_KEY = "chalk_next_tab"
 _SETUP_SKIPPED_KEY = "chalk_setup_skipped"
 _PENDING_EXTRACTION_KEY = "chalk_pending_extraction"
 _TABLE_CHOICE_KEY = "chalk_table_choice"
@@ -136,6 +138,22 @@ def regenerate_requested() -> bool:
 
 def request_regenerate(requested: bool) -> None:
     st.session_state[_REGENERATE_KEY] = requested
+
+
+# ---- Tabs ----------------------------------------------------------------------
+
+
+def go_to_tab(name: str) -> None:
+    """Open tab `name` on the next run. The tabs widget can't be changed
+    once it has rendered in this run, so the shell applies the request
+    before it draws the tabs (`apply_tab_request`)."""
+    st.session_state[_NEXT_TAB_KEY] = name
+
+
+def apply_tab_request() -> None:
+    requested = st.session_state.pop(_NEXT_TAB_KEY, None)
+    if requested is not None:
+        st.session_state[ACTIVE_TAB_KEY] = requested
 
 
 # ---- One-shot messages that survive a rerun -------------------------------------
