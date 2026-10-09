@@ -9,3 +9,5 @@ pdfplumber>=0.11.10,<0.12 # PDF syllabi: text with positions and ruled tables (M
 pydantic>=2.13,<3         # course.json schema as typed models with validation
 python-dotenv>=1.2,<2     # loads .env (LLM_PROVIDER/LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
 pandas>=3.0,<4            # Metrics tab chart data (also a Streamlit dependency)
+reportlab>=4.0,<6
+reportlab>=4.0,<6

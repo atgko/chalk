@@ -46,6 +46,23 @@ SPECS: dict[str, ContentSpec] = {
             max_tokens=1200,
         ),
         ContentSpec(
+            key="assignment",
+            label="Assignment creator / enhancer",
+            output_subdir="assignments",
+            required_variables=(
+                *COMMON_VARIABLES,
+                "assignment_mode",
+                "assignment_name",
+                "assignment_goal",
+                "assignment_description",
+                "assignment_requirements",
+            "assignment_mode_instructions",
+            "assignment_detail_status",
+            ),
+            max_tokens=2500,
+            per_week=False,
+        ),
+        ContentSpec(
             key="rubric",
             label="Rubric",
             output_subdir="rubrics",

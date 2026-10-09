@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
+from chalk.generation.assignment_export import export_assignment
 
 from chalk.config import describe_provider
 from chalk.costs import format_cost
@@ -80,6 +81,8 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
         fields["quiz_format"] = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"))
     elif spec.key == "discussion":
         fields["prompt_count"] = int(st.number_input("Prompts", 1, 20, DEFAULT_PROMPT_COUNT))
+    elif spec.key == "assignment":
+        fields |= _assignment_fields()
     elif spec.key == "rubric":
         fields |= _rubric_fields()
     elif spec.key == "slides":
@@ -112,6 +115,87 @@ def _render_source_uploader(paths: ProjectPaths) -> None:
                 return
             session.flash(f"Added to source/: {', '.join(added)}.")
             st.rerun()
+
+
+def _assignment_fields() -> dict:
+    st.markdown("### Assignment Creator / Enhancer")
+    mode_label = st.radio(
+        "What would you like to do?",
+        ("Create a new assignment", "Improve an existing assignment"),
+        horizontal=True,
+    )
+    mode = "create" if mode_label.startswith("Create") else "enhance"
+    name = st.text_input("Assignment name", placeholder="Network Design Recommendation")
+    goal = st.text_area(
+        "What should students learn or demonstrate?",
+        placeholder="Students should apply course concepts to a realistic business problem and defend their recommendation.",
+    )
+    description = ""
+    if mode == "enhance":
+        description = st.text_area("Paste the existing assignment", height=180)
+        uploaded = st.file_uploader(
+            "...or upload the existing assignment",
+            type=["pdf", "docx", "md", "txt"],
+            key="assignment-upload",
+        )
+        if uploaded is not None:
+            description = read_source_text(save_upload(uploaded.name, uploaded.getvalue()))
+    requirements = st.text_area(
+        "Requirements or constraints (optional)",
+        placeholder="Length, format, deliverables, allowed AI use, grading expectations, or anything Chalk should preserve.",
+    )
+    with st.expander("Additional assignment details (optional)"):
+        st.caption(
+            "Add details you want Chalk to treat as requirements. "
+            "Leave a field blank when you want Chalk to avoid making that decision."
+        )
+
+        scenario = st.text_area(
+            "Scenario / context",
+            placeholder="Business situation, case context, student role, or other setup",
+            key="assignment-scenario",
+        )
+
+        deliverables = st.text_area(
+            "Required deliverables",
+            placeholder="Report, presentation, diagram, analysis, reflection, or other required work",
+            key="assignment-deliverables",
+        )
+
+        assignment_format = st.text_input(
+            "Format / length",
+            placeholder="Example: 2–3 pages, PDF, 10 slides",
+            key="assignment-format",
+        )
+
+        evaluation = st.text_area(
+            "Evaluation expectations",
+            placeholder="What a successful submission should demonstrate",
+            key="assignment-evaluation",
+        )
+
+        submission = st.text_input(
+            "Submission details",
+            placeholder="Due date, submission location, filename convention, if applicable",
+            key="assignment-submission",
+        )
+
+    st.caption(
+        "Chalk will use the saved course objectives and any source materials you select below. "
+        "The result is a faculty-reviewed draft, not an automatic course change."
+    )
+    return {
+        "assignment_mode": mode,
+        "assignment_name": name,
+        "assignment_goal": goal,
+        "assignment_description": description,
+        "assignment_requirements": requirements,
+        "assignment_scenario": scenario,
+        "assignment_deliverables": deliverables,
+        "assignment_format": assignment_format,
+        "assignment_evaluation": evaluation,
+        "assignment_submission": submission,
+    }
 
 
 def _rubric_fields() -> dict:
@@ -148,6 +232,29 @@ def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: Generated
     else:
         with st.container(border=True):
             st.markdown(draft.text)
+
+    if draft.request.content_type == "assignment":
+        st.markdown("### Export assignment")
+
+        export_format = st.selectbox(
+            "File type",
+            ("Word (.docx)", "PDF (.pdf)", "Markdown (.md)"),
+            key="assignment-export-format",
+        )
+
+        file_data, extension, mime_type = export_assignment(
+            draft.text,
+            export_format,
+        )
+
+        base_name = draft.output_path.stem
+        st.download_button(
+            f"Download {export_format}",
+            data=file_data,
+            file_name=f"{base_name}.{extension}",
+            mime=mime_type,
+            key="assignment-download",
+        )
 
     if session.regenerate_requested():
         st.warning("Generate a new version? This makes another paid call. The current draft will be discarded.")
