@@ -400,9 +400,8 @@ def _shift_university_dates(
     """
     offset_days = (new_term_start - old_term_start).days
     target_holidays = single_day_holidays(target_breaks)
-    unused_breaks = _calendar_entries_not_named_in(
-        university_dates, multi_day_breaks(target_breaks), match_calendar_entry
-    )
+    span_rows = [entry for entry in university_dates if entry.date_start is not None]
+    unused_breaks = _calendar_entries_not_named_in(span_rows, multi_day_breaks(target_breaks), match_calendar_entry)
     unused_holidays = _calendar_entries_not_named_in(university_dates, target_holidays, match_holiday)
     renaming = rename_for_term is not None and term_data is not None
     new_entries = []
@@ -430,7 +429,9 @@ def _university_date_from_calendar(
         return entry.model_copy(update={"date": dt.date.fromisoformat(term_data["start"])})
     if term_data is not None and _TERM_ENDS_RE.search(entry.event):
         return entry.model_copy(update={"date": dt.date.fromisoformat(term_data["end"])})
-    matched_break = _match_break_in_calendar(entry.event, target_breaks)
+    # Only a date-span row can be a break, so a deadline such as "Last
+    # day before Fall Break" keeps its single date.
+    matched_break = _match_break_in_calendar(entry.event, target_breaks) if entry.date_start else None
     if matched_break is not None:
         return _university_date_from_break(entry, matched_break, rename=False)
     matched_holiday = match_holiday(entry.event, target_holidays)
