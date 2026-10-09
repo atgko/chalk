@@ -356,6 +356,38 @@ def test_season_change_never_renames_a_deadline_as_a_holiday():
     assert any("'Last day to drop'" in flag for flag in preview.general_flags)
 
 
+def test_season_change_never_renames_a_deadline_that_names_a_holiday():
+    university_dates = [
+        UniversityDate(event="Labor Day", date=dt.date(2026, 9, 7)),
+        UniversityDate(event="Last day to register before Labor Day", date=dt.date(2026, 9, 4)),
+    ]
+
+    new_course_data, preview = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=SPRING_2027_TWO_HOLIDAYS,
+    )
+
+    assert [entry.event for entry in new_course_data.university_dates] == [
+        "Martin Luther King Jr. Day",
+        "Last day to register before Labor Day",
+    ]
+    assert any("'Last day to register before Labor Day'" in flag for flag in preview.general_flags)
+    assert any("Presidents Day" in flag for flag in preview.general_flags)
+
+
+def test_season_change_recognizes_a_holiday_followed_by_a_dashed_note():
+    university_dates = [UniversityDate(event="Labor Day - no class", date=dt.date(2026, 9, 7))]
+
+    new_course_data, _ = roll_over_course(
+        _fall_2026_course(university_dates=university_dates),
+        target_term="Spring 2027",
+        calendars=CALENDARS,
+    )
+
+    assert new_course_data.university_dates[0].event == "Martin Luther King Jr. Day"
+
+
 def test_season_change_without_holidays_in_the_table_adds_no_missing_holiday_flag():
     university_dates = [UniversityDate(event="Classes begin", date=dt.date(2026, 8, 24))]
 

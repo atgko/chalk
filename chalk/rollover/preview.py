@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from chalk.calendar_data import find_term
@@ -53,6 +54,7 @@ from chalk.rollover.season_change import (
     is_holiday_name,
     is_season_change,
     match_calendar_entry,
+    match_holiday,
     missing_holiday_flag,
     multi_day_breaks,
     rebuild_break_weeks,
@@ -398,8 +400,10 @@ def _shift_university_dates(
     """
     offset_days = (new_term_start - old_term_start).days
     target_holidays = single_day_holidays(target_breaks)
-    unused_breaks = _calendar_entries_not_named_in(university_dates, multi_day_breaks(target_breaks))
-    unused_holidays = _calendar_entries_not_named_in(university_dates, target_holidays)
+    unused_breaks = _calendar_entries_not_named_in(
+        university_dates, multi_day_breaks(target_breaks), match_calendar_entry
+    )
+    unused_holidays = _calendar_entries_not_named_in(university_dates, target_holidays, match_holiday)
     renaming = rename_for_term is not None and term_data is not None
     new_entries = []
     flags: list[str] = []
@@ -429,7 +433,7 @@ def _university_date_from_calendar(
     matched_break = _match_break_in_calendar(entry.event, target_breaks)
     if matched_break is not None:
         return _university_date_from_break(entry, matched_break, rename=False)
-    matched_holiday = match_calendar_entry(entry.event, target_holidays)
+    matched_holiday = match_holiday(entry.event, target_holidays)
     if matched_holiday is not None and entry.date is not None:
         return _university_date_from_holiday(entry, matched_holiday, rename=False)
     return None
@@ -453,9 +457,11 @@ def _university_date_for_new_season(
 
 
 def _calendar_entries_not_named_in(
-    university_dates: list[UniversityDate], calendar_entries: list[dict]
+    university_dates: list[UniversityDate],
+    calendar_entries: list[dict],
+    match: Callable[[str, list[dict]], dict | None],
 ) -> list[dict]:
-    named = [match_calendar_entry(entry.event, calendar_entries) for entry in university_dates]
+    named = [match(entry.event, calendar_entries) for entry in university_dates]
     return [entry for entry in calendar_entries if entry not in named]
 
 

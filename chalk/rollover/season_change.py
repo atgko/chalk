@@ -23,6 +23,7 @@ from chalk.models import Week
 
 _SEASON_RE = re.compile(r"\b(fall|spring|summer)\b", re.IGNORECASE)
 _DAYS_IN_WEEK_AFTER_START = 6
+_HOLIDAY_NOTE_RE = re.compile(r"(\s*\([^)]*\))+\s*$|\s+[-–—:]\s.*$")
 
 
 def season_of(term: str) -> str | None:
@@ -53,7 +54,7 @@ def holiday_names(calendars: dict) -> frozenset[str]:
     normalized — what tells a holiday row ("Labor Day") apart from a
     deadline ("Last day to drop") in the University Dates table."""
     return frozenset(
-        normalize_label(entry["label"])
+        holiday_key(entry["label"])
         for term in calendars.get("terms", [])
         for entry in term.get("no_class_dates", [])
         if "date" in entry
@@ -61,7 +62,22 @@ def holiday_names(calendars: dict) -> frozenset[str]:
 
 
 def is_holiday_name(label: str, known_holidays: frozenset[str]) -> bool:
-    return any(_labels_match(label, name) for name in known_holidays)
+    key = holiday_key(label)
+    return bool(key) and key in known_holidays
+
+
+def match_holiday(label: str, holidays: list[dict]) -> dict | None:
+    """The first holiday whose name is `label`'s (see `holiday_key`)."""
+    key = holiday_key(label)
+    return next((entry for entry in holidays if key and holiday_key(entry["label"]) == key), None)
+
+
+def holiday_key(label: str) -> str:
+    """The holiday name in `label`, without trailing notes, normalized:
+    "Labor Day (no class)" and "Labor Day - no class" -> "labor day".
+    Holidays match on the whole name, not containment, so a deadline
+    such as "Last day to register before Labor Day" isn't a holiday."""
+    return normalize_label(_HOLIDAY_NOTE_RE.sub("", label))
 
 
 def match_calendar_entry(label: str, entries: list[dict]) -> dict | None:
