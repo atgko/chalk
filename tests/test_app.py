@@ -142,6 +142,52 @@ def test_opening_a_project_confirms_which_one_opened(tmp_project):
     assert any(f"Opened project {tmp_project.root.name}" in s.value for s in at.success)
 
 
+def _browse(at: AppTest, index: int) -> AppTest:
+    """Click the index-th Browse… button (0: Open, 1: Create)."""
+    return [b for b in at.button if b.label == "Browse…"][index].click().run()
+
+
+def test_browse_fills_the_create_it_inside_field_then_creates_there(tmp_path, monkeypatch):
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: True)
+    monkeypatch.setattr("ui.folder_picker.pick_folder", lambda initial, title: str(tmp_path))
+    at = _browse(launch(), 1)
+    assert {t.label: t for t in at.text_input}["Create it inside"].value == str(tmp_path)
+
+    {t.label: t for t in at.text_input}["Project name"].input("IS-6640-Fall-2027")
+    at = click(at, "Create project")
+
+    assert_no_exception(at)
+    assert (tmp_path / "IS-6640-Fall-2027" / "config.json").exists()
+
+
+def test_browse_fills_the_project_folder_field(tmp_project, monkeypatch):
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: True)
+    monkeypatch.setattr("ui.folder_picker.pick_folder", lambda initial, title: str(tmp_project.root))
+
+    at = _browse(launch(), 0)
+
+    assert {t.label: t for t in at.text_input}["Project folder"].value == str(tmp_project.root)
+
+
+def test_cancelled_browse_keeps_what_was_typed(monkeypatch):
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: True)
+    monkeypatch.setattr("ui.folder_picker.pick_folder", lambda initial, title: None)
+
+    at = _browse(launch(), 1)
+
+    assert {t.label: t for t in at.text_input}["Create it inside"].value.endswith("projects")
+    assert_no_exception(at)
+
+
+def test_no_browse_buttons_when_the_folder_dialog_is_unavailable(monkeypatch):
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: False)
+
+    at = launch()
+
+    assert "Browse…" not in {b.label for b in at.button}
+    assert {"Open project", "Create project"} <= {b.label for b in at.button}
+
+
 def test_opening_a_folder_that_is_not_a_project_shows_a_plain_error(tmp_path):
     at = launch()
     {t.label: t for t in at.text_input}["Project folder"].input(str(tmp_path))
