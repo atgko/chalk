@@ -62,7 +62,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P2: Course details edited on Review aren't written back into the syllabus document**, only into `course.json` and the course brief.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
 - **P2: Browse buttons for folders on the launch screen.** "Project folder" (Open a course project) and "Create it inside" (Create a new one) are typed paths today, which is error-prone for instructors. Add a **Browse…** button next to each that opens the system folder picker and fills in the field. Chalk runs on the instructor's own computer, so the picker can be opened from the Python side (e.g. `tkinter.filedialog.askdirectory`); check it appears in front of the browser on Windows and macOS, and keep the text field for pasting a path.
-- **P2: Show what's happening while the launch screen updates.** After typing a project name, the page fades before "Create project" can be clicked. Streamlit only registers a text field when you press Enter or click away, so until then the button is disabled, and the rerun that follows greys out the page. Ideas: put the fields and button in an `st.form` so the name is read on click (no rerun while typing); add a hint such as "Press Enter or click Create project"; and show a spinner/status ("Creating IS-6640-Fall-2027…") while the project is created or opened, then a confirmation.
 
 ## Generation
 
@@ -77,6 +76,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Done
 
+- 2026-10-09: The launch screen no longer fades while you type: Open and Create read their fields on click (or Enter), show a "Creating…/Opening…" spinner, and confirm on the next screen. An empty field gets a plain message instead of a greyed-out button.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.
 - 2026-10-09: A University Dates deadline that names a break (e.g. "Last day before Fall Break") keeps its single date instead of taking the break's dates.
 - 2026-10-09: The teammate's assignment creator and enhancer is merged (PR #1).

@@ -102,6 +102,46 @@ def test_create_project_from_the_picker_then_see_first_run_setup(tmp_path):
     assert at.title[0].value == "Welcome to Chalk"
 
 
+def test_create_project_reads_the_name_on_click_and_confirms(tmp_path):
+    at = launch()
+    inputs = {t.label: t for t in at.text_input}
+    inputs["Create it inside"].input(str(tmp_path))
+    inputs["Project name"].input("IS-6640-Fall-2027")
+
+    at = click(at, "Create project")  # no rerun between typing and clicking
+
+    assert_no_exception(at)
+    assert (tmp_path / "IS-6640-Fall-2027" / "config.json").exists()
+    assert any("Created project IS-6640-Fall-2027" in s.value for s in at.success)
+
+
+def test_create_project_without_a_name_asks_for_one(tmp_path):
+    at = launch()
+    {t.label: t for t in at.text_input}["Create it inside"].input(str(tmp_path))
+
+    at = click(at, "Create project")
+
+    assert any("Enter a project name" in w.value for w in at.warning)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_open_project_without_a_folder_asks_for_one():
+    at = click(launch(), "Open project")
+
+    assert any("Enter the project folder" in w.value for w in at.warning)
+    assert "Open project" in {b.label for b in at.button}
+
+
+def test_opening_a_project_confirms_which_one_opened(tmp_project):
+    at = launch()
+    {t.label: t for t in at.text_input}["Project folder"].input(str(tmp_project.root))
+
+    at = click(at, "Open project")
+
+    assert_no_exception(at)
+    assert any(f"Opened project {tmp_project.root.name}" in s.value for s in at.success)
+
+
 def test_opening_a_folder_that_is_not_a_project_shows_a_plain_error(tmp_path):
     at = launch()
     {t.label: t for t in at.text_input}["Project folder"].input(str(tmp_path))
