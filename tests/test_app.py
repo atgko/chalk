@@ -95,7 +95,7 @@ def test_create_project_from_the_picker_then_see_first_run_setup(tmp_path):
     inputs = {t.label: t for t in at.text_input}
     inputs["Create it inside"].input(str(tmp_path))
     inputs["Project name"].input("IS-6640-Fall-2027")
-    at = click(at.run(), "Create project")
+    at = click(at, "Create project")
 
     assert_no_exception(at)
     assert (tmp_path / "IS-6640-Fall-2027" / "config.json").exists()
@@ -191,7 +191,7 @@ def test_no_browse_buttons_when_the_folder_dialog_is_unavailable(monkeypatch):
 def test_opening_a_folder_that_is_not_a_project_shows_a_plain_error(tmp_path):
     at = launch()
     {t.label: t for t in at.text_input}["Project folder"].input(str(tmp_path))
-    at = click(at.run(), "Open project")
+    at = click(at, "Open project")
     assert "isn't a Chalk course project" in at.error[0].value
 
 
