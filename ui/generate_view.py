@@ -47,7 +47,14 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         st.info("Connect an AI provider in the Settings tab to generate content.")
         return
 
-    spec = SPECS[st.selectbox("Content type", list(SPECS), format_func=lambda key: SPECS[key].label)]
+    spec = SPECS[
+        st.selectbox(
+            "Content type",
+            list(SPECS),
+            format_func=lambda key: SPECS[key].label,
+            key=session.GENERATION_CONTENT_KEY,
+        )
+    ]
     request = _request_form(paths, course_data, spec)
 
     try:
