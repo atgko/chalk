@@ -152,7 +152,7 @@ IS-6640-Fall-2027/
     canvas.html          Schedule table for Canvas's HTML editor
     course-brief.md      One-page course overview
     evaluation-report.md Metrics summary (from `report` or the Metrics tab)
-    quizzes/  discussions/  rubrics/  summaries/  slides/
+    quizzes/  discussions/  assignments/  rubrics/  summaries/  slides/
     .archive/            Every previous version, timestamped
   prompts/               Editable prompt templates
   data/calendars.json    Academic calendar data

@@ -79,6 +79,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Done
 
+- 2026-10-10: New projects create `outputs/assignments/`, and `toolkit.py status` counts saved assignments.
 - 2026-10-10: Basic workflow search bar - typing in plain-language for something related to a tab in Chalk will pull up suggested tabs based on what was typed.
 - 2026-10-09: Points-based grading tables ("Labs — 250 pts", or a "Points" column) are read in Word and markdown syllabi. Points become fractions of the table's Total row (or of the rows' sum when there's none). Markdown grading tables no longer list their Total row as an assessment.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.

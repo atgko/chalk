@@ -32,6 +32,13 @@ def test_init_creates_the_prd_directory_layout(tmp_project):
         assert (root / "outputs" / subdir).is_dir()
 
 
+def test_every_content_type_has_an_output_folder():
+    from chalk.generation.specs import SPECS
+
+    assert {spec.output_subdir for spec in SPECS.values()} <= set(OUTPUT_SUBDIRS)
+    assert "assignments" in OUTPUT_SUBDIRS
+
+
 def test_init_copies_bundled_config_and_calendars(tmp_project):
     config = json.loads(tmp_project.config_json.read_text(encoding="utf-8"))
     assert config["institution"] == "University of Utah"
@@ -218,6 +225,7 @@ def test_status_summarizes_events_and_outputs(tmp_project):
     assert status.course.course.number == "IS 6640"
     assert status.output_counts["top-level"] == 1
     assert status.output_counts["quizzes"] == 1
+    assert status.output_counts["assignments"] == 0
     assert status.total_cost_usd == pytest.approx(0.015)
     assert status.rollover_count == 1
     assert status.extraction_error_count == 1
