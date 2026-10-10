@@ -1,55 +1,59 @@
 """The launch screen's Browse… helper (ui.folder_picker). The real dialog
-needs a person to click it, so these replace the subprocess that shows it."""
+needs a person to click it, so these swap in a script that answers (or
+waits) on its own, run in a real child process."""
 
-import subprocess
 from pathlib import Path
 
 from ui import folder_picker
 
 
-def _fake_run(stdout: str = "", error: Exception | None = None, calls: list | None = None):
-    def run(args, **kwargs):
-        if calls is not None:
-            calls.append(args)
-        if error is not None:
-            raise error
-        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+def _run(monkeypatch, script: str, initial: str = "", title: str = "Choose a folder"):
+    monkeypatch.setattr(folder_picker, "_DIALOG_SCRIPT", script)
+    return folder_picker.start(initial, title)
 
-    return run
+
+def _wait(process):
+    process.wait(timeout=30)
+    return process
 
 
 def test_returns_the_chosen_folder_in_this_systems_style(monkeypatch):
-    monkeypatch.setattr(folder_picker.subprocess, "run", _fake_run("C:/courses/IS-6640\n"))
+    process = _wait(_run(monkeypatch, "print('C:/courses/IS-6640')"))
 
-    assert folder_picker.pick_folder("", "Choose a folder") == str(Path("C:/courses/IS-6640"))
+    assert folder_picker.finished(process)
+    assert folder_picker.chosen_folder(process) == str(Path("C:/courses/IS-6640"))
 
 
 def test_returns_none_when_the_dialog_is_cancelled(monkeypatch):
-    monkeypatch.setattr(folder_picker.subprocess, "run", _fake_run(""))
+    process = _wait(_run(monkeypatch, "print('')"))
 
-    assert folder_picker.pick_folder("", "Choose a folder") is None
-
-
-def test_returns_none_when_the_dialog_cant_start(monkeypatch):
-    monkeypatch.setattr(folder_picker.subprocess, "run", _fake_run(error=OSError("no display")))
-
-    assert folder_picker.pick_folder("", "Choose a folder") is None
+    assert folder_picker.chosen_folder(process) is None
 
 
 def test_returns_none_when_the_dialog_process_fails(monkeypatch):
-    failure = subprocess.CalledProcessError(1, "python", stderr="TclError: no display")
-    monkeypatch.setattr(folder_picker.subprocess, "run", _fake_run(error=failure))
+    process = _wait(_run(monkeypatch, "import sys; sys.exit('TclError: no display')"))
 
-    assert folder_picker.pick_folder("", "Choose a folder") is None
+    assert folder_picker.chosen_folder(process) is None
 
 
-def test_starts_in_the_given_folder_with_the_given_title(monkeypatch):
-    calls: list = []
-    monkeypatch.setattr(folder_picker.subprocess, "run", _fake_run("", calls=calls))
+def test_start_returns_none_when_python_cant_be_started(monkeypatch):
+    monkeypatch.setattr(folder_picker.sys, "executable", "/no/such/python")
 
-    folder_picker.pick_folder("C:/courses", "Choose where to create the project")
+    assert folder_picker.start("", "Choose a folder") is None
 
-    assert calls[0][-2:] == ["C:/courses", "Choose where to create the project"]
+
+def test_passes_the_initial_folder_and_title(monkeypatch):
+    process = _wait(_run(monkeypatch, "import sys; print(sys.argv[1] + '|' + sys.argv[2])", "C:/courses", "Pick"))
+
+    assert process.communicate()[0].strip() == "C:/courses|Pick"
+
+
+def test_an_open_dialog_isnt_finished_until_cancelled(monkeypatch):
+    process = _run(monkeypatch, "import time; time.sleep(60)")
+
+    assert not folder_picker.finished(process)
+    folder_picker.cancel(process)
+    assert folder_picker.finished(process)
 
 
 def test_is_available_matches_whether_tkinter_can_be_found(monkeypatch):
