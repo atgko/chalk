@@ -26,7 +26,8 @@ from chalk.models import CourseData, SourceMaterialRef
 RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 
 SOURCE_SUFFIXES = (".pdf", ".docx", ".md", ".txt")
-OUTPUT_SUBDIRS = ("quizzes", "discussions", "rubrics", "summaries", "slides")
+# One per generated content type (chalk/generation/specs.py; a test checks they match).
+OUTPUT_SUBDIRS = ("quizzes", "discussions", "assignments", "rubrics", "summaries", "slides")
 
 _PROJECT_GITIGNORE = ".env\n"
 
