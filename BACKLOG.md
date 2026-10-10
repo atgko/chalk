@@ -69,7 +69,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P2: Use the assignment generator's formatting for the other documents** (quizzes, discussion prompts, rubrics, summaries) so all generated files look consistent. The assignment generator is merged (PR #1).
 - **P2: A tab for saved generated files.** Generated files are written to the project's output folders (older versions go to `.archive/`), but the app has no place to browse, open, or download them. The tab should list them by type and week.
-- **P2: Choose how many quiz questions are multiple choice vs. long form when the format is "mixed".** Today "mixed" only passes the total count and the word "mixed" to the prompt, so the model decides the split. Add two counts (shown only for "mixed") to `GenerationRequest` and the quiz prompt, and check they add up to the total.
 
 ## Engineering
 
@@ -78,6 +77,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Done
 
+- 2026-10-09: A mixed quiz asks how many questions are multiple choice and how many short answer (Generate tab; `--multiple-choice`/`--short-answer` in the CLI), and the prompt asks for exactly that split. Existing projects' quiz templates carry it through `{format}`.
 - 2026-10-09: Browse… buttons next to "Project folder" and "Create it inside" open the system folder dialog and fill in the field (hidden if this Python has no Tk). The page keeps running while the dialog is open, with a Cancel button, and only one dialog can be open at a time.
 - 2026-10-09: The launch screen no longer fades while you type: Open and Create read their fields on click (or Enter), show a "Creating…/Opening…" spinner, and confirm on the next screen. An empty field gets a plain message instead of a greyed-out button.
 - 2026-10-10: Basic workflow search bar - typing in plain-language for something related to a tab in Chalk will pull up suggested tabs based on what was typed.

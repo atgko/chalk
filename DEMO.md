@@ -37,7 +37,7 @@ Upload **`IS-6640-Spring-2026-term-label-bug.docx`** and click **Extract course*
 **5b. A real-world syllabus (2 min). Upload tab.** Upload **`OSC-6660-Spring-2026-real-world-layout.docx`**. It's laid out the way real syllabi are, not the way Chalk first expected: no `Term:`-style labels, a 16-week schedule split across five module tables, dates like `Week 1 (Jan. 6)`, and a separate Assignment Due column. On **Review**, everything is filled in: title, OSC 6660, Spring 2026, 3 credits, Tuesday 6–9 pm, both professors, three objectives (the lead-in sentence skipped), four grading weights (the Total row ignored), and all 16 weeks with topics and assignments split out. Any blank detail can be typed in right there. *Don't* click Confirm and save, and point out the yellow note on the Rollover tab: it still shows the saved course until you do. To drop the unsaved upload, refresh the browser page (the saved demo course is untouched). (It's shaped after a real healthcare project management syllabus; the content is invented.)
 
 **6. Drafting course materials (3 min). Generate tab.** *Needs the AI provider from setup.*
-- Content type **Quiz**, **Week 3** (Protocols and subnetting), 5 questions, mixed.
+- Content type **Quiz**, **Week 3** (Protocols and subnetting), Format **mixed**, with 3 multiple choice and 2 short answer.
 - Under **Source materials to use**, tick **week-3-subnetting-notes.md**. *"It grounds the quiz in the instructor's own notes, never a whole textbook."*
 - Point at **Estimated cost: up to ~$0.0x** before clicking **Generate**.
 - The draft opens with the **AI-generated draft** banner, followed by questions and an answer key. Click **Save**. It's written to `outputs/quizzes/week-3-quiz.md`, and any previous version is archived.

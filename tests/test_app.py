@@ -694,6 +694,33 @@ def test_generate_review_then_save(saved_project, llm):
     assert any(s.startswith("Saved outputs/quizzes/week-2-quiz.md.") for s in texts(at.success))
 
 
+def test_mixed_quiz_asks_for_the_split_and_sends_it(saved_project, llm):
+    at = launch(saved_project)
+    assert "Multiple-choice questions" not in {n.label for n in at.number_input}
+    widget(at.number_input, "Multiple choice").set_value(4)
+    widget(at.number_input, "Short answer").set_value(1)
+    at = click(at.run(), "Generate")
+
+    assert_no_exception(at)
+    assert "Generate 5 questions in mixed (exactly 4 multiple choice and 1 short answer) format." in llm[0]
+
+
+@pytest.mark.parametrize(
+    ("quiz_format", "count_label", "hidden"),
+    [
+        ("short answer", "Short-answer questions", {"Multiple choice", "Short answer"}),
+        ("multiple choice", "Multiple-choice questions", {"Multiple choice", "Short answer"}),
+    ],
+)
+def test_single_format_quiz_asks_for_one_count_named_for_it(saved_project, quiz_format, count_label, hidden):
+    at = launch(saved_project)
+    widget(at.selectbox, "Format").set_value(quiz_format)
+    at = at.run()
+    labels = {n.label for n in at.number_input}
+    assert count_label in labels
+    assert not labels & hidden
+
+
 def test_regenerate_needs_confirmation_and_replaces_the_draft(saved_project, llm):
     at = click(click(launch(saved_project), "Generate"), "Regenerate")
     assert any("This makes another paid call" in w for w in texts(at.warning))

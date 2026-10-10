@@ -278,6 +278,27 @@ def llm(monkeypatch, project):
     return calls
 
 
+def test_generate_mixed_quiz_with_a_split_totals_the_counts(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+
+    result = run("generate", "quiz", "--week", "2", "--multiple-choice", "4", "--short-answer", "2",
+                 "--project", str(project))
+
+    assert result.code == 0, result.err
+    assert "Generate 6 questions in mixed (exactly 4 multiple choice and 2 short answer) format." in llm[-1]
+
+
+def test_generate_quiz_split_that_disagrees_with_count_is_an_error(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+
+    result = run("generate", "quiz", "--week", "2", "--count", "5", "--multiple-choice", "4",
+                 "--short-answer", "2", "--project", str(project))
+
+    assert result.code == 1
+    assert "make 6 questions, not 5" in result.err
+    assert not llm
+
+
 def test_generate_without_a_provider_explains_how_to_configure_one(project, tmp_path, monkeypatch):
     for key in ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
         monkeypatch.delenv(key, raising=False)
