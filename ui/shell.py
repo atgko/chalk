@@ -32,6 +32,7 @@ from ui import (
     settings_view,
     setup_view,
     upload_view,
+    workflow_search,
 )
 from ui.common import NEEDS_COURSE_MESSAGE, render_header
 
@@ -61,6 +62,7 @@ def main(argv: list[str] | None = None) -> None:
         st.success(message)
 
     course_data = _load_course_or_warn(paths)
+    workflow_search.render(course_ready=course_data is not None)
     session.apply_tab_request()
     upload, review, rollover, generate, export, metrics, settings = st.tabs(
         TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
