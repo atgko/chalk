@@ -95,17 +95,165 @@ def test_create_project_from_the_picker_then_see_first_run_setup(tmp_path):
     inputs = {t.label: t for t in at.text_input}
     inputs["Create it inside"].input(str(tmp_path))
     inputs["Project name"].input("IS-6640-Fall-2027")
-    at = click(at.run(), "Create project")
+    at = click(at, "Create project")
 
     assert_no_exception(at)
     assert (tmp_path / "IS-6640-Fall-2027" / "config.json").exists()
     assert at.title[0].value == "Welcome to Chalk"
 
 
+def test_create_project_reads_the_name_on_click_and_confirms(tmp_path):
+    at = launch()
+    inputs = {t.label: t for t in at.text_input}
+    inputs["Create it inside"].input(str(tmp_path))
+    inputs["Project name"].input("IS-6640-Fall-2027")
+
+    at = click(at, "Create project")  # no rerun between typing and clicking
+
+    assert_no_exception(at)
+    assert (tmp_path / "IS-6640-Fall-2027" / "config.json").exists()
+    assert any("Created project IS-6640-Fall-2027" in s.value for s in at.success)
+
+
+def test_create_project_without_a_name_asks_for_one(tmp_path):
+    at = launch()
+    {t.label: t for t in at.text_input}["Create it inside"].input(str(tmp_path))
+
+    at = click(at, "Create project")
+
+    assert any("Enter a project name" in w.value for w in at.warning)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_open_project_without_a_folder_asks_for_one():
+    at = click(launch(), "Open project")
+
+    assert any("Enter the project folder" in w.value for w in at.warning)
+    assert "Open project" in {b.label for b in at.button}
+
+
+def test_opening_a_project_confirms_which_one_opened(tmp_project):
+    at = launch()
+    {t.label: t for t in at.text_input}["Project folder"].input(str(tmp_project.root))
+
+    at = click(at, "Open project")
+
+    assert_no_exception(at)
+    assert any(f"Opened project {tmp_project.root.name}" in s.value for s in at.success)
+
+
+class _FakeDialog:
+    """Stands in for the dialog's process: the test decides when it closes."""
+
+    def __init__(self):
+        self.started: list = []
+        self.done = False
+        self.folder = None
+        self.cancelled = False
+
+
+@pytest.fixture
+def dialog(monkeypatch):
+    fake = _FakeDialog()
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: True)
+    monkeypatch.setattr("ui.folder_picker.start", lambda initial, title: fake.started.append(title) or fake)
+    monkeypatch.setattr("ui.folder_picker.finished", lambda process: process.done)
+    monkeypatch.setattr("ui.folder_picker.chosen_folder", lambda process: process.folder)
+    monkeypatch.setattr("ui.folder_picker.cancel", lambda process: setattr(process, "cancelled", True))
+    return fake
+
+
+def _browse(at: AppTest, index: int) -> AppTest:
+    """Click the index-th Browse… button (0: Open, 1: Create)."""
+    return [b for b in at.button if b.label == "Browse…"][index].click().run()
+
+
+def _field(at: AppTest, label: str) -> str:
+    return {t.label: t for t in at.text_input}[label].value
+
+
+def _dialog_note_shown(at: AppTest) -> bool:
+    return any("Choose a folder in the window that just opened" in i.value for i in at.info)
+
+
+def test_browse_doesnt_wait_for_the_dialog(dialog):
+    at = _browse(launch(), 1)
+
+    assert_no_exception(at)
+    assert dialog.started == ["Choose where to create the project"]
+    assert _dialog_note_shown(at)
+    assert all(b.disabled for b in at.button if b.label == "Browse…")
+
+
+def test_browse_fills_the_create_it_inside_field_then_creates_there(tmp_path, dialog):
+    at = _browse(launch(), 1)
+    dialog.done, dialog.folder = True, str(tmp_path)
+    at = at.run()
+
+    assert _field(at, "Create it inside") == str(tmp_path)
+    assert not _dialog_note_shown(at)
+    assert not any(b.disabled for b in at.button if b.label == "Browse…")
+
+    {t.label: t for t in at.text_input}["Project name"].input("IS-6640-Fall-2027")
+    at = click(at, "Create project")
+
+    assert_no_exception(at)
+    assert (tmp_path / "IS-6640-Fall-2027" / "config.json").exists()
+
+
+def test_browse_fills_the_project_folder_field(tmp_project, dialog):
+    at = _browse(launch(), 0)
+    dialog.done, dialog.folder = True, str(tmp_project.root)
+
+    at = at.run()
+
+    assert dialog.started == ["Choose the course project folder"]
+    assert _field(at, "Project folder") == str(tmp_project.root)
+
+
+def test_cancelled_browse_keeps_what_was_typed(dialog):
+    at = _browse(launch(), 1)
+    dialog.done = True
+
+    at = at.run()
+
+    assert_no_exception(at)
+    assert _field(at, "Create it inside").endswith("projects")
+    assert not _dialog_note_shown(at)
+
+
+def test_cancel_button_closes_an_open_dialog(dialog):
+    at = click(_browse(launch(), 1), "Cancel")
+
+    assert_no_exception(at)
+    assert dialog.cancelled
+    assert not _dialog_note_shown(at)
+    assert not any(b.disabled for b in at.button if b.label == "Browse…")
+
+
+def test_a_dialog_that_cant_open_says_to_type_the_path(monkeypatch):
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: True)
+    monkeypatch.setattr("ui.folder_picker.start", lambda initial, title: None)
+
+    at = _browse(launch(), 0)
+
+    assert_no_exception(at)
+    assert any("couldn't open" in w.value for w in at.warning)
+
+
+def test_no_browse_buttons_when_the_folder_dialog_is_unavailable(monkeypatch):
+    monkeypatch.setattr("ui.folder_picker.is_available", lambda: False)
+
+    at = launch()
+
+    assert "Browse…" not in {b.label for b in at.button}
+    assert {"Open project", "Create project"} <= {b.label for b in at.button}
+
+
 def test_opening_a_folder_that_is_not_a_project_shows_a_plain_error(tmp_path):
     at = launch()
     {t.label: t for t in at.text_input}["Project folder"].input(str(tmp_path))
-    at = click(at.run(), "Open project")
+    at = click(at, "Open project")
     assert "isn't a Chalk course project" in at.error[0].value
 
 
