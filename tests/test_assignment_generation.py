@@ -1,9 +1,11 @@
 """Tests for Chalk's Assignment Creator / Enhancer."""
 import pytest
+
 from chalk.errors import GenerationError
 from chalk.generation.engine import GenerationRequest, build_prompt, output_path_for
 from chalk.generation.specs import SPECS
 from tests.sample_course import build_sample_course_data
+
 
 def test_assignment_spec():
     spec = SPECS["assignment"]

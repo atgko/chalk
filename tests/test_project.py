@@ -144,7 +144,7 @@ def test_add_updates_course_json_source_materials_when_a_course_exists(tmp_proje
     save_course(tmp_project, build_sample_course_data())
     material = tmp_path / "reading.pdf"
     material.write_bytes(b"%PDF-1.4")
-    added_at = dt.datetime(2026, 9, 24, 12, 0, tzinfo=dt.timezone.utc)
+    added_at = dt.datetime(2026, 9, 24, 12, 0, tzinfo=dt.UTC)
 
     add_source(tmp_project, material, now=added_at)
     add_source(tmp_project, material, now=added_at)  # re-adding doesn't duplicate
@@ -231,10 +231,10 @@ def test_status_tolerates_a_missing_outputs_dir(tmp_path):
 
 # ---- export helpers ---------------------------------------------------------------
 
-import io  # noqa: E402
-import zipfile  # noqa: E402
+import io
+import zipfile
 
-from chalk.project import list_output_files, zip_outputs  # noqa: E402
+from chalk.project import list_output_files, zip_outputs
 
 
 def test_list_output_files_skips_archived_versions(tmp_project):

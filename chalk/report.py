@@ -21,9 +21,11 @@ _FORMAT_BY_SUFFIX = {".docx": "word", ".md": "markdown", ".pdf": "pdf"}
 
 def render_evaluation_report(events: list[dict[str, Any]], *, project_name: str, generated_on: dt.date) -> str:
     sections = [
-        f"# Evaluation report — {project_name}\n\n"
-        f"Generated {generated_on.isoformat()} from eval-log.json ({len(events)} events). "
-        "Metadata only — no course or student content is logged.",
+        (
+            f"# Evaluation report — {project_name}\n\n"
+            f"Generated {generated_on.isoformat()} from eval-log.json ({len(events)} events). "
+            "Metadata only — no course or student content is logged."
+        ),
         _files_section(events),
         _consistency_section(events),
         _rollover_section(events),

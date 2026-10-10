@@ -12,11 +12,11 @@ from tests.fixtures.md_builder import (
     build_syllabus_with_invalid_encoding,
     build_syllabus_with_multiple_candidate_tables,
     build_syllabus_with_no_schedule_table,
+    build_syllabus_with_stray_line_after_objectives,
     build_syllabus_with_unparseable_assessment_weight,
     build_syllabus_with_unparseable_term_year,
     build_syllabus_with_unparseable_week_date,
     build_syllabus_with_unparseable_week_number,
-    build_syllabus_with_stray_line_after_objectives,
     build_syllabus_with_unresolvable_break_row,
     build_syllabus_without_optional_sections,
 )
