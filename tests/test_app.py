@@ -262,7 +262,7 @@ def test_failed_consistency_check_blocks_review_until_continue_anyway(project, t
     )
     at = launch(project, chalk_pending_extraction=pending)
 
-    assert "Term and schedule don't match" in at.warning[0].value
+    assert any("Term and schedule don't match" in warning for warning in texts(at.warning))
     assert "Resolve the term/schedule warning on the Upload tab first." in texts(at.info)
 
     at = click(at, "Continue anyway")
@@ -284,7 +284,7 @@ def test_table_picker_resolves_an_ambiguous_upload(project, tmp_path):
     upload = md_builder.build_syllabus_with_multiple_candidate_tables(tmp_path / "two.md")
     choice = TableChoice(upload, ["Week | Dates / 1 | first", "Week | Dates / 1 | Duplicate"])
     at = launch(project, chalk_table_choice=choice)
-    assert "Multiple possible schedule tables" in at.warning[0].value
+    assert any("Multiple possible schedule tables" in warning for warning in texts(at.warning))
 
     at.radio[0].set_value(1)
     at = click(at.run(), "Use this table")
