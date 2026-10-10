@@ -3,7 +3,7 @@
 Locates the schedule table by the "Week N (M/DD)" heuristic in its first
 column, reads front-matter metadata loosely (chalk.extractors._front_matter:
 label lines, two-column tables, or guesses from the title lines), learning objectives from a bulleted list under one
-of two known headings, assessments from a two-column weight table, and
+of two known headings, assessments from a weight or points table, and
 university dates from an optional two-column dates table.
 
 Never writes to the source document — it is only ever opened for reading
@@ -20,7 +20,6 @@ format variability" risk.
 from __future__ import annotations
 
 import datetime as dt
-import re
 from zipfile import BadZipFile
 
 from docx import Document
@@ -35,10 +34,8 @@ from chalk.extractors._dates import (
 )
 from chalk.extractors._docx_schedule import extract_weeks, find_schedule_tables
 from chalk.extractors._front_matter import extract_front_matter
+from chalk.extractors._grading import header_column, headerless_points, parse_rows
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
-
-_WEIGHT_PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
-_WEIGHT_HEADER_RE = re.compile(r"weight|percent|%", re.IGNORECASE)
 
 _OBJECTIVES_HEADINGS = {"learning objectives", "course outcome and objectives"}
 # An all-caps line this short ("REQUIRED TEXT AND COURSE MATERIALS") is a
@@ -185,34 +182,22 @@ def _is_heading(paragraph, text: str) -> bool:
 
 
 def _extract_assessments(document) -> list[Assessment]:
-    """The first table that reads as grading weights: a header with a
-    "Weight" (or "%") column, or — with no header row — a table whose
-    rows' second cells are mostly percentages. A "Total" row is skipped."""
+    """The first table that reads as a grading table: a header with a
+    "Weight", "%", or "Points" column, or — with no header row — a table
+    whose rows' second cells are mostly percentages or mostly points.
+    A "Total" row is skipped (chalk.extractors._grading)."""
     for table in document.tables:
-        rows = [row for row in table.rows if len(row.cells) >= 2]
+        rows = [[cell.text.strip() for cell in row.cells] for row in table.rows if len(row.cells) >= 2]
         if len(rows) < 2:
             continue
-        header_cells = [cell.text.strip() for cell in rows[0].cells[1:]]
-        if any(
-            _WEIGHT_HEADER_RE.search(cell) and not _WEIGHT_PERCENT_RE.search(cell)
-            for cell in header_cells
-        ):
-            return _parse_assessment_rows(rows[1:])
-        weighted = [row for row in rows if _WEIGHT_PERCENT_RE.search(row.cells[1].text)]
-        if len(weighted) * 2 > len(rows) and _WEIGHT_PERCENT_RE.search(rows[0].cells[1].text):
-            return _parse_assessment_rows(rows)
+        column = header_column(rows[0])
+        if column is not None:
+            index, points = column
+            return parse_rows(rows[1:], index, points=points)
+        points = headerless_points(rows)
+        if points is not None:
+            return parse_rows(rows, 1, points=points)
     return []
-
-
-def _parse_assessment_rows(rows) -> list[Assessment]:
-    assessments = []
-    for row in rows:
-        name = row.cells[0].text.strip()
-        weight_match = _WEIGHT_PERCENT_RE.search(row.cells[1].text)
-        if not weight_match or name.lower().startswith("total"):
-            continue
-        assessments.append(Assessment(name=name, weight=float(weight_match.group(1)) / 100))
-    return assessments
 
 
 # ---- University dates table ------------------------------------------------
