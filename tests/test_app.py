@@ -130,6 +130,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Review",
         "Rollover",
         "Generate",
+        "Drafts",
         "Export",
         "Metrics",
         "Settings",
@@ -575,6 +576,57 @@ def test_overwriting_needs_the_checkbox(saved_project, llm):
     assert widget(at.button, "Generate").disabled
     at.checkbox[-1].check()
     assert not widget(at.run().button, "Generate").disabled
+
+
+def draft_titles(at: AppTest) -> list[str]:
+    """Drafts-tab expanders (the Generate tab has one of its own)."""
+    return [e.label for e in at.expander if " — " in e.label]
+
+
+def test_drafts_tab_explains_when_nothing_is_saved(saved_project):
+    at = launch(saved_project)
+    assert "No saved drafts yet. Generate one on the Generate tab and click Save." in texts(at.info)
+
+
+def test_a_saved_draft_appears_on_the_drafts_tab(saved_project, llm):
+    at = click(click(launch(saved_project), "Generate"), "Save")
+    (saved_project.outputs_dir / "quizzes" / ".archive").mkdir()
+    (saved_project.outputs_dir / "quizzes" / ".archive" / "week-1-quiz-20261001-101500.md").write_text(
+        "old", encoding="utf-8"
+    )
+    at = at.run()
+
+    assert_no_exception(at)
+    assert draft_titles(at) == ["Week 1 — Quiz"]
+    assert any("Draft number 1" in m.value for m in at.markdown)
+    assert any(
+        "outputs/quizzes/week-1-quiz.md · 1 earlier version in .archive/" in c for c in texts(at.caption)
+    )
+
+
+def test_drafts_tab_filters_by_type(saved_project):
+    out = saved_project.outputs_dir
+    (out / "quizzes" / "week-2-quiz.md").write_text("quiz", encoding="utf-8")
+    (out / "discussions" / "week-2-discussion.md").write_text("talk", encoding="utf-8")
+    at = launch(saved_project)
+    assert draft_titles(at) == ["Week 2 — Quiz", "Week 2 — Discussion prompts"]
+
+    widget(at.selectbox, "Show").set_value("Discussion prompts")
+    at = at.run()
+
+    assert draft_titles(at) == ["Week 2 — Discussion prompts"]
+
+
+def test_assignment_drafts_download_as_word_by_default(saved_project):
+    (saved_project.outputs_dir / "assignments").mkdir()
+    (saved_project.outputs_dir / "assignments" / "lab-3-assignment.md").write_text(
+        "# Lab 3\n\nBuild a VLAN.", encoding="utf-8"
+    )
+    at = launch(saved_project)
+
+    assert_no_exception(at)
+    assert draft_titles(at) == ["Lab 3 — Assignment creator / enhancer"]
+    assert widget(at.selectbox, "File type").value == "Word (.docx)"
 
 
 def test_rubric_waits_for_assignment_details(saved_project, llm):
