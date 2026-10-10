@@ -137,6 +137,37 @@ def test_first_run_setup_can_be_skipped(tmp_project):
     assert "Provider: Not configured" in at.caption[-1].value
 
 
+def test_workflow_search_replaces_suggestions_and_opens_selected_generation_type(saved_project):
+    at = launch(saved_project)
+    labels = {button.label for button in at.button}
+    assert {"Upload a syllabus", "Quiz generation"} <= labels
+
+    widget(at.text_input, "Search Chalk workflows").input("Rubric")
+    at = at.run()
+    labels = {button.label for button in at.button}
+    assert "Rubric generation" in labels
+    assert "Upload a syllabus" not in labels
+
+    at = click(at, "Rubric generation")
+
+    assert_no_exception(at)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Generate"
+    assert at.session_state[session.GENERATION_CONTENT_KEY] == "rubric"
+    assert widget(at.selectbox, "Content type").value == "rubric"
+    assert "Opened Rubric generation." in texts(at.success)
+
+
+def test_workflow_search_explains_syllabus_setup_until_course_is_saved(project):
+    without_course = launch(project)
+    assert any("Upload your syllabus first" in warning for warning in texts(without_course.warning))
+    assert any("Confirm and save" in warning for warning in texts(without_course.warning))
+
+
+def test_workflow_search_hides_syllabus_setup_after_course_is_saved(saved_project):
+    with_course = launch(saved_project)
+    assert not any("Upload your syllabus first" in warning for warning in texts(with_course.warning))
+
+
 def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
     calls = []
     monkeypatch.setattr(
@@ -231,7 +262,7 @@ def test_failed_consistency_check_blocks_review_until_continue_anyway(project, t
     )
     at = launch(project, chalk_pending_extraction=pending)
 
-    assert "Term and schedule don't match" in at.warning[0].value
+    assert any("Term and schedule don't match" in warning for warning in texts(at.warning))
     assert "Resolve the term/schedule warning on the Upload tab first." in texts(at.info)
 
     at = click(at, "Continue anyway")
@@ -253,7 +284,7 @@ def test_table_picker_resolves_an_ambiguous_upload(project, tmp_path):
     upload = md_builder.build_syllabus_with_multiple_candidate_tables(tmp_path / "two.md")
     choice = TableChoice(upload, ["Week | Dates / 1 | first", "Week | Dates / 1 | Duplicate"])
     at = launch(project, chalk_table_choice=choice)
-    assert "Multiple possible schedule tables" in at.warning[0].value
+    assert any("Multiple possible schedule tables" in warning for warning in texts(at.warning))
 
     at.radio[0].set_value(1)
     at = click(at.run(), "Use this table")
