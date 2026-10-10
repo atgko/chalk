@@ -137,6 +137,35 @@ def test_first_run_setup_can_be_skipped(tmp_project):
     assert "Provider: Not configured" in at.caption[-1].value
 
 
+def test_workflow_search_replaces_suggestions_and_opens_quiz_generation(saved_project):
+    at = launch(saved_project)
+    labels = {button.label for button in at.button}
+    assert {"Upload a syllabus", "Quiz generation"} <= labels
+
+    widget(at.text_input, "Search Chalk workflows").input("Quiz")
+    at = at.run()
+    labels = {button.label for button in at.button}
+    assert "Quiz generation" in labels
+    assert "Upload a syllabus" not in labels
+
+    at = click(at, "Quiz generation")
+
+    assert_no_exception(at)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Generate"
+    assert at.session_state[session.GENERATION_CONTENT_KEY] == "quiz"
+    assert widget(at.selectbox, "Content type").value == "quiz"
+    assert "Opened Quiz generation." in texts(at.success)
+
+
+def test_workflow_search_explains_syllabus_setup_until_course_is_saved(project, saved_project):
+    without_course = launch(project)
+    assert any("Upload your syllabus first" in warning for warning in texts(without_course.warning))
+    assert any("Confirm and save" in warning for warning in texts(without_course.warning))
+
+    with_course = launch(saved_project)
+    assert not any("Upload your syllabus first" in warning for warning in texts(with_course.warning))
+
+
 def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
     calls = []
     monkeypatch.setattr(
