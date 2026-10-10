@@ -75,6 +75,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 ## Done
 
 - 2026-10-10: Lint debt cleared: `ruff check .` passes, and CI runs it (on the Linux job). Local "today"/"now" is allowed in the ruff config, since Chalk runs on the instructor's own computer.
+- 2026-10-10: New projects create `outputs/assignments/`, and `toolkit.py status` counts saved assignments.
 - 2026-10-10: Quizzes, discussion prompts, rubrics, and summaries download as Word or PDF in the assignment creator's layout (type header, title, upper-case sections), on Generate and Drafts. Rubric tables become real tables, and the AI-draft banner is left out of Word/PDF.
 - 2026-10-09: A Drafts tab lists the drafts saved from Generate by type and week, with a preview, a download (assignments as Word/PDF/markdown), the save date, and how many earlier versions are archived. A draft can be deleted (it moves to `.archive/`).
 - 2026-10-09: A mixed quiz asks how many questions are multiple choice and how many short answer (Generate tab; `--multiple-choice`/`--short-answer` in the CLI), and the prompt asks for exactly that split. Existing projects' quiz templates carry it through `{format}`.
