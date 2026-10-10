@@ -12,7 +12,7 @@ import streamlit as st
 from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
-from chalk.generation.assignment_export import export_assignment
+from chalk.generation.document_export import can_export
 from chalk.generation.engine import (
     GeneratedDraft,
     GenerationRequest,
@@ -22,7 +22,6 @@ from chalk.generation.engine import (
     overwrite_warning,
     save_draft,
 )
-from chalk.generation.document_export import can_export
 from chalk.generation.source_context import read_source_text
 from chalk.generation.specs import (
     DEFAULT_MIXED_SPLIT,
