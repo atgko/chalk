@@ -1,6 +1,7 @@
 """Saved drafts (the Drafts tab): the generated files under outputs/,
 found by the names `engine.output_path_for` gives them, with each one's
-archived earlier versions counted.
+archived earlier versions counted. Deleting a draft archives it too,
+so nothing is lost.
 
 Only files named the way Chalk saves them are listed (`week-3-quiz.md`,
 `lab-3-rubric.md`), so an instructor's own files in those folders aren't
@@ -14,6 +15,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from chalk.archiving import archive_before_write
 from chalk.generation.specs import SPECS, ContentSpec
 from chalk.project import ProjectPaths
 
@@ -30,12 +32,14 @@ class SavedDraft:
     archived_versions: int
 
     @property
-    def title(self) -> str:
+    def subject(self) -> str:
         if self.week_number is not None:
-            subject = f"Week {self.week_number}"
-        else:
-            subject = self.name.replace("-", " ").capitalize()  # the file name's slug, e.g. "Lab 3"
-        return f"{subject} — {self.spec.label}"
+            return f"Week {self.week_number}"
+        return self.name.replace("-", " ").capitalize()  # the file name's slug, e.g. "Lab 3"
+
+    @property
+    def title(self) -> str:
+        return f"{self.subject} — {self.spec.label}"
 
 
 def list_saved_drafts(paths: ProjectPaths) -> list[SavedDraft]:
@@ -49,6 +53,12 @@ def list_saved_drafts(paths: ProjectPaths) -> list[SavedDraft]:
         found = [d for p in folder.glob("*.md") if (d := _draft_for(spec, p)) is not None]
         drafts += sorted(found, key=lambda d: (d.week_number or 0, d.name))
     return drafts
+
+
+def delete_draft(paths: ProjectPaths, draft: SavedDraft) -> Path | None:
+    """Move a draft into its folder's .archive/ (logged like any archive).
+    Returns the archived path, or None if the file was already gone."""
+    return archive_before_write(draft.path, eval_log_path=paths.eval_log)
 
 
 def _draft_for(spec: ContentSpec, path: Path) -> SavedDraft | None:
