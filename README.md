@@ -108,6 +108,7 @@ python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--wee
 python toolkit.py export --project IS-6640-Fall-2027
 python toolkit.py add path/to/chapter-3-summary.pdf --project IS-6640-Fall-2027
 python toolkit.py generate quiz --week 3 --project IS-6640-Fall-2027 [--count 5] [--format mixed] [--source chapter-3-summary.pdf]
+python toolkit.py generate quiz --week 3 --multiple-choice 4 --short-answer 2   # a mixed quiz with a set split
 python toolkit.py generate discussion --week 3 [--count 3]
 python toolkit.py generate summary --week 3
 python toolkit.py generate slides --week 3 [--notes "bullet points or an excerpt"]
