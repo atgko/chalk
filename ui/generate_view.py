@@ -8,7 +8,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-from chalk.generation.assignment_export import export_assignment
 
 from chalk.config import describe_provider
 from chalk.costs import format_cost
@@ -22,6 +21,7 @@ from chalk.generation.engine import (
     overwrite_warning,
     save_draft,
 )
+from chalk.generation.document_export import can_export
 from chalk.generation.source_context import read_source_text
 from chalk.generation.specs import (
     DEFAULT_PROMPT_COUNT,
@@ -233,27 +233,15 @@ def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: Generated
         with st.container(border=True):
             st.markdown(draft.text)
 
-    if draft.request.content_type == "assignment":
-        st.markdown("### Export assignment")
-
-        export_format = st.selectbox(
-            "File type",
-            ("Word (.docx)", "PDF (.pdf)", "Markdown (.md)"),
-            key="assignment-export-format",
-        )
-
-        file_data, extension, mime_type = export_assignment(
+    request = draft.request
+    if can_export(request.content_type):
+        st.markdown("### Export")
+        common.export_buttons(
             draft.text,
-            export_format,
-        )
-
-        base_name = draft.output_path.stem
-        st.download_button(
-            f"Download {export_format}",
-            data=file_data,
-            file_name=f"{base_name}.{extension}",
-            mime=mime_type,
-            key="assignment-download",
+            content_type=request.content_type,
+            subject=_subject(request),
+            base_name=draft.output_path.stem,
+            key="generate-export",
         )
 
     if session.regenerate_requested():
@@ -278,3 +266,9 @@ def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: Generated
     if discard_col.button("Discard"):
         session.set_draft(None)
         st.rerun()
+
+
+def _subject(request: GenerationRequest) -> str:
+    if SPECS[request.content_type].per_week:
+        return f"Week {request.week_number}"
+    return request.assignment_name.strip()

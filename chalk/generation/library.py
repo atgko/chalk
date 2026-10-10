@@ -30,12 +30,14 @@ class SavedDraft:
     archived_versions: int
 
     @property
-    def title(self) -> str:
+    def subject(self) -> str:
         if self.week_number is not None:
-            subject = f"Week {self.week_number}"
-        else:
-            subject = self.name.replace("-", " ").capitalize()  # the file name's slug, e.g. "Lab 3"
-        return f"{subject} — {self.spec.label}"
+            return f"Week {self.week_number}"
+        return self.name.replace("-", " ").capitalize()  # the file name's slug, e.g. "Lab 3"
+
+    @property
+    def title(self) -> str:
+        return f"{self.subject} — {self.spec.label}"
 
 
 def list_saved_drafts(paths: ProjectPaths) -> list[SavedDraft]:
