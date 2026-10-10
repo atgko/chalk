@@ -546,6 +546,25 @@ def test_generate_review_then_save(saved_project, llm):
     assert any(s.startswith("Saved outputs/quizzes/week-2-quiz.md.") for s in texts(at.success))
 
 
+def test_mixed_quiz_asks_for_the_split_and_sends_it(saved_project, llm):
+    at = launch(saved_project)
+    assert "Questions" not in {n.label for n in at.number_input}
+    widget(at.number_input, "Multiple choice").set_value(4)
+    widget(at.number_input, "Short answer").set_value(1)
+    at = click(at.run(), "Generate")
+
+    assert_no_exception(at)
+    assert "Generate 5 questions in mixed (exactly 4 multiple choice and 1 short answer) format." in llm[0]
+
+
+def test_single_format_quiz_asks_for_one_count(saved_project):
+    at = launch(saved_project)
+    widget(at.selectbox, "Format").set_value("short answer")
+    at = at.run()
+    labels = {n.label for n in at.number_input}
+    assert "Questions" in labels and "Multiple choice" not in labels
+
+
 def test_regenerate_needs_confirmation_and_replaces_the_draft(saved_project, llm):
     at = click(click(launch(saved_project), "Generate"), "Regenerate")
     assert any("This makes another paid call" in w for w in texts(at.warning))

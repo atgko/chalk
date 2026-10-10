@@ -24,6 +24,7 @@ from chalk.generation.engine import (
 )
 from chalk.generation.source_context import read_source_text
 from chalk.generation.specs import (
+    DEFAULT_MIXED_SPLIT,
     DEFAULT_PROMPT_COUNT,
     DEFAULT_QUESTION_COUNT,
     DEFAULT_RUBRIC_POINTS,
@@ -77,8 +78,7 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
             format_func=lambda n: f"Week {n} — {'; '.join(weeks[n].topics) or 'no topics listed'}",
         )
     if spec.key == "quiz":
-        fields["question_count"] = int(st.number_input("Questions", 1, 50, DEFAULT_QUESTION_COUNT))
-        fields["quiz_format"] = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"))
+        fields |= _quiz_fields()
     elif spec.key == "discussion":
         fields["prompt_count"] = int(st.number_input("Prompts", 1, 20, DEFAULT_PROMPT_COUNT))
     elif spec.key == "assignment":
@@ -96,6 +96,24 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
         st.caption("No source materials added yet — generation will use course topics and objectives only.")
     _render_source_uploader(paths)
     return GenerationRequest(**fields)
+
+
+def _quiz_fields() -> dict:
+    quiz_format = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"))
+    if quiz_format != "mixed":
+        count = int(st.number_input("Questions", 1, 50, DEFAULT_QUESTION_COUNT))
+        return {"quiz_format": quiz_format, "question_count": count}
+
+    mc_col, sa_col = st.columns(2)
+    multiple_choice = int(mc_col.number_input("Multiple choice", 1, 49, DEFAULT_MIXED_SPLIT[0]))
+    short_answer = int(sa_col.number_input("Short answer", 1, 49, DEFAULT_MIXED_SPLIT[1]))
+    st.caption(f"{multiple_choice + short_answer} questions in total.")
+    return {
+        "quiz_format": quiz_format,
+        "question_count": multiple_choice + short_answer,
+        "multiple_choice_count": multiple_choice,
+        "short_answer_count": short_answer,
+    }
 
 
 def _render_source_uploader(paths: ProjectPaths) -> None:

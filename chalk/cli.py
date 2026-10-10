@@ -176,6 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--week", type=int, help="Week number (all types except rubric).")
     generate.add_argument("--count", type=int, help="Quiz questions (default 5) or discussion prompts (default 3).")
     generate.add_argument("--format", choices=QUIZ_FORMATS, default="mixed", help="Quiz question format.")
+    generate.add_argument("--multiple-choice", type=int, help="Mixed quiz: how many multiple-choice questions.")
+    generate.add_argument("--short-answer", type=int, help="Mixed quiz: how many short-answer questions.")
     generate.add_argument("--assignment", help="Rubric: the assignment's name.")
     generate.add_argument("--assignment-goal", default="", help="Assignment: required learning goal.")
     generate.add_argument("--assignment-mode", choices=("create", "enhance"), default="create", help="Assignment: create or enhance an existing assignment.")
@@ -316,6 +318,13 @@ def _cmd_generate(args, console: _Console) -> int:
     return 0
 
 
+def _split_total(args) -> int | None:
+    """A mixed quiz's total when only the split was given."""
+    if args.multiple_choice is None or args.short_answer is None:
+        return None
+    return args.multiple_choice + args.short_answer
+
+
 def _generation_request(args) -> GenerationRequest:
     description = args.description or ""
     if args.description_file is not None:
@@ -325,8 +334,10 @@ def _generation_request(args) -> GenerationRequest:
     return GenerationRequest(
         content_type=args.type,
         week_number=args.week,
-        question_count=args.count or DEFAULT_QUESTION_COUNT,
+        question_count=args.count or _split_total(args) or DEFAULT_QUESTION_COUNT,
         quiz_format=args.format,
+        multiple_choice_count=args.multiple_choice,
+        short_answer_count=args.short_answer,
         prompt_count=args.count or DEFAULT_PROMPT_COUNT,
         assignment_name=args.assignment or "",
         assignment_goal=args.assignment_goal,

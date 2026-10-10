@@ -66,6 +66,34 @@ def test_quiz_prompt_carries_week_topics_objectives_and_options(tmp_project, cou
     assert "{" not in prompt
 
 
+def test_mixed_quiz_prompt_states_the_split(tmp_project, course):
+    prompt = build_prompt(
+        tmp_project,
+        course,
+        GenerationRequest(
+            "quiz", week_number=3, question_count=5, multiple_choice_count=3, short_answer_count=2
+        ),
+    )
+    assert "Generate 5 questions in mixed (exactly 3 multiple choice and 2 short answer) format." in prompt
+
+
+def test_mixed_quiz_without_a_split_leaves_it_to_the_model(tmp_project, course):
+    prompt = build_prompt(tmp_project, course, GenerationRequest("quiz", week_number=3, question_count=5))
+    assert "Generate 5 questions in mixed format." in prompt
+
+
+def test_split_is_ignored_for_a_single_format_quiz(tmp_project, course):
+    prompt = build_prompt(
+        tmp_project,
+        course,
+        GenerationRequest(
+            "quiz", week_number=3, question_count=4, quiz_format="multiple choice",
+            multiple_choice_count=1, short_answer_count=1,
+        ),
+    )
+    assert "Generate 4 questions in multiple choice format." in prompt
+
+
 def test_prompt_includes_selected_source_material(tmp_project, course):
     (tmp_project.source_dir / "ch3.txt").write_text("CIDR notation explained", encoding="utf-8")
     prompt = build_prompt(tmp_project, course, GenerationRequest("summary", week_number=3, source_files=("ch3.txt",)))
@@ -117,6 +145,18 @@ def test_slides_prompt_uses_notes_or_a_fallback(tmp_project, course):
         (GenerationRequest("quiz", week_number=42), "Week 42 isn't in this course's schedule"),
         (GenerationRequest("quiz", week_number=1, question_count=0), "Question count must be at least 1"),
         (GenerationRequest("quiz", week_number=1, quiz_format="essay"), "Quiz format must be one of"),
+        (
+            GenerationRequest("quiz", week_number=1, question_count=5, multiple_choice_count=3, short_answer_count=3),
+            "3 multiple choice and 3 short answer make 6 questions, not 5",
+        ),
+        (
+            GenerationRequest("quiz", week_number=1, question_count=5, multiple_choice_count=5, short_answer_count=0),
+            "A mixed quiz needs at least one multiple-choice and one short-answer question",
+        ),
+        (
+            GenerationRequest("quiz", week_number=1, question_count=5, multiple_choice_count=5),
+            "Give both the multiple-choice and the short-answer count",
+        ),
         (GenerationRequest("discussion", week_number=1, prompt_count=0), "Prompt count must be at least 1"),
         (GenerationRequest("rubric", assignment_name="Lab"), "needs an assignment name and a description"),
         (

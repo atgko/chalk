@@ -70,7 +70,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - **P2: Use the assignment generator's formatting for the other documents** (quizzes, discussion prompts, rubrics, summaries) so all generated files look consistent. The assignment generator is merged (PR #1).
 - **P2: A tab for saved generated files.** Generated files are written to the project's output folders (older versions go to `.archive/`), but the app has no place to browse, open, or download them. The tab should list them by type and week.
-- **P2: Choose how many quiz questions are multiple choice vs. long form when the format is "mixed".** Today "mixed" only passes the total count and the word "mixed" to the prompt, so the model decides the split. Add two counts (shown only for "mixed") to `GenerationRequest` and the quiz prompt, and check they add up to the total.
 
 ## Engineering
 
@@ -79,6 +78,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Done
 
+- 2026-10-09: A mixed quiz asks how many questions are multiple choice and how many short answer (Generate tab; `--multiple-choice`/`--short-answer` in the CLI), and the prompt asks for exactly that split. Existing projects' quiz templates carry it through `{format}`.
 - 2026-10-10: Basic workflow search bar - typing in plain-language for something related to a tab in Chalk will pull up suggested tabs based on what was typed.
 - 2026-10-09: Points-based grading tables ("Labs — 250 pts", or a "Points" column) are read in Word and markdown syllabi. Points become fractions of the table's Total row (or of the rows' sum when there's none). Markdown grading tables no longer list their Total row as an assessment.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.
