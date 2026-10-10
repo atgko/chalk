@@ -1,13 +1,14 @@
 """Drafts tab: the generated files saved from the Generate tab, by
 content type and week, each with a preview and a download. Earlier
-versions stay in each folder's .archive/ and are only counted here."""
+versions stay in each folder's .archive/ and are only counted here.
+Deleting a draft (after a confirm checkbox) moves it there too."""
 
 from __future__ import annotations
 
 import streamlit as st
 
 from chalk.generation.document_export import can_export
-from chalk.generation.library import SavedDraft, list_saved_drafts
+from chalk.generation.library import SavedDraft, delete_draft, list_saved_drafts
 from chalk.project import ProjectPaths
 from ui import common
 
@@ -40,16 +41,28 @@ def _render_draft(paths: ProjectPaths, draft: SavedDraft) -> None:
     else:
         st.markdown(text)
 
-    if not can_export(draft.spec.key):
+    key = f"drafts-{common.relative(draft.path, paths)}"
+    if can_export(draft.spec.key):
+        common.export_buttons(
+            text,
+            content_type=draft.spec.key,
+            subject=draft.subject,
+            base_name=draft.path.stem,
+            key=key,
+        )
+    else:
         common.download_button(draft.path, paths, key_prefix="drafts")
-        return
-    common.export_buttons(
-        text,
-        content_type=draft.spec.key,
-        subject=draft.subject,
-        base_name=draft.path.stem,
-        key=f"drafts-{common.relative(draft.path, paths)}",
+    _render_delete(paths, draft, key=key)
+
+
+def _render_delete(paths: ProjectPaths, draft: SavedDraft, *, key: str) -> None:
+    confirmed = st.checkbox(
+        "Yes — delete this draft (it moves to .archive/)", key=f"{key}-confirm-delete"
     )
+    if st.button("Delete", disabled=not confirmed, key=f"{key}-delete"):
+        delete_draft(paths, draft)
+        st.toast(f"Deleted {draft.title}. It's kept in {draft.spec.output_subdir}/.archive/.")
+        st.rerun()
 
 
 def _describe(paths: ProjectPaths, draft: SavedDraft) -> str:

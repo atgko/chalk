@@ -764,7 +764,7 @@ def test_overwriting_needs_the_checkbox(saved_project, llm):
 
     assert any("A quiz already exists for Week 1." in w for w in texts(at.warning))
     assert widget(at.button, "Generate").disabled
-    at.checkbox[-1].check()
+    widget(at.checkbox, "Yes — archive the old version and generate a new one").check()
     assert not widget(at.run().button, "Generate").disabled
 
 
@@ -805,6 +805,22 @@ def test_drafts_tab_filters_by_type(saved_project):
     at = at.run()
 
     assert draft_titles(at) == ["Week 2 — Discussion prompts"]
+
+
+def test_deleting_a_draft_needs_the_checkbox_and_archives_it(saved_project):
+    quiz = saved_project.outputs_dir / "quizzes" / "week-2-quiz.md"
+    quiz.write_text("quiz", encoding="utf-8")
+    at = launch(saved_project)
+    assert widget(at.button, "Delete").disabled
+
+    widget(at.checkbox, "Yes — delete this draft (it moves to .archive/)").check()
+    at = click(at.run(), "Delete")
+
+    assert_no_exception(at)
+    assert not quiz.exists()
+    assert len(list((quiz.parent / ".archive").iterdir())) == 1
+    assert draft_titles(at) == []
+    assert "No saved drafts yet. Generate one on the Generate tab and click Save." in texts(at.info)
 
 
 def test_assignment_drafts_download_as_word_by_default(saved_project):

@@ -5,7 +5,8 @@ versions counted."""
 import datetime as dt
 import os
 
-from chalk.generation.library import list_saved_drafts
+from chalk.generation.library import delete_draft, list_saved_drafts
+from chalk.metrics import read_events
 
 
 def _write(path, text="draft"):
@@ -79,3 +80,16 @@ def test_saved_at_is_the_file_time(tmp_project):
 
     assert draft.saved_at == saved
     assert draft.saved_at.tzinfo is not None  # local time, for display
+
+
+def test_deleting_a_draft_moves_it_to_the_archive(tmp_project):
+    path = _write(tmp_project.outputs_dir / "quizzes" / "week-3-quiz.md", "the quiz")
+    (draft,) = list_saved_drafts(tmp_project)
+
+    archived = delete_draft(tmp_project, draft)
+
+    assert not path.exists()
+    assert archived.parent == path.parent / ".archive"
+    assert archived.read_text(encoding="utf-8") == "the quiz"
+    assert list_saved_drafts(tmp_project) == []
+    assert [e["event_type"] for e in read_events(tmp_project.eval_log)][-1] == "archive"
