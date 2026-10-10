@@ -126,6 +126,11 @@
 - **Grading weights that don't add up to 100% are a warning, not an error** (Review and the CLI's extract summary), with 0.5% tolerance for rounding. No assessments at all isn't flagged, since Review already says none were found.
 - **Discard on Review** drops an unsaved extraction; the saved course is never touched.
 
+## Launch screen (Oct 9, 2026)
+
+- **Open and Create are forms.** Fields are read on click or Enter, so typing doesn't rerun (and grey out) the page. Because a form can't enable its button as you type, the buttons are always enabled, and an empty field gets a plain message.
+- **Browse… opens the system folder dialog from the Python side** (`ui/folder_picker.py`), which works because Chalk runs on the instructor's own computer. The dialog runs as a separate Python process: Streamlit runs page code on a worker thread, and Tk on macOS must own the main thread. Without Tk (some Python builds) the Browse buttons are hidden and the typed field still works. The app starts the dialog and **doesn't wait for it**: a fragment polls it every half second, says where the window is, and offers Cancel, and Browse is disabled while one is open. (UAT: waiting for the dialog froze the page, and a second click queued a second dialog.) The dialog gets an invisible, always-on-top parent window so it stays in front of the browser and has a taskbar button.
+
 ## Visual design
 
 - **Theme**: University of Utah colors on the warm, editorial layout of the team's reference page (off-white background, cream panels, serif headings, sans-serif body), set entirely in `.streamlit/config.toml` with separate light and dark themes. No custom CSS, so Streamlit upgrades can't break it.

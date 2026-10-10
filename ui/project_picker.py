@@ -16,10 +16,19 @@ from chalk import branding
 from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
 from chalk.project import init_project, open_project
-from ui import session
+from ui import folder_picker, session
 from ui.common import render_header
 
 DEFAULT_PARENT = Path.cwd() / "projects"
+_FOLDER_KEY = "chalk_open_folder"
+_PARENT_KEY = "chalk_create_parent"
+# An open Browse… dialog: (field key, process). The page polls it.
+_DIALOG_KEY = "chalk_folder_dialog"
+# A folder picked in the dialog, applied to its field before the field
+# renders on the next run: (field key, folder).
+_CHOSEN_KEY = "chalk_folder_chosen"
+_BROWSE_FAILED_KEY = "chalk_folder_dialog_failed"
+_DIALOG_POLL_SECONDS = 0.5
 
 
 def project_from_argv(argv: list[str]) -> Path | None:
@@ -31,6 +40,7 @@ def project_from_argv(argv: list[str]) -> Path | None:
 
 
 def render() -> None:
+    _apply_chosen_folder()
     render_header(branding.PROJECT_NAME)
     st.write(
         "Keep your syllabus current from term to term and draft course materials from it. "
@@ -42,16 +52,26 @@ def render() -> None:
     # the page, and Enter in a field submits.
     with open_col, st.form("open-project", border=False):
         st.subheader("Open a course project")
-        folder = st.text_input("Project folder", placeholder=str(DEFAULT_PARENT / "IS-6640-Fall-2027"))
+        folder = _folder_field(
+            "Project folder",
+            _FOLDER_KEY,
+            "Choose the course project folder",
+            placeholder=str(DEFAULT_PARENT / "IS-6640-Fall-2027"),
+        )
         if st.form_submit_button("Open project"):
             _open(folder.strip())
 
     with create_col, st.form("create-project", border=False):
         st.subheader("Create a new one")
-        parent = st.text_input("Create it inside", value=str(DEFAULT_PARENT))
+        st.session_state.setdefault(_PARENT_KEY, str(DEFAULT_PARENT))
+        parent = _folder_field("Create it inside", _PARENT_KEY, "Choose where to create the project")
         name = st.text_input("Project name", placeholder="IS-6640-Fall-2027")
         if st.form_submit_button("Create project", type="primary"):
             _create(parent.strip(), name.strip())
+
+    _watch_dialog()
+    if st.session_state.pop(_BROWSE_FAILED_KEY, False):
+        st.warning("The folder window couldn't open. Type or paste the folder path instead.")
 
     st.divider()
     st.subheader("Just looking?")
@@ -68,6 +88,75 @@ def render() -> None:
             "Rebuilding the demo course…",
             "Reset the demo course.",
         )
+
+
+def _folder_field(label: str, key: str, dialog_title: str, **text_input_args) -> str:
+    """A folder path field, with a Browse… button that opens the system
+    folder dialog when this Python can show one."""
+    if not folder_picker.is_available():
+        return st.text_input(label, key=key, **text_input_args)
+    field_col, browse_col = st.columns([5, 1], vertical_alignment="bottom")
+    value = field_col.text_input(label, key=key, **text_input_args)
+    browse_col.form_submit_button(
+        "Browse…",
+        key=f"{key}-browse",
+        on_click=_browse_into,
+        args=(key, dialog_title),
+        disabled=_DIALOG_KEY in st.session_state,
+    )
+    return value
+
+
+def _browse_into(key: str, dialog_title: str) -> None:
+    """Button callback: opens the dialog and returns at once; the page
+    then polls it (`_watch_dialog`)."""
+    if _DIALOG_KEY in st.session_state:
+        return
+    current = st.session_state.get(key, "").strip()
+    initial = current if current and Path(current).is_dir() else str(DEFAULT_PARENT)
+    process = folder_picker.start(initial if Path(initial).is_dir() else "", dialog_title)
+    if process is None:
+        st.session_state[_BROWSE_FAILED_KEY] = True
+        return
+    st.session_state[_DIALOG_KEY] = (key, process)
+
+
+@st.fragment(run_every=_DIALOG_POLL_SECONDS)
+def _watch_dialog() -> None:
+    """While a dialog is open: say where it is and offer Cancel. Once it
+    closes: hand its folder to the field and rerun the page (a cancelled
+    dialog leaves the field as it was)."""
+    dialog = st.session_state.get(_DIALOG_KEY)
+    if dialog is None:
+        return
+    key, process = dialog
+    if not folder_picker.finished(process):
+        st.info(
+            "Choose a folder in the window that just opened, then click **Select Folder**. "
+            "If you can't see it, it may be behind your browser: click its icon in the taskbar."
+        )
+        st.button("Cancel", key="folder-dialog-cancel", on_click=_cancel_dialog)
+        return
+    chosen = folder_picker.chosen_folder(process)
+    del st.session_state[_DIALOG_KEY]
+    if chosen:
+        st.session_state[_CHOSEN_KEY] = (key, chosen)
+    st.rerun()
+
+
+def _cancel_dialog() -> None:
+    dialog = st.session_state.pop(_DIALOG_KEY, None)
+    if dialog is not None:
+        folder_picker.cancel(dialog[1])
+
+
+def _apply_chosen_folder() -> None:
+    """Fill a field from the dialog. Runs before the fields render, since
+    Streamlit only lets a widget's value change before it's drawn."""
+    chosen = st.session_state.pop(_CHOSEN_KEY, None)
+    if chosen is not None:
+        key, folder = chosen
+        st.session_state[key] = folder
 
 
 def _open(folder: str) -> None:
