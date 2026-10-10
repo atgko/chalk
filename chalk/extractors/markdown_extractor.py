@@ -29,12 +29,12 @@ from chalk.extractors._dates import (
     year_from_term,
 )
 from chalk.extractors._front_matter import extract_front_matter
+from chalk.extractors._grading import header_column, parse_rows
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
 _SEPARATOR_CELL_RE = re.compile(r"^:?-{3,}:?$")
 _HEADING_PREFIX_RE = re.compile(r"^#+\s*(.+)$")
 _BULLET_RE = re.compile(r"^[-*]\s+(.+)$")
-_WEIGHT_PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
 _OBJECTIVES_HEADINGS = {"learning objectives", "course outcome and objectives"}
 
@@ -302,23 +302,16 @@ def _extract_learning_objectives(text: str) -> list[str]:
 
 
 def _extract_assessments(tables: list[Table]) -> list[Assessment]:
+    """A table with an "Assessment" column and a weight or points column
+    (chalk.extractors._grading)."""
     for table in tables:
-        header = [cell.lower() for cell in table[0]]
-        if "assessment" in header and any("weight" in cell for cell in header):
-            return _parse_assessment_rows(table)
-    return []
-
-
-def _parse_assessment_rows(table: Table) -> list[Assessment]:
-    assessments = []
-    for row in table[1:]:
-        name = row[0].strip()
-        weight_text = row[1] if len(row) > 1 else ""
-        weight_match = _WEIGHT_PERCENT_RE.search(weight_text)
-        if not weight_match:
+        if "assessment" not in [cell.lower() for cell in table[0]]:
             continue
-        assessments.append(Assessment(name=name, weight=float(weight_match.group(1)) / 100))
-    return assessments
+        column = header_column(table[0])
+        if column is not None:
+            index, points = column
+            return parse_rows(table[1:], index, points=points)
+    return []
 
 
 # ---- University dates table (opportunistic) --------------------------------
