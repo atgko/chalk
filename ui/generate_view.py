@@ -8,11 +8,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-from chalk.generation.assignment_export import export_assignment
 
 from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
+from chalk.generation.assignment_export import export_assignment
 from chalk.generation.engine import (
     GeneratedDraft,
     GenerationRequest,

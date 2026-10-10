@@ -73,10 +73,10 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 ## Engineering
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
-- **P2: Lint debt.** `ruff check` reports about 30 existing findings (mostly UP017 `datetime.UTC`, DTZ, ISC004) because the selected rules are stricter than the code. Either fix them in one pass or relax the config, then add a `ruff check` step to `.github/workflows/tests.yml`.
 
 ## Done
 
+- 2026-10-09: Lint debt cleared: `ruff check .` passes, and CI runs it (on the Linux job). Local "today"/"now" is allowed in the ruff config, since Chalk runs on the instructor's own computer.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.
 - 2026-10-09: A University Dates deadline that names a break (e.g. "Last day before Fall Break") keeps its single date instead of taking the break's dates.
 - 2026-10-09: The teammate's assignment creator and enhancer is merged (PR #1).

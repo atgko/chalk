@@ -31,14 +31,14 @@ def llm(monkeypatch):
 
     class _Llm:
         reply = "## Questions\nQ1. What is a subnet?\n\n## Answer Key\nA1. A network slice."
-        calls: list = []
+        def __init__(self):
+            self.calls: list = []
 
         def __call__(self, prompt, system="", max_tokens=2000):
             self.calls.append((prompt, system, max_tokens))
             return {"text": self.reply, "input_tokens": 1200, "output_tokens": 400}
 
     fake = _Llm()
-    fake.calls = []
     monkeypatch.setattr("chalk.generation.engine.complete", fake)
     for key, value in {"LLM_PROVIDER": "openai", "LLM_API_KEY": "sk", "LLM_MODEL": "gpt-4o"}.items():
         monkeypatch.setenv(key, value)
@@ -177,7 +177,7 @@ def test_generate_returns_a_bannered_draft_without_writing_it(tmp_project, cours
     )
     assert draft.output_path == tmp_project.outputs_dir / "quizzes" / "week-3-quiz.md"
     assert not draft.output_path.exists()
-    prompt, system, max_tokens = llm.calls[0]
+    _prompt, system, max_tokens = llm.calls[0]
     assert system == SYSTEM_PROMPT
     assert max_tokens == spec_for("quiz").max_tokens
 

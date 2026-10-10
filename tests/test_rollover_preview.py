@@ -84,7 +84,7 @@ def _is6640_ten_week_course(source_format: str = "word") -> CourseData:
             instructor="Dave Norwood",
             source_format=source_format,
             source_file="source/syllabus.docx",
-            extracted_at=dt.datetime(2026, 9, 17, tzinfo=dt.timezone.utc),
+            extracted_at=dt.datetime(2026, 9, 17, tzinfo=dt.UTC),
         ),
         weeks=weeks,
     )
