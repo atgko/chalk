@@ -72,6 +72,7 @@
 - **Single week per request** for quizzes/discussions/summaries/slides ("week number(s)" in PRD 6.5) — multi-week requests deferred.
 - **Slides banner**: the PRD's "every generated file opens with the AI-draft banner" conflicts with F-05e's "YAML title block at top", so slide decks carry the banner as an HTML comment directly after the YAML block. Slide output is post-processed to enforce the pipeline conventions (no `subtitle:`, no bare `#`, `<!-- Slide N -->` numbering) regardless of what the model returns.
 - **Rubric descriptions** can be typed or uploaded (PDF/DOCX/MD/TXT), read with the same text extraction as source materials. The prompt and system message both forbid grading student work (CTE policy).
+- **Drafts tab lists only files named the way Chalk saves them** (`week-3-quiz.md`, `lab-3-rubric.md`), so an instructor's own files in `outputs/quizzes/` aren't shown as drafts. It needs no saved course (drafts outlive a re-extraction). Archived versions are counted, not listed; restoring one is still a file-manager job.
 - **Source context**: 6,000-token budget (~24k characters), truncated with an explicit "[truncated]" note; source files are selected by name from `source/` only, never as arbitrary paths.
 
 ## Decisions made during the build (Milestone 9 — hardening & handoff)

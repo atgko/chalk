@@ -40,7 +40,7 @@ Upload **`IS-6640-Spring-2026-term-label-bug.docx`** and click **Extract course*
 - Content type **Quiz**, **Week 3** (Protocols and subnetting), 5 questions, mixed.
 - Under **Source materials to use**, tick **week-3-subnetting-notes.md**. *"It grounds the quiz in the instructor's own notes, never a whole textbook."*
 - Point at **Estimated cost: up to ~$0.0x** before clicking **Generate**.
-- The draft opens with the **AI-generated draft** banner, followed by questions and an answer key. Click **Save**. It's written to `outputs/quizzes/week-3-quiz.md`, and any previous version is archived.
+- The draft opens with the **AI-generated draft** banner, followed by questions and an answer key. Click **Save**. It's written to `outputs/quizzes/week-3-quiz.md`, and any previous version is archived. Open the **Drafts** tab: *"every saved draft is here, by type and week."*
 - Optionally, show a **Rubric**: *"rubric drafting only; it never grades student work."*
 
 **7. Evidence (1 min). Metrics tab.**

@@ -78,7 +78,7 @@ streamlit run app.py -- --project "path/to/project"   # open a project directly
 
 ## 3. How to use the app
 
-The app has seven tabs. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
+The app has eight tabs. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
 
 **Upload.** Choose your `.docx`, `.md`, or `.pdf` syllabus and click **Extract course**. For a PDF, first pick how Chalk should read it (see *PDF syllabi* in section 6). If the term label doesn't match the Week 1 date (for example, "Spring 2026" with an August Week 1), you'll see a warning. Fix the syllabus and re-upload, or click **Continue anyway**. The override is recorded in the metrics log. If the document has more than one table that looks like a schedule, you'll be asked to pick the right one.
 
@@ -87,6 +87,8 @@ The app has seven tabs. Rollover, Generate, Export, and Metrics unlock once a co
 **Rollover.** Pick the target term. It defaults to the same season next year. For a term that isn't in the calendar data, choose **Another term** and enter the first day of classes. Under **Class meets on**, pick the days the class meets in the new term (pre-filled from the syllabus's meeting pattern). Holiday and break warnings then appear only when one lands on a class day. Each of the term's breaks has a toggle: switch one off if the class meets through it (some graduate programs do), and it's left out of the schedule. Click **Preview rollover** to see every week's old and new date, plus flags for anything to check by hand: a week landing on a holiday or break, a changed course length, or (markdown syllabi) due dates near the daylight-saving change. Click **Confirm rollover** to write the files. Previous versions are archived, never overwritten.
 
 **Generate.** Choose a content type and week (or, for a rubric, the assignment name and description), then any source materials to ground the draft in. The estimated maximum cost is shown before you click **Generate**. The draft appears for review. **Save** writes it to `outputs/`, **Regenerate** makes a new call (after asking), and **Discard** throws it away. If a draft already exists for that week, you'll be asked before it's replaced (the old one is archived).
+
+**Drafts.** Every draft you've saved from Generate, grouped by type and in week order. Open one to read it and download it (assignments as Word, PDF, or markdown, as on Generate). **Show** narrows the list to one type. Each draft says when it was saved and how many earlier versions are in its folder's `.archive/`.
 
 **Export.** Download any output file, or everything as a zip. The Canvas HTML is shown in a box with a copy button. **Regenerate Canvas HTML and course brief** rebuilds both from the current `course.json`.
 
