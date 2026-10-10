@@ -67,8 +67,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Generation
 
-- **P2: Use the assignment generator's formatting for the other documents** (quizzes, discussion prompts, rubrics, summaries) so all generated files look consistent. The assignment generator is merged (PR #1).
-- **P2: A tab for saved generated files.** Generated files are written to the project's output folders (older versions go to `.archive/`), but the app has no place to browse, open, or download them. The tab should list them by type and week.
 
 ## Engineering
 
@@ -77,6 +75,8 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 ## Done
 
 - 2026-10-10: Lint debt cleared: `ruff check .` passes, and CI runs it (on the Linux job). Local "today"/"now" is allowed in the ruff config, since Chalk runs on the instructor's own computer.
+- 2026-10-10: Quizzes, discussion prompts, rubrics, and summaries download as Word or PDF in the assignment creator's layout (type header, title, upper-case sections), on Generate and Drafts. Rubric tables become real tables, and the AI-draft banner is left out of Word/PDF.
+- 2026-10-09: A Drafts tab lists the drafts saved from Generate by type and week, with a preview, a download (assignments as Word/PDF/markdown), the save date, and how many earlier versions are archived. A draft can be deleted (it moves to `.archive/`).
 - 2026-10-09: A mixed quiz asks how many questions are multiple choice and how many short answer (Generate tab; `--multiple-choice`/`--short-answer` in the CLI), and the prompt asks for exactly that split. Existing projects' quiz templates carry it through `{format}`.
 - 2026-10-09: Browse… buttons next to "Project folder" and "Create it inside" open the system folder dialog and fill in the field (hidden if this Python has no Tk). The page keeps running while the dialog is open, with a Cancel button, and only one dialog can be open at a time.
 - 2026-10-09: The launch screen no longer fades while you type: Open and Create read their fields on click (or Enter), show a "Creating…/Opening…" spinner, and confirm on the next screen. An empty field gets a plain message instead of a greyed-out button.
