@@ -24,6 +24,7 @@ from chalk.generation.engine import (
 from chalk.generation.document_export import can_export
 from chalk.generation.source_context import read_source_text
 from chalk.generation.specs import (
+    DEFAULT_MIXED_SPLIT,
     DEFAULT_PROMPT_COUNT,
     DEFAULT_QUESTION_COUNT,
     DEFAULT_RUBRIC_POINTS,
@@ -77,8 +78,7 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
             format_func=lambda n: f"Week {n} — {'; '.join(weeks[n].topics) or 'no topics listed'}",
         )
     if spec.key == "quiz":
-        fields["question_count"] = int(st.number_input("Questions", 1, 50, DEFAULT_QUESTION_COUNT))
-        fields["quiz_format"] = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"))
+        fields |= _quiz_fields()
     elif spec.key == "discussion":
         fields["prompt_count"] = int(st.number_input("Prompts", 1, 20, DEFAULT_PROMPT_COUNT))
     elif spec.key == "assignment":
@@ -96,6 +96,49 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
         st.caption("No source materials added yet — generation will use course topics and objectives only.")
     _render_source_uploader(paths)
     return GenerationRequest(**fields)
+
+
+_QUIZ_FORMAT_KEY = "quiz-format"
+_QUIZ_COUNT_KEYS = {"single": "quiz-count", "multiple choice": "quiz-mc", "short answer": "quiz-sa"}
+
+
+def _quiz_fields() -> dict:
+    """The quiz options, read back from their widgets' state after
+    `_quiz_options` draws them."""
+    _quiz_options()
+    state = st.session_state
+    quiz_format = state[_QUIZ_FORMAT_KEY]
+    if quiz_format != "mixed":
+        return {"quiz_format": quiz_format, "question_count": int(state[_QUIZ_COUNT_KEYS["single"]])}
+    multiple_choice = int(state[_QUIZ_COUNT_KEYS["multiple choice"]])
+    short_answer = int(state[_QUIZ_COUNT_KEYS["short answer"]])
+    return {
+        "quiz_format": quiz_format,
+        "question_count": multiple_choice + short_answer,
+        "multiple_choice_count": multiple_choice,
+        "short_answer_count": short_answer,
+    }
+
+
+@st.fragment
+def _quiz_options() -> None:
+    """A fragment, so changing the format reruns only this block: a full
+    rerun of the app can take seconds, and until it finishes Streamlit
+    keeps showing the previous format's count boxes (UAT)."""
+    quiz_format = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"), key=_QUIZ_FORMAT_KEY)
+    if quiz_format != "mixed":
+        # Named for the format, so it's clear the whole quiz is that type.
+        label = f"{quiz_format.replace(' ', '-').capitalize()} questions"
+        st.number_input(label, 1, 50, DEFAULT_QUESTION_COUNT, key=_QUIZ_COUNT_KEYS["single"])
+        return
+    mc_col, sa_col = st.columns(2)
+    multiple_choice = mc_col.number_input(
+        "Multiple choice", 1, 49, DEFAULT_MIXED_SPLIT[0], key=_QUIZ_COUNT_KEYS["multiple choice"]
+    )
+    short_answer = sa_col.number_input(
+        "Short answer", 1, 49, DEFAULT_MIXED_SPLIT[1], key=_QUIZ_COUNT_KEYS["short answer"]
+    )
+    st.caption(f"{int(multiple_choice + short_answer)} questions in total.")
 
 
 def _render_source_uploader(paths: ProjectPaths) -> None:

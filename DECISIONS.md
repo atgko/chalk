@@ -74,6 +74,7 @@
 - **Rubric descriptions** can be typed or uploaded (PDF/DOCX/MD/TXT), read with the same text extraction as source materials. The prompt and system message both forbid grading student work (CTE policy).
 - **Drafts tab lists only files named the way Chalk saves them** (`week-3-quiz.md`, `lab-3-rubric.md`), so an instructor's own files in `outputs/quizzes/` aren't shown as drafts. It needs no saved course (drafts outlive a re-extraction). Archived versions are counted, not listed; restoring one is still a file-manager job.
 - **One exporter for every document type** (`chalk/generation/document_export.py`, formerly the assignment exporter). Word and PDF share the assignment creator's layout, with a header naming the type (COURSE QUIZ, GRADING RUBRIC, …) and a title (the draft's own `# Title`, or e.g. "Week 3 — Quiz"). Markdown tables become real tables. Word/PDF are student-facing, so the AI-draft banner line is left out of them; the saved markdown and the .md download keep it. Slides are excluded, since they're Pandoc markdown for a deck. Text is escaped for the PDF renderer, so `<` and `&` in a draft no longer break the PDF.
+- **A mixed quiz's split travels in `{format}`** (e.g. "mixed (exactly 3 multiple choice and 2 short answer)") rather than a new template variable, so instructors' edited quiz templates keep working. The Generate tab asks for the two counts and totals them; the engine checks a split adds up to the question count and has at least one of each. With no split (older CLI use), the model decides as before.
 - **Source context**: 6,000-token budget (~24k characters), truncated with an explicit "[truncated]" note; source files are selected by name from `source/` only, never as arbitrary paths.
 
 ## Decisions made during the build (Milestone 9 — hardening & handoff)
@@ -128,6 +129,11 @@
 - **Dates that cross New Year get the next year.** Rows are read with the term's year, then a pass over the weeks in order adds a year from the first date that falls more than 180 days before the previous one. Using a pass after extraction keeps Word, Markdown, and PDF on the same rule.
 - **Grading weights that don't add up to 100% are a warning, not an error** (Review and the CLI's extract summary), with 0.5% tolerance for rounding. No assessments at all isn't flagged, since Review already says none were found.
 - **Discard on Review** drops an unsaved extraction; the saved course is never touched.
+
+## Launch screen (Oct 9, 2026)
+
+- **Open and Create are forms.** Fields are read on click or Enter, so typing doesn't rerun (and grey out) the page. Because a form can't enable its button as you type, the buttons are always enabled, and an empty field gets a plain message.
+- **Browse… opens the system folder dialog from the Python side** (`ui/folder_picker.py`), which works because Chalk runs on the instructor's own computer. The dialog runs as a separate Python process: Streamlit runs page code on a worker thread, and Tk on macOS must own the main thread. Without Tk (some Python builds) the Browse buttons are hidden and the typed field still works. The app starts the dialog and **doesn't wait for it**: a fragment polls it every half second, says where the window is, and offers Cancel, and Browse is disabled while one is open. (UAT: waiting for the dialog froze the page, and a second click queued a second dialog.) The dialog gets an invisible, always-on-top parent window so it stays in front of the browser and has a taskbar button.
 
 ## Visual design
 

@@ -50,6 +50,9 @@ class GenerationRequest:
     week_number: int | None = None
     question_count: int = DEFAULT_QUESTION_COUNT
     quiz_format: str = "mixed"
+    # A "mixed" quiz's split. None for both leaves the split to the model.
+    multiple_choice_count: int | None = None
+    short_answer_count: int | None = None
     prompt_count: int = DEFAULT_PROMPT_COUNT
     assignment_name: str = ""
     assignment_description: str = ""
@@ -198,13 +201,34 @@ def _type_variables(spec: ContentSpec, course_data: CourseData, request: Generat
         _require_positive(request.question_count, "Question count")
         if request.quiz_format not in QUIZ_FORMATS:
             raise GenerationError(f"Quiz format must be one of: {', '.join(QUIZ_FORMATS)}.")
-        variables |= {"question_count": str(request.question_count), "format": request.quiz_format}
+        variables |= {"question_count": str(request.question_count), "format": _quiz_format_text(request)}
     elif spec.key == "discussion":
         _require_positive(request.prompt_count, "Prompt count")
         variables["prompt_count"] = str(request.prompt_count)
     elif spec.key == "slides":
         variables["slide_notes"] = request.slide_notes.strip() or "(none — use the week's topics)"
     return variables
+
+def _quiz_format_text(request: GenerationRequest) -> str:
+    """The `{format}` value. A mixed quiz's split goes inside it, so
+    instructors' existing quiz templates carry it without a new variable."""
+    mc, sa = request.multiple_choice_count, request.short_answer_count
+    if request.quiz_format != "mixed" or (mc is None and sa is None):
+        return request.quiz_format
+    if mc is None or sa is None:
+        raise GenerationError("Give both the multiple-choice and the short-answer count for a mixed quiz.")
+    if mc < 1 or sa < 1:
+        raise GenerationError(
+            "A mixed quiz needs at least one multiple-choice and one short-answer question. "
+            "Choose a single format otherwise."
+        )
+    if mc + sa != request.question_count:
+        raise GenerationError(
+            f"{mc} multiple choice and {sa} short answer make {mc + sa} questions, "
+            f"not {request.question_count}."
+        )
+    return f"mixed (exactly {mc} multiple choice and {sa} short answer)"
+
 
 def _find_week(course_data: CourseData, week_number: int | None) -> Week:
     for week in course_data.weeks:

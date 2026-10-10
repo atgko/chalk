@@ -59,16 +59,14 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 ## App / UX
 
 - **P2: Course details edited on Review aren't written back into the syllabus document**, only into `course.json` and the course brief.
+- **P2: Try the launch screen's Browse… buttons on a real Mac.** The folder dialog runs as a separate Python process so that Tk gets its own main thread, which macOS requires. That design is meant for macOS but has only been tried on Windows (PR #5). On a Mac, click each Browse…, check the dialog appears in front of the browser, pick a folder, and check it fills the field. Then cancel one, and check the page stays usable while the dialog is open. If it fails, the typed path still works.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
-- **P2: Browse buttons for folders on the launch screen.** "Project folder" (Open a course project) and "Create it inside" (Create a new one) are typed paths today, which is error-prone for instructors. Add a **Browse…** button next to each that opens the system folder picker and fills in the field. Chalk runs on the instructor's own computer, so the picker can be opened from the Python side (e.g. `tkinter.filedialog.askdirectory`); check it appears in front of the browser on Windows and macOS, and keep the text field for pasting a path.
-- **P2: Show what's happening while the launch screen updates.** After typing a project name, the page fades before "Create project" can be clicked. Streamlit only registers a text field when you press Enter or click away, so until then the button is disabled, and the rerun that follows greys out the page. Ideas: put the fields and button in an `st.form` so the name is read on click (no rerun while typing); add a hint such as "Press Enter or click Create project"; and show a spinner/status ("Creating IS-6640-Fall-2027…") while the project is created or opened, then a confirmation.
 - **P3 Currently, the 'Open Project' button only lets you open a project if you manually enter in the file path. What should happen is that clicking on 'Open Project' assuming Windows OS is that it opens the file browser and you can navigate that way.** 
 - **P3 Drop down bar for already existing projects** This in addition to the above request that will add Quality of Life (QOL) for users because they won't have to manually navigate through file browser to get to the project they need.
 - **P3 Additional Options for Creating a new project** You can create new projects with no problem. However when typing in a project that already exists you are warned that it isn't empty and to pick a new one. Additional objects should be to either open up the project or asks if you want to overwrite
 
 ## Generation
 
-- **P2: Choose how many quiz questions are multiple choice vs. long form when the format is "mixed".** Today "mixed" only passes the total count and the word "mixed" to the prompt, so the model decides the split. Add two counts (shown only for "mixed") to `GenerationRequest` and the quiz prompt, and check they add up to the total.
 
 ## Engineering
 
@@ -79,6 +77,9 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 - 2026-10-10: Quizzes, discussion prompts, rubrics, and summaries download as Word or PDF in the assignment creator's layout (type header, title, upper-case sections), on Generate and Drafts. Rubric tables become real tables, and the AI-draft banner is left out of Word/PDF.
 - 2026-10-09: A Drafts tab lists the drafts saved from Generate by type and week, with a preview, a download (assignments as Word/PDF/markdown), the save date, and how many earlier versions are archived.
+- 2026-10-09: A mixed quiz asks how many questions are multiple choice and how many short answer (Generate tab; `--multiple-choice`/`--short-answer` in the CLI), and the prompt asks for exactly that split. Existing projects' quiz templates carry it through `{format}`.
+- 2026-10-09: Browse… buttons next to "Project folder" and "Create it inside" open the system folder dialog and fill in the field (hidden if this Python has no Tk). The page keeps running while the dialog is open, with a Cancel button, and only one dialog can be open at a time.
+- 2026-10-09: The launch screen no longer fades while you type: Open and Create read their fields on click (or Enter), show a "Creating…/Opening…" spinner, and confirm on the next screen. An empty field gets a plain message instead of a greyed-out button.
 - 2026-10-10: Basic workflow search bar - typing in plain-language for something related to a tab in Chalk will pull up suggested tabs based on what was typed.
 - 2026-10-09: Points-based grading tables ("Labs — 250 pts", or a "Points" column) are read in Word and markdown syllabi. Points become fractions of the table's Total row (or of the rows' sum when there's none). Markdown grading tables no longer list their Total row as an assessment.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.
