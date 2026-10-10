@@ -44,7 +44,6 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P3: A sample PDF in the demo course** so teammates can try the PDF path without their own syllabus. Needs a small PDF writer (the tests hand-build theirs in `tests/fixtures/pdf_layout_builder.py`).
 - **P2: Markdown has none of the Word path's new tolerance.** No month-name dates, no split tables, no extra columns. Markdown is Chalk's own format, so this matters less, but the README should keep saying so.
 - **P3: A Spring syllabus with a December row** (e.g. an orientation "Week 0 (12/15)") still gets the term's year for that row. Rows only move forward a year when the schedule crosses New Year after them.
-- **P3: Points-based grading tables** ("Labs — 250 pts") aren't recognized; only percentages are.
 - **P3: Title guesses can include the modality**, e.g. "Networking and Servers – Online". This is editable on Review.
 - **P3: Meeting pattern stays blank when it's only in a labeled line like "Time:"**. That's deliberate (in IS 6640, "Time:" is the webinar, not the class).
 - **P3: The objectives list stops at any short ALL-CAPS line**, so an objective written in all caps would end it early.
@@ -77,6 +76,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 ## Done
 
+- 2026-10-09: Points-based grading tables ("Labs — 250 pts", or a "Points" column) are read in Word and markdown syllabi. Points become fractions of the table's Total row (or of the rows' sum when there's none). Markdown grading tables no longer list their Total row as an assessment.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.
 - 2026-10-09: A University Dates deadline that names a break (e.g. "Last day before Fall Break") keeps its single date instead of taking the break's dates.
 - 2026-10-09: The teammate's assignment creator and enhancer is merged (PR #1).
