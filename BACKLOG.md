@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-08 @ 9:00 AM MST.
+Last updated: 2026-10-10 @ 3:16 AM MST.
 
 ## Open questions (need someone outside the code)
 
@@ -62,6 +62,9 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
 - **P2: Browse buttons for folders on the launch screen.** "Project folder" (Open a course project) and "Create it inside" (Create a new one) are typed paths today, which is error-prone for instructors. Add a **Browse…** button next to each that opens the system folder picker and fills in the field. Chalk runs on the instructor's own computer, so the picker can be opened from the Python side (e.g. `tkinter.filedialog.askdirectory`); check it appears in front of the browser on Windows and macOS, and keep the text field for pasting a path.
 - **P2: Show what's happening while the launch screen updates.** After typing a project name, the page fades before "Create project" can be clicked. Streamlit only registers a text field when you press Enter or click away, so until then the button is disabled, and the rerun that follows greys out the page. Ideas: put the fields and button in an `st.form` so the name is read on click (no rerun while typing); add a hint such as "Press Enter or click Create project"; and show a spinner/status ("Creating IS-6640-Fall-2027…") while the project is created or opened, then a confirmation.
+- **P3 Currently, the 'Open Project' button only lets you open a project if you manually enter in the file path. What should happen is that clicking on 'Open Project' assuming Windows OS is that it opens the file browser and you can navigate that way.** 
+- **P3 Drop down bar for already existing projects** This in addition to the above request that will add Quality of Life (QOL) for users because they won't have to manually navigate through file browser to get to the project they need.
+- **P3 Additional Options for Creating a new project** You can create new projects with no problem. However when typing in a project that already exists you are warned that it isn't empty and to pick a new one. Additional objects should be to either open up the project or asks if you want to overwrite
 
 ## Generation
 
