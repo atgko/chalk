@@ -824,7 +824,6 @@ def test_deleting_a_draft_needs_the_checkbox_and_archives_it(saved_project):
 
 
 def test_assignment_drafts_download_as_word_by_default(saved_project):
-    (saved_project.outputs_dir / "assignments").mkdir()
     (saved_project.outputs_dir / "assignments" / "lab-3-assignment.md").write_text(
         "# Lab 3\n\nBuild a VLAN.", encoding="utf-8"
     )
