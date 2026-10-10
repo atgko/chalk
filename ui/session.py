@@ -20,6 +20,7 @@ from chalk.project import ProjectPaths
 
 PROJECT_ROOT_KEY = "chalk_project_root"
 ACTIVE_TAB_KEY = "chalk_active_tab"
+GENERATION_CONTENT_KEY = "chalk_generation_content_type"
 _NEXT_TAB_KEY = "chalk_next_tab"
 _SETUP_SKIPPED_KEY = "chalk_setup_skipped"
 _PENDING_EXTRACTION_KEY = "chalk_pending_extraction"
@@ -138,6 +139,11 @@ def regenerate_requested() -> bool:
 
 def request_regenerate(requested: bool) -> None:
     st.session_state[_REGENERATE_KEY] = requested
+
+
+def set_generation_content_type(content_type: str) -> None:
+    """Preselect a Generate workflow before that tab's widgets render."""
+    st.session_state[GENERATION_CONTENT_KEY] = content_type
 
 
 # ---- Tabs ----------------------------------------------------------------------
