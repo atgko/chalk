@@ -89,5 +89,6 @@ SPECS: dict[str, ContentSpec] = {
 
 QUIZ_FORMATS = ("multiple choice", "short answer", "mixed")
 DEFAULT_QUESTION_COUNT = 5
+DEFAULT_MIXED_SPLIT = (3, 2)  # multiple choice, short answer; adds up to DEFAULT_QUESTION_COUNT
 DEFAULT_PROMPT_COUNT = 3
 DEFAULT_RUBRIC_POINTS = 100
