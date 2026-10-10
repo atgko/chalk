@@ -72,6 +72,7 @@
 - **Single week per request** for quizzes/discussions/summaries/slides ("week number(s)" in PRD 6.5) — multi-week requests deferred.
 - **Slides banner**: the PRD's "every generated file opens with the AI-draft banner" conflicts with F-05e's "YAML title block at top", so slide decks carry the banner as an HTML comment directly after the YAML block. Slide output is post-processed to enforce the pipeline conventions (no `subtitle:`, no bare `#`, `<!-- Slide N -->` numbering) regardless of what the model returns.
 - **Rubric descriptions** can be typed or uploaded (PDF/DOCX/MD/TXT), read with the same text extraction as source materials. The prompt and system message both forbid grading student work (CTE policy).
+- **A mixed quiz's split travels in `{format}`** (e.g. "mixed (exactly 3 multiple choice and 2 short answer)") rather than a new template variable, so instructors' edited quiz templates keep working. The Generate tab asks for the two counts and totals them; the engine checks a split adds up to the question count and has at least one of each. With no split (older CLI use), the model decides as before.
 - **Source context**: 6,000-token budget (~24k characters), truncated with an explicit "[truncated]" note; source files are selected by name from `source/` only, never as arbitrary paths.
 
 ## Decisions made during the build (Milestone 9 — hardening & handoff)
@@ -131,6 +132,10 @@
 
 - **Lint is enforced in CI, formatting isn't.** `ruff check .` runs on the Linux CI job. `ruff format` would rewrite about 70 files, which would conflict with every open branch for no behavior change, so it's left for a quiet moment.
 - **Local dates and times are allowed** (`DTZ005`, `DTZ011` ignored; `DTZ001` in tests). Chalk runs on the instructor's own computer, so the AI-draft banner's date, the evaluation report's date, and archive timestamps are meant to be local. Code that stores a timestamp for later comparison (the metrics log) still uses UTC.
+## Launch screen (Oct 9, 2026)
+
+- **Open and Create are forms.** Fields are read on click or Enter, so typing doesn't rerun (and grey out) the page. Because a form can't enable its button as you type, the buttons are always enabled, and an empty field gets a plain message.
+- **Browse… opens the system folder dialog from the Python side** (`ui/folder_picker.py`), which works because Chalk runs on the instructor's own computer. The dialog runs as a separate Python process: Streamlit runs page code on a worker thread, and Tk on macOS must own the main thread. Without Tk (some Python builds) the Browse buttons are hidden and the typed field still works. The app starts the dialog and **doesn't wait for it**: a fragment polls it every half second, says where the window is, and offers Cancel, and Browse is disabled while one is open. (UAT: waiting for the dialog froze the page, and a second click queued a second dialog.) The dialog gets an invisible, always-on-top parent window so it stays in front of the browser and has a taskbar button.
 
 ## Visual design
 
