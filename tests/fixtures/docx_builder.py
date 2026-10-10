@@ -158,6 +158,21 @@ def build_syllabus_with_unparseable_assessment_weight(path: Path) -> Path:
     return path
 
 
+def build_syllabus_with_grading_table(path: Path, rows: list[tuple[str, str]], *, header=("Assessment", "Points")) -> Path:
+    """A syllabus whose grading table has these rows, verbatim, under this
+    header (or no header row when `header` is None)."""
+    doc = Document()
+    _add_front_matter(doc)
+    _add_schedule_table(doc, rows=[("Week 1 (8/24)", ["Course Introduction"])])
+    table_rows = ([header] if header else []) + rows
+    table = doc.add_table(rows=len(table_rows), cols=len(table_rows[0]))
+    for row, values in zip(table.rows, table_rows, strict=True):
+        for cell, value in zip(row.cells, values, strict=True):
+            cell.text = value
+    doc.save(str(path))
+    return path
+
+
 def build_syllabus_with_alternate_objectives_heading(path: Path) -> Path:
     doc = Document()
     _add_front_matter(doc)

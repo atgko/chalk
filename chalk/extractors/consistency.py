@@ -113,7 +113,7 @@ _WEIGHT_TOLERANCE = 0.005
 def grading_weight_warning(course_data: CourseData) -> str | None:
     """A warning when the assessment weights don't add up to 100%, else
     None. Usually a grading-table row the extractor missed, or a
-    points-based table it can't read. No assessments at all isn't flagged:
+    points-based table whose rows don't add up to its Total row. No assessments at all isn't flagged:
     Review already says none were found."""
     if not course_data.assessments:
         return None
@@ -122,5 +122,6 @@ def grading_weight_warning(course_data: CourseData) -> str | None:
         return None
     return (
         f"The assessment weights add up to {total * 100:g}%, not 100%. Check the syllabus's "
-        "grading table for a row that wasn't read, or a points-based table (only percentages are read)."
+        "grading table for a row that wasn't read. In a points-based table, check that the rows "
+        "add up to the Total row."
     )
