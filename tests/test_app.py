@@ -547,6 +547,23 @@ def test_generate_review_then_save(saved_project, llm):
     assert any(s.startswith("Saved outputs/quizzes/week-2-quiz.md.") for s in texts(at.success))
 
 
+def test_a_quiz_draft_can_be_exported_as_word_or_pdf(saved_project, llm):
+    at = click(launch(saved_project), "Generate")
+
+    assert_no_exception(at)
+    assert widget(at.selectbox, "File type").options == ["Word (.docx)", "PDF (.pdf)", "Markdown (.md)"]
+    widget(at.selectbox, "File type").set_value("PDF (.pdf)")
+    assert_no_exception(at.run())
+
+
+def test_slide_drafts_have_no_document_export(saved_project):
+    (saved_project.outputs_dir / "slides" / "week-1-slides.md").write_text("---\ntitle: W1\n---\n", encoding="utf-8")
+    at = launch(saved_project)
+    assert_no_exception(at)
+    assert draft_titles(at) == ["Week 1 — Slides"]
+    assert "File type" not in [s.label for s in at.selectbox]
+
+
 def test_regenerate_needs_confirmation_and_replaces_the_draft(saved_project, llm):
     at = click(click(launch(saved_project), "Generate"), "Regenerate")
     assert any("This makes another paid call" in w for w in texts(at.warning))

@@ -6,13 +6,12 @@ from __future__ import annotations
 
 import streamlit as st
 
-from chalk.generation.assignment_export import export_assignment
+from chalk.generation.document_export import can_export
 from chalk.generation.library import SavedDraft, list_saved_drafts
 from chalk.project import ProjectPaths
 from ui import common
 
 ALL_TYPES = "All types"
-_EXPORT_FORMATS = ("Word (.docx)", "PDF (.pdf)", "Markdown (.md)")
 
 
 def render(paths: ProjectPaths) -> None:
@@ -41,18 +40,15 @@ def _render_draft(paths: ProjectPaths, draft: SavedDraft) -> None:
     else:
         st.markdown(text)
 
-    if draft.spec.key != "assignment":
+    if not can_export(draft.spec.key):
         common.download_button(draft.path, paths, key_prefix="drafts")
         return
-    label = common.relative(draft.path, paths)
-    export_format = st.selectbox("File type", _EXPORT_FORMATS, key=f"drafts-format-{label}")
-    data, extension, mime = export_assignment(text, export_format)
-    st.download_button(
-        f"Download {export_format}",
-        data=data,
-        file_name=f"{draft.path.stem}.{extension}",
-        mime=mime,
-        key=f"drafts-{label}",
+    common.export_buttons(
+        text,
+        content_type=draft.spec.key,
+        subject=draft.subject,
+        base_name=draft.path.stem,
+        key=f"drafts-{common.relative(draft.path, paths)}",
     )
 
 
