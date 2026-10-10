@@ -98,22 +98,47 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
     return GenerationRequest(**fields)
 
 
-def _quiz_fields() -> dict:
-    quiz_format = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"))
-    if quiz_format != "mixed":
-        count = int(st.number_input("Questions", 1, 50, DEFAULT_QUESTION_COUNT))
-        return {"quiz_format": quiz_format, "question_count": count}
+_QUIZ_FORMAT_KEY = "quiz-format"
+_QUIZ_COUNT_KEYS = {"single": "quiz-count", "multiple choice": "quiz-mc", "short answer": "quiz-sa"}
 
-    mc_col, sa_col = st.columns(2)
-    multiple_choice = int(mc_col.number_input("Multiple choice", 1, 49, DEFAULT_MIXED_SPLIT[0]))
-    short_answer = int(sa_col.number_input("Short answer", 1, 49, DEFAULT_MIXED_SPLIT[1]))
-    st.caption(f"{multiple_choice + short_answer} questions in total.")
+
+def _quiz_fields() -> dict:
+    """The quiz options, read back from their widgets' state after
+    `_quiz_options` draws them."""
+    _quiz_options()
+    state = st.session_state
+    quiz_format = state[_QUIZ_FORMAT_KEY]
+    if quiz_format != "mixed":
+        return {"quiz_format": quiz_format, "question_count": int(state[_QUIZ_COUNT_KEYS["single"]])}
+    multiple_choice = int(state[_QUIZ_COUNT_KEYS["multiple choice"]])
+    short_answer = int(state[_QUIZ_COUNT_KEYS["short answer"]])
     return {
         "quiz_format": quiz_format,
         "question_count": multiple_choice + short_answer,
         "multiple_choice_count": multiple_choice,
         "short_answer_count": short_answer,
     }
+
+
+@st.fragment
+def _quiz_options() -> None:
+    """A fragment, so changing the format reruns only this block: a full
+    rerun of the app can take seconds, and until it finishes Streamlit
+    keeps showing the previous format's count boxes (UAT)."""
+    quiz_format = st.selectbox("Format", QUIZ_FORMATS, index=QUIZ_FORMATS.index("mixed"), key=_QUIZ_FORMAT_KEY)
+    if quiz_format != "mixed":
+        # Named for the format, so it's clear the whole quiz is that type.
+        label = f"{quiz_format.replace(' ', '-').capitalize()} questions"
+        st.number_input(label, 1, 50, DEFAULT_QUESTION_COUNT, key=_QUIZ_COUNT_KEYS["single"])
+        return
+    mc_col, sa_col = st.columns(2)
+    multiple_choice = mc_col.number_input(
+        "Multiple choice", 1, 49, DEFAULT_MIXED_SPLIT[0], key=_QUIZ_COUNT_KEYS["multiple choice"]
+    )
+    short_answer = sa_col.number_input(
+        "Short answer", 1, 49, DEFAULT_MIXED_SPLIT[1], key=_QUIZ_COUNT_KEYS["short answer"]
+    )
+    st.caption(f"{int(multiple_choice + short_answer)} questions in total.")
 
 
 def _render_source_uploader(paths: ProjectPaths) -> None:
