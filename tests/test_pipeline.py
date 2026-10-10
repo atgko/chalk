@@ -71,7 +71,7 @@ def test_extract_logs_an_error_event_and_leaves_source_untouched_on_failure(tmp_
 def test_reextraction_keeps_previously_indexed_source_materials(tmp_project, tmp_path):
     syllabus = md_builder.build_minimal_syllabus(tmp_path / "syllabus.md")
     first, _ = extract_syllabus(tmp_project, syllabus)
-    ref = SourceMaterialRef(filename="ch3.pdf", added_at=dt.datetime(2026, 9, 17, tzinfo=dt.timezone.utc))
+    ref = SourceMaterialRef(filename="ch3.pdf", added_at=dt.datetime(2026, 9, 17, tzinfo=dt.UTC))
     save_course(tmp_project, first.model_copy(update={"source_materials": [ref]}))
 
     second, _ = extract_syllabus(tmp_project, syllabus)

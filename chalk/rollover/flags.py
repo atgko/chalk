@@ -84,9 +84,11 @@ def duration_change_flags(old_duration: int, new_duration: int) -> list[str]:
     if old_duration == new_duration:
         return []
     return [
-        f"Course length changed from {old_duration} to {new_duration} weeks. "
-        "Review quiz, exam, and lab numbering in the assignments below — "
-        "the tool never renumbers them automatically."
+        (
+            f"Course length changed from {old_duration} to {new_duration} weeks. "
+            "Review quiz, exam, and lab numbering in the assignments below — "
+            "the tool never renumbers them automatically."
+        )
     ]
 
 

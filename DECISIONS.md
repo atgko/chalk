@@ -130,6 +130,10 @@
 - **Grading weights that don't add up to 100% are a warning, not an error** (Review and the CLI's extract summary), with 0.5% tolerance for rounding. No assessments at all isn't flagged, since Review already says none were found.
 - **Discard on Review** drops an unsaved extraction; the saved course is never touched.
 
+## Engineering (Oct 9, 2026)
+
+- **Lint is enforced in CI, formatting isn't.** `ruff check .` runs on the Linux CI job. `ruff format` would rewrite about 70 files, which would conflict with every open branch for no behavior change, so it's left for a quiet moment.
+- **Local dates and times are allowed** (`DTZ005`, `DTZ011` ignored; `DTZ001` in tests). Chalk runs on the instructor's own computer, so the AI-draft banner's date, the evaluation report's date, and archive timestamps are meant to be local. Code that stores a timestamp for later comparison (the metrics log) still uses UTC.
 ## Launch screen (Oct 9, 2026)
 
 - **Open and Create are forms.** Fields are read on click or Enter, so typing doesn't rerun (and grey out) the page. Because a form can't enable its button as you type, the buttons are always enabled, and an empty field gets a plain message.

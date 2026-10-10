@@ -13,7 +13,7 @@ Four of us share this repo. `master` is what we demo from, so every change reach
    ```
    Prefixes: `feat/`, `fix/`, `docs/`, `chore/`. One branch per change. Aim to merge within a day or two.
 3. **Commit as you go**, in the `type: description` style (`feat: …`, `fix: …`, `docs: …`). Write tests with the change.
-4. **Run the tests locally** before pushing: `python -m pytest -q` (the run fails if coverage drops under 80%).
+4. **Run the tests and the linter locally** before pushing: `python -m pytest -q` (the run fails if coverage drops under 80%) and `python -m ruff check .` (`ruff check . --fix` fixes most findings).
 5. **Stay current.** If master moves while you work, merge it in (`git pull origin master`) and rerun the tests. Small, frequent catch-ups beat one big conflict at the end.
 6. **Push and open a PR.** `git push -u origin <branch>`, then open the PR on GitHub. Fill in the template's test plan, including any manual check in the app.
 7. **Wait for a green CI.** The **Tests** workflow runs on Windows, macOS, and Linux, and master only accepts a PR once it passes. No approval is needed, so merge your own PR. Ask a teammate to look first only if you want a second opinion.

@@ -81,7 +81,7 @@ def _course(
             instructor="Dave Norwood",
             source_format="word",
             source_file="source/syllabus.docx",
-            extracted_at=dt.datetime(2026, 9, 30, tzinfo=dt.timezone.utc),
+            extracted_at=dt.datetime(2026, 9, 30, tzinfo=dt.UTC),
         ),
         weeks=weeks,
         university_dates=university_dates or [],

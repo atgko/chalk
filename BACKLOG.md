@@ -71,10 +71,10 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 ## Engineering
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
-- **P2: Lint debt.** `ruff check` reports about 30 existing findings (mostly UP017 `datetime.UTC`, DTZ, ISC004) because the selected rules are stricter than the code. Either fix them in one pass or relax the config, then add a `ruff check` step to `.github/workflows/tests.yml`.
 
 ## Done
 
+- 2026-10-10: Lint debt cleared: `ruff check .` passes, and CI runs it (on the Linux job). Local "today"/"now" is allowed in the ruff config, since Chalk runs on the instructor's own computer.
 - 2026-10-10: New projects create `outputs/assignments/`, and `toolkit.py status` counts saved assignments.
 - 2026-10-10: Quizzes, discussion prompts, rubrics, and summaries download as Word or PDF in the assignment creator's layout (type header, title, upper-case sections), on Generate and Drafts. Rubric tables become real tables, and the AI-draft banner is left out of Word/PDF.
 - 2026-10-09: A Drafts tab lists the drafts saved from Generate by type and week, with a preview, a download (assignments as Word/PDF/markdown), the save date, and how many earlier versions are archived. A draft can be deleted (it moves to `.archive/`).

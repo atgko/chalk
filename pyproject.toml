@@ -22,3 +22,12 @@ exclude_lines = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Chalk runs on the instructor's own computer, so "today" and archive
+# timestamps are deliberately the local date and time.
+ignore = ["DTZ005", "DTZ011"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests build local (naive) times to match the code above.
+"tests/*" = ["DTZ001"]

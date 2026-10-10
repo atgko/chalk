@@ -62,7 +62,7 @@ class Week(BaseModel):
     notes: str | None = None
 
     @model_validator(mode="after")
-    def _require_fields_for_week_kind(self) -> "Week":
+    def _require_fields_for_week_kind(self) -> Week:
         if self.is_break:
             if self.date_start is None or self.date_end is None:
                 raise ValueError("A break week must have date_start and date_end.")
@@ -79,7 +79,7 @@ class UniversityDate(BaseModel):
     date_end: dt.date | None = None
 
     @model_validator(mode="after")
-    def _require_date_or_range(self) -> "UniversityDate":
+    def _require_date_or_range(self) -> UniversityDate:
         has_single_date = self.date is not None
         has_date_range = self.date_start is not None and self.date_end is not None
         if not (has_single_date or has_date_range):
