@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from chalk.generation.document_export import EXPORT_FORMATS, document_title, export_document
 from chalk.project import ProjectPaths
 
 FERPA_NOTICE = (
@@ -45,4 +46,20 @@ def download_button(path: Path, paths: ProjectPaths, *, key_prefix: str) -> None
         file_name=path.name,
         mime=_MIME_TYPES.get(path.suffix, "application/octet-stream"),
         key=f"{key_prefix}-{label}",
+    )
+
+
+def export_buttons(text: str, *, content_type: str, subject: str, base_name: str, key: str) -> None:
+    """File-type choice and download for a generated document, in the
+    assignment creator's Word/PDF layout (or the markdown as saved)."""
+    file_format = st.selectbox("File type", EXPORT_FORMATS, key=f"{key}-format")
+    data, extension, mime = export_document(
+        text, file_format, content_type=content_type, title=document_title(content_type, subject)
+    )
+    st.download_button(
+        f"Download {file_format}",
+        data=data,
+        file_name=f"{base_name}.{extension}",
+        mime=mime,
+        key=f"{key}-download",
     )

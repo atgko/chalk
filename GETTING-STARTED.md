@@ -49,7 +49,7 @@ The welcome screen asks for an AI provider.
 - **No API key?** Click **Skip for now** at the bottom.
 - **Have a key?** Choose OpenAI or Anthropic Claude, paste the key, pick a model, and click **Test connection and continue**. The key is saved only in the demo project on your computer.
 
-✅ **Check:** you see seven tabs: **Upload, Review, Rollover, Generate, Export, Metrics, Settings**.
+✅ **Check:** you see eight tabs: **Upload, Review, Rollover, Generate, Drafts, Export, Metrics, Settings**.
 
 ## 5. Walk through the demo
 

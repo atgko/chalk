@@ -278,6 +278,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Review",
         "Rollover",
         "Generate",
+        "Drafts",
         "Export",
         "Metrics",
         "Settings",
@@ -694,6 +695,21 @@ def test_generate_review_then_save(saved_project, llm):
     assert any(s.startswith("Saved outputs/quizzes/week-2-quiz.md.") for s in texts(at.success))
 
 
+def test_a_quiz_draft_can_be_exported_as_word_or_pdf(saved_project, llm):
+    at = click(launch(saved_project), "Generate")
+
+    assert_no_exception(at)
+    assert widget(at.selectbox, "File type").options == ["Word (.docx)", "PDF (.pdf)", "Markdown (.md)"]
+    widget(at.selectbox, "File type").set_value("PDF (.pdf)")
+    assert_no_exception(at.run())
+
+
+def test_slide_drafts_have_no_document_export(saved_project):
+    (saved_project.outputs_dir / "slides" / "week-1-slides.md").write_text("---\ntitle: W1\n---\n", encoding="utf-8")
+    at = launch(saved_project)
+    assert_no_exception(at)
+    assert draft_titles(at) == ["Week 1 — Slides"]
+    assert "File type" not in [s.label for s in at.selectbox]
 def test_mixed_quiz_asks_for_the_split_and_sends_it(saved_project, llm):
     at = launch(saved_project)
     assert "Multiple-choice questions" not in {n.label for n in at.number_input}
@@ -748,8 +764,75 @@ def test_overwriting_needs_the_checkbox(saved_project, llm):
 
     assert any("A quiz already exists for Week 1." in w for w in texts(at.warning))
     assert widget(at.button, "Generate").disabled
-    at.checkbox[-1].check()
+    widget(at.checkbox, "Yes — archive the old version and generate a new one").check()
     assert not widget(at.run().button, "Generate").disabled
+
+
+def draft_titles(at: AppTest) -> list[str]:
+    """Drafts-tab expanders (the Generate tab has one of its own)."""
+    return [e.label for e in at.expander if " — " in e.label]
+
+
+def test_drafts_tab_explains_when_nothing_is_saved(saved_project):
+    at = launch(saved_project)
+    assert "No saved drafts yet. Generate one on the Generate tab and click Save." in texts(at.info)
+
+
+def test_a_saved_draft_appears_on_the_drafts_tab(saved_project, llm):
+    at = click(click(launch(saved_project), "Generate"), "Save")
+    (saved_project.outputs_dir / "quizzes" / ".archive").mkdir()
+    (saved_project.outputs_dir / "quizzes" / ".archive" / "week-1-quiz-20261001-101500.md").write_text(
+        "old", encoding="utf-8"
+    )
+    at = at.run()
+
+    assert_no_exception(at)
+    assert draft_titles(at) == ["Week 1 — Quiz"]
+    assert any("Draft number 1" in m.value for m in at.markdown)
+    assert any(
+        "outputs/quizzes/week-1-quiz.md · 1 earlier version in .archive/" in c for c in texts(at.caption)
+    )
+
+
+def test_drafts_tab_filters_by_type(saved_project):
+    out = saved_project.outputs_dir
+    (out / "quizzes" / "week-2-quiz.md").write_text("quiz", encoding="utf-8")
+    (out / "discussions" / "week-2-discussion.md").write_text("talk", encoding="utf-8")
+    at = launch(saved_project)
+    assert draft_titles(at) == ["Week 2 — Quiz", "Week 2 — Discussion prompts"]
+
+    widget(at.selectbox, "Show").set_value("Discussion prompts")
+    at = at.run()
+
+    assert draft_titles(at) == ["Week 2 — Discussion prompts"]
+
+
+def test_deleting_a_draft_needs_the_checkbox_and_archives_it(saved_project):
+    quiz = saved_project.outputs_dir / "quizzes" / "week-2-quiz.md"
+    quiz.write_text("quiz", encoding="utf-8")
+    at = launch(saved_project)
+    assert widget(at.button, "Delete").disabled
+
+    widget(at.checkbox, "Yes — delete this draft (it moves to .archive/)").check()
+    at = click(at.run(), "Delete")
+
+    assert_no_exception(at)
+    assert not quiz.exists()
+    assert len(list((quiz.parent / ".archive").iterdir())) == 1
+    assert draft_titles(at) == []
+    assert "No saved drafts yet. Generate one on the Generate tab and click Save." in texts(at.info)
+
+
+def test_assignment_drafts_download_as_word_by_default(saved_project):
+    (saved_project.outputs_dir / "assignments").mkdir()
+    (saved_project.outputs_dir / "assignments" / "lab-3-assignment.md").write_text(
+        "# Lab 3\n\nBuild a VLAN.", encoding="utf-8"
+    )
+    at = launch(saved_project)
+
+    assert_no_exception(at)
+    assert draft_titles(at) == ["Lab 3 — Assignment creator / enhancer"]
+    assert widget(at.selectbox, "File type").value == "Word (.docx)"
 
 
 def test_rubric_waits_for_assignment_details(saved_project, llm):
