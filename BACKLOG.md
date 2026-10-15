@@ -2,30 +2,32 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-10 @ 3:16 AM MST.
+Last updated: 2026-10-15.
 
 ## Open questions (need someone outside the code)
 
-- **P1: Get the Word (.docx) version of the OSC 6660 syllabus.** We only have the PDF. The module-table support was built against a synthetic look-alike reconstructed from the PDF's text (`chalk/demo_content.py`), so the real table structure (merged title rows, where the focus text sits, soft line breaks) is unverified.
+- **P3: Get the Word (.docx) version of the OSC 6660 syllabus, if it turns up.** It may not be available (Oct 15); the faculty test syllabi (below) can cover module-table layouts instead. We only have the PDF. The module-table support was built against a synthetic look-alike reconstructed from the PDF's text (`chalk/demo_content.py`), so the real table structure (merged title rows, where the focus text sits, soft line breaks) is unverified.
 - **P1: Confirm the "16-week syllabus showed 10 weeks" report.** Most likely cause: the new syllabus was extracted into the demo project but not yet saved, so the Rollover tab still showed the saved 10-week demo course. The app now warns about this. Ask the teammate whether they clicked Confirm and save first.
-- **P2: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). PLAN.md's Section 15 test corpus (before the Nov 8 readiness meeting) is the place to find new layouts. Keep them in the git-ignored `reference/` folder, since the repo is public.
+- **P1: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). As of Oct 15, the team is collecting more from faculty, who will also try Chalk themselves. The PRD's Section 15 test corpus (before the Nov 8 readiness meeting) lists what's still missing: a markdown syllabus with the DST boundary, the IS 6640 Spring copy with the term-label bug, and a 12- or 16-week course. Run each through extraction and rollover, then `toolkit.py report`, for the December evidence. Keep them in the git-ignored `reference/` folder, since the repo is public.
+- **P1: Line up pilot testers (sponsor meeting, Oct 15).** Dave may find 2-3 professors to try Chalk. Also find pilot testers among technical staff. For both groups, find out which parts of the app they actually use, so the next steps focus there. The eval log already records which operations run; a short feedback form or a follow-up conversation would cover the rest.
 
 ## AI providers and student data (sponsor discussion, Oct 5)
 
-Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI today (only syllabi and the instructor's own source materials), so these are prerequisites for a future grading feature, not current gaps. Next step: a discussion within the team, then with the sponsor.
+Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI today (only syllabi and the instructor's own source materials). A teammate is building the grading feature (Oct 15); the guardrails below go in once it lands, before it's used on real student work. Next step: a discussion within the team, then with the sponsor.
 
 - **P1: Confirm which AI providers are approved for student work.** The University of Utah currently sanctions only ChatGPT. Grading could be built on it if licensing is approved; other frontier providers don't have that approval.
   - "Sanctioned ChatGPT" most likely means the U's licensed ChatGPT Edu workspace, which runs under a university contract. Chalk calls the OpenAI API with an individual's key, and that contract doesn't automatically cover it.
   - "APIs don't store data" isn't quite right. OpenAI's and Anthropic's APIs don't train on API data by default, but both keep requests for a period (typically up to ~30 days, for abuse monitoring). Zero-data-retention is a separate agreement. Check each provider's current terms before relying on this.
   - Student work is an education record under FERPA, so the deciding question is contractual, not technical: which services have a data agreement with the university. The U's IT/privacy office owns that answer.
   - Question to bring to the sponsor: "Which AI services and contract terms are approved for student work, and can Chalk use them through an API?"
-- **P2: Privacy guardrails before any text is sent to an AI.** If student data ever leaves the computer, enforce protection in code, configured on the Settings page.
+- **P1: Privacy guardrails before any text is sent to an AI (follow-up to the grading feature).** If student data ever leaves the computer, enforce protection in code, configured on the Settings page. Chalk has to do this itself, before the request is sent: the provider sees whatever text arrives, so asking the model to hide student details doesn't protect anything.
   - Classify each provider in Settings: university-approved, not approved (public), or local (a model running on the instructor's computer, so nothing leaves it). Google Gemini (added Oct 7) and Anthropic are "not approved" today and get the same rules.
   - Block, or redact before sending, any student information going to a provider that isn't approved.
   - Names: exact-match against an uploaded Canvas roster. This is far more reliable than guessing which words are names.
   - IDs and contact details: strip uNIDs (`u` + 7 digits) and email addresses with pattern matching.
   - Log what was redacted (counts only, never the content) in the existing metadata-only eval log, so the evaluation report can show the guardrail working.
-- **P3: Grading feature (blocked on the two items above).** Scope it only once a provider is approved: e.g. rubric-based draft feedback that the instructor reviews, never a final grade.
+  - Redaction reduces the risk but doesn't settle the approval question above. A submission can identify its author through its content (a personal story, a named workplace, a file name or header), so the redacted text is still student work. Use redaction as a second layer on top of an approved provider, not as a substitute for one.
+- **P2: Grading feature scope (in progress, Oct 15).** The PRD (Sections 9, 13 and 16) puts grading out of scope per CTE policy ("rubric drafting only"), so confirm the change with the sponsor. A defensible scope: rubric-based draft feedback that the instructor reviews, never a final grade. Use it on real submissions only with an approved provider and the guardrails above.
 - **P2: Find the most token-efficient way to grade.** Token cost is a main concern for the department, so compare approaches before building: grade each rubric criterion separately or all at once; send only the relevant parts of a submission; use a smaller model (e.g. `gpt-4o-mini`) for a first pass and a larger one only for borderline cases; reuse the fixed rubric and instructions across submissions with prompt caching or batch APIs where the provider offers them. Measure the cost per submission with the existing cost tracking (Metrics tab) and set a target.
 - **P1: Try Gemini with a real API key.** Gemini is built (Settings → Google Gemini) but only tested with simulated replies. With a key from aistudio.google.com, run Test connection and one generation of each type; check the answers aren't cut short (Gemini 3 models "think", and that counts against Chalk's token limits; Chalk asks for low thinking) and compare the recorded cost with Google's billing page.
 - **Gemini is NOT sanctioned by the University of Utah.** It has no university data agreement, so it's for course materials only (syllabi, the instructor's own files), never student work. The provider form and README say so, and any student-data feature must apply the privacy guardrails above to it like every other unapproved provider.
@@ -34,6 +36,15 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
   - Ask the provider for its current model list (OpenAI, Anthropic, and Gemini all have a list-models API) when the key is tested, and offer those.
   - Keep the bundled rates current: review `resources/config.json` each term, with a "prices last checked" date in the file. Gemini's were checked 2026-10-07.
   - When a saved model is retired, the new 404 message already says to choose another one in Settings; a startup check could warn sooner.
+- **P2: Read submissions from Canvas's SpeedGrader zip (sponsor meeting, Oct 15).** SpeedGrader can download all of an assignment's submissions as one zip file, which makes a natural input for the grading feature. Canvas puts the student's name and ID in each file name inside the zip, so the guardrails above have to cover file names as well as file contents. (The meeting note on this was cut off; check with whoever took the notes what else was meant.)
+
+## Handoff and sustainability (sponsor meeting, Oct 15)
+
+The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chalk running after December.
+
+- **P1: Write down what the sponsor needs to keep Chalk running.** Security, maintenance, and documentation are all required. Cover who updates the academic calendar and model prices each term, how to update Python and the packages, where to report problems, and what an API key costs per term.
+- **P1: A how-to manual alongside the Best Practices Guide and Catalog of Tools.** A step-by-step guide for instructors, with screenshots. README.md, GETTING-STARTED.md, and DEMO.md are the starting point, but they're written partly for developers.
+- **P2: In-line documentation in the code.** Check that every module and public function has a docstring that says what it does and why, so whoever maintains Chalk next can follow it without us.
 
 ## Extraction
 
@@ -55,6 +66,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P3: Break rows in a split (per-module) schedule** are placed by date across all the tables; a break after the last week goes at the end of the last table. This is untested on a real split schedule that has break rows.
 - **P3: When the instructor picked one table from an ambiguous set, the writer still updates every schedule-like table.**
 - **P3: The preview always shows dates as M/D**, even when the syllabus uses "Jan. 6" (the written document keeps the original style).
+- **P2: Classes that meet twice a week (sponsor meeting, Oct 15).** Undergraduate courses often meet twice a week. Rollover already asks which days the class meets, but only to decide which holidays to warn about: every schedule row is still one week with one date. Test a syllabus with one row per class session (e.g. Tue and Thu rows) and decide how rollover should handle it, especially when the meeting days change between terms.
 
 ## App / UX
 
@@ -64,14 +76,18 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 - **P3 Currently, the 'Open Project' button only lets you open a project if you manually enter in the file path. What should happen is that clicking on 'Open Project' assuming Windows OS is that it opens the file browser and you can navigate that way.** 
 - **P3 Drop down bar for already existing projects** This in addition to the above request that will add Quality of Life (QOL) for users because they won't have to manually navigate through file browser to get to the project they need.
 - **P3 Additional Options for Creating a new project** You can create new projects with no problem. However when typing in a project that already exists you are warned that it isn't empty and to pick a new one. Additional objects should be to either open up the project or asks if you want to overwrite
+- **P2: A progress bar instead of a spinner (sponsor meeting, Oct 15).** Show steady progress that reflects how far along the work really is, not a bar that fills on a timer. Extraction and rollover have distinct steps, so the bar can move as each one finishes. Generation is one AI call, so its progress would come from streaming the reply and counting what's arrived against the expected length.
+- **P1: Keep long operations running when you switch tabs (sponsor meeting, Oct 15).** Moving to another tab while something runs (e.g. generation) stops it. Run long operations in the background and keep their result in the session, so the instructor can work on another tab and come back to it.
 
 ## Generation
 
+- **P2: Make generated assignments more robust (sponsor meeting, Oct 15).** Let the instructor set the difficulty, from undergraduate to graduate, and include components where students learn to use AI. Fuller assignments also give the grading feature more context to grade against.
 
 ## Engineering
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
 - **P2: Lint debt.** `ruff check` reports about 30 existing findings (mostly UP017 `datetime.UTC`, DTZ, ISC004) because the selected rules are stricter than the code. Either fix them in one pass or relax the config, then add a `ruff check` step to `.github/workflows/tests.yml`.
+- **P2: Bundle Python with the download (sponsor meeting, Oct 15).** Today the launchers need Python 3.11+ already installed. Shipping Python inside the download (e.g. the official Windows embeddable package, or python-build-standalone on macOS) removes that step. To keep the bundle from going stale, pin the Python and package versions, build the bundle in GitHub Actions for each release instead of by hand, and add a check to the maintenance notes for when that Python version reaches end of life.
 
 ## Done
 
