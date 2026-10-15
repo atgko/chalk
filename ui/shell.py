@@ -25,6 +25,7 @@ from ui import (
     drafts_view,
     export_view,
     generate_view,
+    grading_view,
     metrics_view,
     project_picker,
     review_view,
@@ -36,7 +37,7 @@ from ui import (
 )
 from ui.common import NEEDS_COURSE_MESSAGE, render_header
 
-TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export", "Metrics", "Settings")
+TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Grading Assistant", "Drafts", "Export", "Metrics", "Settings")
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def main(argv: list[str] | None = None) -> None:
 
     course_data = _load_course_or_warn(paths)
     session.apply_tab_request()
-    upload, review, rollover, generate, drafts, export, metrics, settings = st.tabs(
+    upload, review, rollover, generate, grading, drafts, export, metrics, settings = st.tabs(
         TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
     )
     with upload:
@@ -74,6 +75,8 @@ def main(argv: list[str] | None = None) -> None:
         with tab:
             _warn_if_unsaved_extraction(course_data)
             _gated(course_data, view.render, paths, course_data)
+    with grading:
+        _guarded(grading_view.render, paths)
     with drafts:
         _guarded(drafts_view.render, paths)
     with metrics:

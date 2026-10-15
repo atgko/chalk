@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import time
+from urllib.parse import urlparse
 from typing import TypedDict
 
 import anthropic
@@ -182,6 +183,15 @@ def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
         base_url=os.getenv("LLM_BASE_URL") or (_GEMINI_BASE_URL if is_gemini else _OPENAI_BASE_URL),
     )
     extra = {"reasoning_effort": _GEMINI_REASONING_EFFORT} if is_gemini else {}
+
+    # Disable extended thinking for local Qwen3 models.
+    base_url = os.getenv("LLM_BASE_URL", "")
+    model = os.getenv("LLM_MODEL", "gpt-4o")
+    if (
+        ("localhost:11434" in base_url or "127.0.0.1:11434" in base_url)
+        and model.lower().startswith("qwen3:")
+    ):
+        extra["extra_body"] = {"think": False}
     response = client.chat.completions.create(
         model=os.getenv("LLM_MODEL", "gpt-4o"),
         messages=[
@@ -216,7 +226,62 @@ def _call_anthropic(prompt: str, system: str, max_tokens: int) -> CompletionResu
     }
 
 
-def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> CompletionResult:
+
+def _call_ollama(prompt: str, system: str, max_tokens: int, json_mode: bool = False) -> CompletionResult:
+    """Use Ollama's native API to disable extended thinking."""
+    import json
+    from urllib import request, error
+
+    base_url = os.getenv("LLM_BASE_URL", "http://localhost:11434")
+    endpoint = base_url.rstrip("/").removesuffix("/v1") + "/api/chat"
+
+    payload = {
+        "model": os.getenv("LLM_MODEL", "qwen3:4b"),
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "think": False,
+        "stream": False,
+        "options": {"num_predict": max_tokens},
+    }
+
+    if json_mode:
+        payload["format"] = "json"
+
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(
+        endpoint,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(req, timeout=180) as response:
+            result = json.load(response)
+    except (error.URLError, TimeoutError) as exc:
+        raise LLMProviderError(
+            f"Could not connect to local Ollama: {exc}"
+        ) from exc
+
+    message = result.get("message", {})
+    content = message.get("content", "")
+
+    if not content.strip():
+        raise LLMProviderError(
+            "Ollama returned an empty answer. "
+            "The model may have reached its output token limit."
+        )
+
+    return {
+        "text": content,
+        "input_tokens": result.get("prompt_eval_count", 0),
+        "output_tokens": result.get("eval_count", 0),
+    }
+
+
+def complete(prompt: str, system: str = "", max_tokens: int = 2000, json_mode: bool = False) -> CompletionResult:
     """Send a prompt to the configured LLM provider.
 
     Returns {"text": str, "input_tokens": int, "output_tokens": int}.
@@ -227,12 +292,24 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
     user-facing code.
     """
     provider = _get_provider()
-    call = _call_anthropic if provider == "anthropic" else _call_openai
+    base_url = os.getenv("LLM_BASE_URL", "")
+    parsed_url = urlparse(base_url)
+    is_local_ollama = (
+        parsed_url.hostname in ("localhost", "127.0.0.1")
+        and parsed_url.port == 11434
+    )
+
+    if is_local_ollama:
+        call = _call_ollama
+    elif provider == "anthropic":
+        call = _call_anthropic
+    else:
+        call = _call_openai
 
     last_transient_error: Exception | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            return call(prompt, system, max_tokens)
+            return call(prompt, system, max_tokens, json_mode=json_mode) if is_local_ollama else call(prompt, system, max_tokens)
 
         except _AUTH_EXCEPTIONS as exc:
             raise LLMProviderError(_auth_error_message()) from exc
