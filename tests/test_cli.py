@@ -270,7 +270,7 @@ def llm(monkeypatch, project):
     (project / ".env").write_text("LLM_PROVIDER=openai\nLLM_API_KEY=sk\nLLM_MODEL=gpt-4o\n", encoding="utf-8")
     calls = []
 
-    def _complete(prompt, system="", max_tokens=2000):
+    def _complete(prompt, system="", max_tokens=2000, on_text=None):
         calls.append(prompt)
         return {"text": f"## Questions\nQ1. Draft {len(calls)}", "input_tokens": 1000, "output_tokens": 500}
 

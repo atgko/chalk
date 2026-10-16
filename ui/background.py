@@ -10,7 +10,9 @@ on the next run, whichever tab is showing.
 
 Jobs must not call Streamlit: they run outside the script thread, so
 they get plain arguments and return a value (or raise) for the view to
-apply.
+apply. Each job is also given an `on_progress` callback
+(chalk/progress.py); the status line shows its latest report as a
+progress bar, or as the current step when there's no fraction to show.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import Future
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import streamlit as st
 
@@ -28,11 +30,30 @@ _ANNOUNCED_KEY = "chalk_background_announced"
 POLL_SECONDS = 1
 
 
+class Progress:
+    """A job's latest progress report. The job's thread writes it and the
+    status line reads it, hence the lock."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._fraction: float | None = None
+        self._step = ""
+
+    def update(self, fraction: float | None, step: str) -> None:
+        with self._lock:
+            self._fraction, self._step = fraction, step
+
+    def latest(self) -> tuple[float | None, str]:
+        with self._lock:
+            return self._fraction, self._step
+
+
 @dataclass(frozen=True)
 class Job:
     label: str
     future: Future
     started_at: float
+    progress: Progress = field(default_factory=Progress)
 
 
 def _submit(fn: Callable, *args, **kwargs) -> Future:
@@ -62,12 +83,15 @@ def _announced() -> set[str]:
 
 
 def start(name: str, label: str, fn: Callable, *args, **kwargs) -> None:
-    """Start job `name` unless one by that name is already running.
-    `label` is what the status line shows, e.g. "Generating a quiz"."""
+    """Start `fn(*args, **kwargs, on_progress=...)` as job `name`, unless
+    one by that name is already running. `label` is what the status line
+    shows, e.g. "Generating a draft (Quiz, Week 3)"."""
     if is_running(name):
         return
     _announced().discard(name)
-    _jobs()[name] = Job(label, _submit(fn, *args, **kwargs), time.monotonic())
+    progress = Progress()
+    future = _submit(fn, *args, **kwargs, on_progress=progress.update)
+    _jobs()[name] = Job(label, future, time.monotonic(), progress)
 
 
 def is_running(name: str) -> bool:
@@ -98,11 +122,20 @@ def _status() -> None:
     if finished - _announced():  # rerun the app once, so the job's view applies its result
         _announced().update(finished)
         st.rerun()
-    running = [job for job in _jobs().values() if not job.future.done()]
-    for job in running:
-        elapsed = int(time.monotonic() - job.started_at)
-        st.info(
-            f"{job.label}… ({elapsed}s). You can keep working on other tabs; "
-            "Chalk will show the result when it's ready.",
-            icon="⏳",
-        )
+    for job in _jobs().values():
+        if not job.future.done():
+            _render_job(job)
+
+
+def _render_job(job: Job) -> None:
+    fraction, step = job.progress.latest()
+    elapsed = int(time.monotonic() - job.started_at)
+    status = f"{job.label}: {step}" if step else job.label
+    if fraction is None:
+        st.info(f"{status}… ({elapsed}s). {_KEEP_WORKING}", icon="⏳")
+        return
+    st.progress(fraction, text=f"{status}… {round(fraction * 100)}% ({elapsed}s)")
+    st.caption(_KEEP_WORKING)
+
+
+_KEEP_WORKING = "You can keep working on other tabs; Chalk will show the result when it's ready."

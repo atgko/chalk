@@ -13,6 +13,7 @@ from chalk.generation.engine import (
     GenerationRequest,
     build_prompt,
     estimate_cost,
+    expected_output_tokens,
     generate,
     output_path_for,
     overwrite_warning,
@@ -34,8 +35,10 @@ def llm(monkeypatch):
         def __init__(self):
             self.calls: list = []
 
-        def __call__(self, prompt, system="", max_tokens=2000):
+        def __call__(self, prompt, system="", max_tokens=2000, on_text=None):
             self.calls.append((prompt, system, max_tokens))
+            if on_text is not None:
+                on_text(len(self.reply))
             return {"text": self.reply, "input_tokens": 1200, "output_tokens": 400}
 
     fake = _Llm()
@@ -265,7 +268,7 @@ def test_generated_slides_follow_the_pipeline_conventions(tmp_project, course, l
 
 
 def test_llm_failure_propagates_and_logs_nothing(tmp_project, course, monkeypatch):
-    def _down(prompt, system="", max_tokens=2000):
+    def _down(prompt, system="", max_tokens=2000, on_text=None):
         raise LLMProviderError("Could not reach the LLM provider.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)
@@ -304,3 +307,29 @@ def test_estimate_is_an_upper_bound_from_prompt_length_and_max_tokens(tmp_projec
     expected = prompt_tokens / 1000 * 0.0025 + 2000 / 1000 * 0.010
     assert estimate_cost(tmp_project, course, request_) == pytest.approx(expected)
     assert llm.calls == []  # estimating never calls the LLM
+
+
+# ---- Progress ----------------------------------------------------------------------------
+
+
+def test_generate_reports_its_steps_then_the_reply_streaming_in(tmp_project, course, llm):
+    reports = []
+    request = GenerationRequest("quiz", week_number=3)
+    expected_chars = expected_output_tokens(tmp_project, spec_for("quiz")) * 4  # before this one is logged
+
+    generate(tmp_project, course, request, today=TODAY, on_progress=lambda f, s: reports.append((f, s)))
+
+    steps = [step for _, step in reports]
+    assert steps[:2] == ["Preparing the prompt and source materials", "Waiting for the AI to start writing"]
+    fraction, step = reports[-1]
+    assert step == "The AI is writing"
+    assert fraction == pytest.approx(len(llm.reply) / expected_chars)
+
+
+def test_expected_reply_length_comes_from_this_projects_past_generations(tmp_project, course, llm):
+    spec = spec_for("quiz")
+    assert expected_output_tokens(tmp_project, spec) == spec.max_tokens // 2  # no history yet
+
+    generate(tmp_project, course, GenerationRequest("quiz", week_number=3), today=TODAY)
+
+    assert expected_output_tokens(tmp_project, spec) == 400  # the fake reply's output tokens

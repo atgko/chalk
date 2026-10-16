@@ -32,9 +32,14 @@ from chalk.pipeline import (
     estimate_ai_reading_cost_per_page,
     extract_syllabus,
 )
+from chalk.progress import ProgressCallback, report, within
 from chalk.project import ProjectPaths
 from ui import background, common, session
 from ui.session import PendingExtraction, TableChoice
+
+# Share of the bar for an AI read of a PDF; extraction after it is quick.
+_AI_READ_SHARE = 0.9
+_FINISHING = 0.95
 
 _PDF_METHOD_LABELS = {
     "local": "Read it on this computer",
@@ -76,12 +81,18 @@ def extract_upload(
     *,
     pdf_method: PdfReadMethod = "local",
     pdf_conversion: PdfConversion | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> UploadOutcome:
     """Extract an uploaded syllabus, converting a PDF first (unless an
-    earlier conversion is passed in)."""
+    earlier conversion is passed in). An AI read of a PDF fills the first
+    90% of the progress bar; the rest is quick."""
     try:
+        reading_with_ai = pdf_conversion is None and is_pdf(upload_path.name) and pdf_method == "ai"
         if pdf_conversion is None and is_pdf(upload_path.name):
-            pdf_conversion = convert_pdf_syllabus(paths, upload_path, method=pdf_method)
+            pdf_conversion = convert_pdf_syllabus(
+                paths, upload_path, method=pdf_method, on_progress=within(on_progress, 0.0, _AI_READ_SHARE)
+            )
+        report(on_progress, _FINISHING if reading_with_ai else None, "Finding the course details and schedule")
         course_data, consistency = extract_syllabus(
             paths, upload_path, schedule_table_index=table_index, pdf_conversion=pdf_conversion
         )

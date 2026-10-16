@@ -15,6 +15,7 @@ from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, preview_rollover
+from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
 from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
 from chalk.rollover.season_change import multi_day_breaks
@@ -130,7 +131,9 @@ def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> Non
     st.rerun()
 
 
-def _compute_plan(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> StoredPlan:
+def _compute_plan(
+    paths: ProjectPaths, course_data: CourseData, inputs: tuple, *, on_progress: ProgressCallback
+) -> StoredPlan:
     """Runs on the background thread, so no Streamlit calls here."""
     term, week1_date, duration, use_llm, meeting_days, breaks_not_observed = inputs[:6]
     plan = preview_rollover(
@@ -142,6 +145,7 @@ def _compute_plan(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -
         llm_generate_topics=use_llm,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
+        on_progress=on_progress,
     )
     return StoredPlan(inputs, plan)
 

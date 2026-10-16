@@ -15,6 +15,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 from typing import Any, Literal
 
 EventType = Literal[
@@ -70,6 +71,18 @@ def read_events(log_path: Path) -> list[dict[str, Any]]:
                 if raw.endswith("\n"):
                     raise
     return events
+
+
+def typical_output_tokens(log_path: Path, content_type: str, *, recent: int = 10) -> int | None:
+    """The median reply length (output tokens) of this project's last
+    `recent` generations of `content_type`, or None if there are none yet.
+    The progress bar measures a streaming reply against it."""
+    lengths = [
+        event["output_tokens"]
+        for event in read_events_by_type(log_path, "generation")
+        if event.get("content_type") == content_type and event.get("output_tokens")
+    ][-recent:]
+    return int(median(lengths)) if lengths else None
 
 
 def read_events_by_type(log_path: Path, event_type: EventType) -> list[dict[str, Any]]:

@@ -6,6 +6,7 @@ import threading
 
 import pytest
 
+from chalk.generation.engine import spec_for
 from tests.test_app import click, launch, texts
 from ui import background, session
 
@@ -38,7 +39,7 @@ def _blocked_llm(monkeypatch, *, fail: bool = False) -> threading.Event:
 
     release = threading.Event()
 
-    def _complete(prompt, system="", max_tokens=2000):
+    def _complete(prompt, system="", max_tokens=2000, on_text=None):
         release.wait(_WAIT_SECONDS)
         if fail:
             raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
@@ -58,7 +59,10 @@ def test_generation_keeps_running_across_a_tab_switch(saved_project, monkeypatch
     at = click(at, "Generate")
 
     assert "Generating your draft. It will appear here when it's ready." in texts(at.info)
-    assert any(t.startswith("Generating a draft (Quiz, Week 1)… (") for t in texts(at.info))
+    assert any(
+        t.startswith("Generating a draft (Quiz, Week 1): Waiting for the AI to start writing… (")
+        for t in texts(at.info)
+    )
 
     at = _run_on_tab(at, "Drafts")  # the instructor moves on
     assert not at.exception
@@ -148,3 +152,23 @@ def test_an_extraction_finished_on_another_tab_leaves_the_instructor_there(proje
     assert not at.exception
     assert at.session_state[session.ACTIVE_TAB_KEY] == "Settings"
     assert any(s.endswith("Check it on the Review tab.") for s in texts(at.success))
+
+
+def test_the_status_line_shows_a_progress_bar_while_the_reply_streams_in(saved_project, monkeypatch):
+    release, writing = threading.Event(), threading.Event()
+
+    def _complete(prompt, system="", max_tokens=2000, on_text=None):
+        on_text(1000)  # 250 tokens of the 1,000 expected for a quiz with no history (half its limit)
+        writing.set()
+        release.wait(_WAIT_SECONDS)
+        return {"text": "## Questions\nQ1. A background draft", "input_tokens": 1000, "output_tokens": 500}
+
+    monkeypatch.setattr("chalk.generation.engine.complete", _complete)
+    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
+    assert writing.wait(_WAIT_SECONDS)
+    at = _run_on_tab(at, "Generate")
+
+    [bar] = at.get("progress")
+    release.set()
+    assert bar.proto.text.startswith("Generating a draft (Quiz, Week 1): The AI is writing… ")
+    assert bar.proto.value == round(1000 / (spec_for("quiz").max_tokens // 2 * 4) * 100)

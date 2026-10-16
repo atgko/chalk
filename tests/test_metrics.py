@@ -3,7 +3,7 @@ import json
 import pytest
 from freezegun import freeze_time
 
-from chalk.metrics import append_event, read_events, read_events_by_type
+from chalk.metrics import append_event, read_events, read_events_by_type, typical_output_tokens
 
 
 def test_append_event_creates_file_and_parent_dir(tmp_path):
@@ -103,3 +103,14 @@ def test_summarize_events_of_an_empty_log():
     summary = summarize_events([])
     assert summary.generation_counts == {}
     assert summary.total_cost_usd == 0
+
+
+def test_typical_output_tokens_is_the_median_of_recent_replies_of_that_type(tmp_path):
+    log_path = tmp_path / "eval-log.json"
+    for tokens in (400, 900, 500):
+        append_event(log_path, "generation", {"content_type": "quiz", "output_tokens": tokens})
+    append_event(log_path, "generation", {"content_type": "rubric", "output_tokens": 3000})
+
+    assert typical_output_tokens(log_path, "quiz") == 500
+    assert typical_output_tokens(log_path, "quiz", recent=2) == 700  # the last two: 900 and 500
+    assert typical_output_tokens(log_path, "summary") is None

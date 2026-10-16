@@ -639,7 +639,7 @@ def test_rollover_errors_are_shown_plainly(saved_project):
 def llm(monkeypatch):
     calls = []
 
-    def _complete(prompt, system="", max_tokens=2000):
+    def _complete(prompt, system="", max_tokens=2000, on_text=None):
         calls.append(prompt)
         return {
             "text": f"## Questions\nQ1. Draft number {len(calls)}",
@@ -853,7 +853,7 @@ def test_slides_draft_is_shown_as_markdown_source(saved_project, llm):
 def test_generation_errors_are_shown_plainly(saved_project, monkeypatch):
     from chalk.errors import LLMProviderError
 
-    def _down(prompt, system="", max_tokens=2000):
+    def _down(prompt, system="", max_tokens=2000, on_text=None):
         raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)

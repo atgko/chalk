@@ -32,6 +32,7 @@ from chalk.generation.specs import (
 )
 from chalk.llm_client import complete
 from chalk.models import CourseData, Week
+from chalk.progress import ProgressCallback, report, writing_progress
 from chalk.project import ProjectPaths
 
 SYSTEM_PROMPT = (
@@ -263,14 +264,26 @@ def estimate_cost(paths: ProjectPaths, course_data: CourseData, request: Generat
 
 
 def generate(
-    paths: ProjectPaths, course_data: CourseData, request: GenerationRequest, *, today: dt.date | None = None
+    paths: ProjectPaths,
+    course_data: CourseData,
+    request: GenerationRequest,
+    *,
+    today: dt.date | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> GeneratedDraft:
     """Run one LLM call and return the draft (not yet saved). Raises
     LLMProviderError / GenerationError / PromptTemplateError with
-    plain-English messages."""
+    plain-English messages. `on_progress` follows chalk/progress.py."""
     spec = spec_for(request.content_type)
+    report(on_progress, None, "Preparing the prompt and source materials")
     prompt = build_prompt(paths, course_data, request)
-    result = complete(prompt, system=SYSTEM_PROMPT, max_tokens=spec.max_tokens)
+    report(on_progress, None, "Waiting for the AI to start writing")
+    result = complete(
+        prompt,
+        system=SYSTEM_PROMPT,
+        max_tokens=spec.max_tokens,
+        on_text=writing_progress(on_progress, expected_output_tokens(paths, spec)),
+    )
 
     env = current_env()
     model = env["LLM_MODEL"] or "unknown model"
@@ -318,6 +331,14 @@ def generate(
         output_tokens=result["output_tokens"],
         cost_usd=cost,
     )
+
+
+def expected_output_tokens(paths: ProjectPaths, spec: ContentSpec) -> int:
+    """How long a reply of this type usually is in this project, for the
+    progress bar. With no history yet, half the type's token limit: the
+    limit is a ceiling, and replies rarely come near it."""
+    typical = metrics.typical_output_tokens(paths.eval_log, spec.key)
+    return typical if typical is not None else spec.max_tokens // 2
 
 
 def save_draft(paths: ProjectPaths, draft: GeneratedDraft) -> Path:
