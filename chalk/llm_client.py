@@ -243,7 +243,7 @@ def _call_ollama(prompt: str, system: str, max_tokens: int, json_mode: bool = Fa
         ],
         "think": False,
         "stream": False,
-        "options": {"num_predict": max_tokens},
+        "options": {"num_predict": max_tokens, "temperature": 0},
     }
 
     if json_mode:
@@ -267,6 +267,12 @@ def _call_ollama(prompt: str, system: str, max_tokens: int, json_mode: bool = Fa
 
     message = result.get("message", {})
     content = message.get("content", "")
+
+    if result.get("done_reason") == "length":
+        raise LLMProviderError(
+            "Ollama reached its output token limit. "
+            "Instructor review is required."
+        )
 
     if not content.strip():
         raise LLMProviderError(

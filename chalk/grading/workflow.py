@@ -1,6 +1,7 @@
 """Coordinate rubric-based grading recommendations."""
 
 from chalk.grading.criterion import grade_criterion
+from chalk.grading.evidence_evaluator import evaluate_weighted_criterion
 from chalk.grading.rubric import parse_rubric
 from chalk.grading.scoring import calculate_scores
 
@@ -21,12 +22,37 @@ def analyze_by_criterion(
     recommendations = []
 
     for criterion in criteria:
-        recommendation = grade_criterion(
-            submission=submission,
-            rubric=rubric,
-            criterion=criterion,
-            instructions=instructions,
-        )
+        if criterion.get("subrequirements"):
+            recommendation = evaluate_weighted_criterion(
+                submission=submission,
+                criterion=criterion,
+                instructions=instructions,
+            )
+            missing = [
+                item["name"]
+                for item in recommendation["details"]
+                if not item["met"]
+            ]
+            recommendation["reasoning"] = (
+                "Evidence-based evaluation of explicitly weighted requirements. "
+                + "; ".join(
+                    f'{item["name"]}: {"met" if item["met"] else "not met"} '
+                    f'({item["earned"]:g}/{item["possible"]:g} points). '
+                    f'{item["evidence"]}'
+                    for item in recommendation["details"]
+                )
+            )
+            recommendation["deduction_comment"] = (
+                "Review the following requirements: " + ", ".join(missing) + "."
+                if missing else ""
+            )
+        else:
+            recommendation = grade_criterion(
+                submission=submission,
+                rubric=rubric,
+                criterion=criterion,
+                instructions=instructions,
+            )
         recommendations.append(recommendation)
 
     if len(recommendations) != len(criteria):
