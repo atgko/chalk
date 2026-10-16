@@ -22,6 +22,7 @@ from chalk.metrics import read_events, summarize_events
 from chalk.models import CourseData
 from chalk.project import ProjectPaths, load_course, open_project
 from ui import (
+    background,
     drafts_view,
     export_view,
     generate_view,
@@ -60,6 +61,10 @@ def main(argv: list[str] | None = None) -> None:
     message = session.pop_flash()
     if message:
         st.success(message)
+    error = session.pop_flash_error()
+    if error:
+        st.error(error)
+    background.render_status()
 
     course_data = _load_course_or_warn(paths)
     session.apply_tab_request()

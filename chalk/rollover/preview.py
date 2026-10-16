@@ -42,6 +42,7 @@ from chalk.calendar_data import find_term
 from chalk.errors import LLMProviderError
 from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
+from chalk.progress import ProgressCallback, report
 from chalk.rollover.flags import (
     duration_change_flags,
     flag_dst_boundary_weeks,
@@ -75,6 +76,8 @@ _PLACEHOLDER_DATE = dt.date(1900, 1, 1)
 
 @dataclass
 class WeekChange:
+    """One row of the rollover preview: a week (or break) moving from
+    `old_date` to `new_date`, and anything to check about it."""
     week_number: int | None
     label: str
     old_date: dt.date | None
@@ -84,6 +87,7 @@ class WeekChange:
 
 @dataclass(frozen=True)
 class RolloverPreview:
+    """Everything the instructor reviews before confirming a rollover."""
     source_term: str
     target_term: str
     source_duration_weeks: int
@@ -102,6 +106,7 @@ def roll_over_course(
     llm_generate_topics: bool = True,
     meeting_days: tuple[int, ...] = (),
     breaks_not_observed: frozenset[str] = frozenset(),
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[CourseData, RolloverPreview]:
     """Compute a rolled-over CourseData and its RolloverPreview.
 
@@ -123,6 +128,9 @@ def roll_over_course(
     check against each week's start date. `breaks_not_observed` names
     target-calendar breaks (by label, e.g. "Fall Break") the class meets
     through: they're dropped from the schedule and never flagged.
+
+    `on_progress` (chalk/progress.py) reports each added week whose
+    topics the LLM drafts, the only slow part of a rollover.
     """
     old_duration = course_data.course.duration_weeks
     new_duration = target_duration_weeks or old_duration
@@ -141,7 +149,7 @@ def roll_over_course(
     target_breaks = [entry for entry in calendar_breaks if entry["label"] not in breaks_not_observed]
 
     regular_weeks = _adjust_regular_week_count(
-        [week for week in course_data.weeks if not week.is_break], new_duration, llm_generate_topics
+        [week for week in course_data.weeks if not week.is_break], new_duration, llm_generate_topics, on_progress
     )
     syllabus_break_weeks = [week for week in course_data.weeks if week.is_break]
     original_break_weeks, dropped_breaks = _drop_breaks_not_observed(
@@ -230,21 +238,29 @@ def roll_over_course(
 
 
 def _adjust_regular_week_count(
-    regular_weeks: list[Week], new_duration: int, llm_generate_topics: bool
+    regular_weeks: list[Week],
+    new_duration: int,
+    llm_generate_topics: bool,
+    on_progress: ProgressCallback | None = None,
 ) -> list[Week]:
     current = len(regular_weeks)
     if new_duration <= current:
         return regular_weeks[:new_duration]
     return regular_weeks + _build_placeholder_weeks(
-        range(current + 1, new_duration + 1), regular_weeks, llm_generate_topics
+        range(current + 1, new_duration + 1), regular_weeks, llm_generate_topics, on_progress
     )
 
 
 def _build_placeholder_weeks(
-    week_numbers: range, existing_weeks: list[Week], llm_generate_topics: bool
+    week_numbers: range,
+    existing_weeks: list[Week],
+    llm_generate_topics: bool,
+    on_progress: ProgressCallback | None = None,
 ) -> list[Week]:
     placeholders = []
-    for week_number in week_numbers:
+    for done, week_number in enumerate(week_numbers):
+        if llm_generate_topics:
+            report(on_progress, done / len(week_numbers), f"Drafting topics for Week {week_number}")
         topics = _draft_topics_for_new_week(week_number, existing_weeks) if llm_generate_topics else []
         notes = (
             "AI-generated draft — review and edit before use."

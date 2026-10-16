@@ -7,46 +7,38 @@ test_ui_helpers.py, and upload results are injected via session state.
 """
 
 import datetime as dt
+from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
-from chalk.pipeline import extract_syllabus, save_reviewed_course
-from chalk.project import ProjectPaths, load_course, save_course
+from chalk.pipeline import extract_syllabus
+from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
 from ui import session
 from ui.common import NEEDS_COURSE_MESSAGE
 from ui.session import PendingExtraction, TableChoice
 
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
-_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+pytestmark = pytest.mark.usefixtures("isolated_env")
 
 
 @pytest.fixture(autouse=True)
-def isolated_env(monkeypatch):
-    """The app loads the project's .env into os.environ; register every
-    provider variable with monkeypatch so each test's changes are undone."""
-    for key in _ENV_KEYS:
-        monkeypatch.delenv(key, raising=False)
+def inline_jobs(monkeypatch):
+    """Run background jobs (ui/background.py) inline, so a click's result
+    is there on the next run. test_background.py covers the real threads."""
 
+    def run_now(fn, *args, **kwargs) -> Future:
+        future: Future = Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - the view reports it, as with a real thread
+            future.set_exception(exc)
+        return future
 
-@pytest.fixture
-def project(tmp_project):
-    (tmp_project.env).write_text(
-        "LLM_PROVIDER=openai\nLLM_API_KEY=sk-test\nLLM_BASE_URL=https://api.openai.com/v1\nLLM_MODEL=gpt-4o\n",
-        encoding="utf-8",
-    )
-    return tmp_project
-
-
-@pytest.fixture
-def saved_project(project, tmp_path):
-    syllabus = md_builder.build_minimal_syllabus(tmp_path / "syllabus.md")
-    course_data, _ = extract_syllabus(project, syllabus)
-    save_reviewed_course(project, course_data)
-    return project
+    monkeypatch.setattr("ui.background._submit", run_now)
 
 
 def launch(paths=None, **state) -> AppTest:
@@ -647,7 +639,7 @@ def test_rollover_errors_are_shown_plainly(saved_project):
 def llm(monkeypatch):
     calls = []
 
-    def _complete(prompt, system="", max_tokens=2000):
+    def _complete(prompt, system="", max_tokens=2000, on_text=None):
         calls.append(prompt)
         return {
             "text": f"## Questions\nQ1. Draft number {len(calls)}",
@@ -861,7 +853,7 @@ def test_slides_draft_is_shown_as_markdown_source(saved_project, llm):
 def test_generation_errors_are_shown_plainly(saved_project, monkeypatch):
     from chalk.errors import LLMProviderError
 
-    def _down(prompt, system="", max_tokens=2000):
+    def _down(prompt, system="", max_tokens=2000, on_text=None):
         raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)
@@ -948,3 +940,81 @@ def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
     at = click(launch(), "Reset the demo course")
     assert_no_exception(at)
     assert (demo_root / ".chalk-demo").exists()
+
+
+def test_generate_defaults_the_course_level_from_the_course_number(saved_project, llm):
+    at = launch(saved_project)
+    level = widget(at.selectbox, "Course level")
+    assert level.value == "upper-division"  # IS 4490
+
+    level.set_value("graduate")
+    at = click(at.run(), "Generate")
+
+    assert "COURSE LEVEL: graduate." in llm[-1]
+
+
+def test_an_assignment_can_include_an_ai_use_task(saved_project, llm):
+    at = launch(saved_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+    widget(at.text_input, "Assignment name").input("Design Brief")
+    widget(at.text_area, "What should students learn or demonstrate?").input("Defend a design.")
+    widget(at.checkbox, "Include a task where students use AI as part of their learning").check()
+    at = click(at.run(), "Generate")
+
+    assert "AI-USE COMPONENT" in llm[-1]
+
+
+# ---- Launch screen: your projects, and creating one that exists ---------------------------
+
+
+@pytest.fixture
+def projects_folder(tmp_path, monkeypatch):
+    """The launch screen's default projects/ folder, empty to start."""
+    folder = tmp_path / "projects"
+    folder.mkdir()
+    monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", folder)
+    return folder
+
+
+def test_your_projects_lists_and_opens_projects_in_the_projects_folder(projects_folder):
+    init_project(projects_folder, "IS-4490-Fall-2027")
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+
+    choice = widget(at.selectbox, "Your projects")
+    assert sorted(choice.options) == ["IS-4490-Fall-2027", "IS-6640-Fall-2027"]
+    second = choice.options[1]
+    choice.select_index(1)
+    at = click(at, "Open")
+
+    assert_no_exception(at)
+    assert any(f"Opened project {second}." in s.value for s in at.success)
+
+
+def test_no_project_list_when_the_projects_folder_is_empty(projects_folder):
+    at = launch()
+    assert "Your projects" not in {s.label for s in at.selectbox}
+
+
+def test_creating_a_project_that_exists_offers_to_open_it(projects_folder):
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+    widget(at.text_input, "Project name").input("IS-6640-Fall-2027")
+
+    at = click(at, "Create project")
+
+    assert any("already a course project named IS-6640-Fall-2027" in w.value for w in at.warning)
+    at = click(at, "Open IS-6640-Fall-2027")
+    assert_no_exception(at)
+    assert any("Opened project IS-6640-Fall-2027" in s.value for s in at.success)
+
+
+def test_choosing_another_name_dismisses_the_offer(projects_folder):
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+    widget(at.text_input, "Project name").input("IS-6640-Fall-2027")
+    at = click(click(at, "Create project"), "Choose another name")
+
+    assert not any("already a course project" in w.value for w in at.warning)
+    assert "Open IS-6640-Fall-2027" not in {b.label for b in at.button}

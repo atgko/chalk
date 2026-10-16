@@ -23,6 +23,7 @@ _CONVERTED_SUFFIX = " (from PDF).docx"
 
 
 def converted_docx_name(pdf_path) -> str:
+    """The Word file Chalk makes from a PDF: "<name> (from PDF).docx"."""
     return Path(pdf_path).stem + _CONVERTED_SUFFIX
 
 

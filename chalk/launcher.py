@@ -43,6 +43,8 @@ print = functools.partial(print, flush=True)
 
 
 def python_version_problem(version: tuple[int, ...] = tuple(sys.version_info[:3])) -> str | None:
+    """What to tell the instructor if this Python is too old, or None if
+    it's new enough. Checked first, before anything that needs 3.11."""
     if tuple(version[:2]) >= MIN_PYTHON:
         return None
     found = ".".join(str(part) for part in version[:3])
@@ -62,15 +64,22 @@ def requirements_digest(requirements: Path = REQUIREMENTS) -> str:
 
 
 def needs_install(stamp: Path, requirements: Path = REQUIREMENTS) -> bool:
+    """True on the first run, and whenever requirements.txt has changed
+    since the last install (its hash differs from the stamp file in the
+    virtual environment), so an update pulls in new packages."""
     return not stamp.exists() or stamp.read_text(encoding="utf-8").strip() != requirements_digest(requirements)
 
 
 def install_requirements(stamp: Path, requirements: Path = REQUIREMENTS, *, run: Callable = subprocess.check_call) -> None:
+    """pip-install requirements.txt into this environment, then record its
+    hash so the next start can skip the install."""
     run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q", "-r", str(requirements)])
     stamp.write_text(requirements_digest(requirements), encoding="utf-8")
 
 
 def find_free_port(start: int = DEFAULT_PORT, attempts: int = 50) -> int:
+    """The first port from `start` that nothing is listening on, so a
+    second Chalk window (or another Streamlit app) doesn't block startup."""
     for port in range(start, start + attempts):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             try:
@@ -82,6 +91,9 @@ def find_free_port(start: int = DEFAULT_PORT, attempts: int = 50) -> int:
 
 
 def streamlit_command(port: int, project: Path | None = None) -> list[str]:
+    """The command that starts the app: headless (no first-run email
+    prompt), local-only, no usage statistics, optionally straight into
+    `project`."""
     command = [
         sys.executable, "-m", "streamlit", "run", str(REPO_ROOT / "app.py"),
         "--server.headless", "true",
@@ -113,6 +125,8 @@ def wait_until_ready(
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
 ) -> bool:
+    """Poll Streamlit's health URL until it answers or `timeout` passes.
+    True once it's up. The callables are parameters so tests don't wait."""
     deadline = clock() + timeout
     while clock() < deadline:
         if is_up(url):
@@ -138,6 +152,9 @@ def main(
     open_browser: Callable[[str], object] = webbrowser.open,
     ready: Callable[[str], bool] = wait_until_ready,
 ) -> int:
+    """Run the launcher: check Python, install packages if needed, start
+    the app, and open the browser. Returns the exit code. The callables
+    are parameters so tests can run it without starting anything."""
     args = build_parser().parse_args(argv)
 
     problem = python_version_problem()

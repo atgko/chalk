@@ -189,7 +189,7 @@ def test_an_ai_reply_without_a_schedule_is_a_plain_error():
 def test_read_with_ai_sends_the_local_text_and_returns_usage(monkeypatch):
     calls = []
 
-    def fake_complete(prompt, system="", max_tokens=2000):
+    def fake_complete(prompt, system="", max_tokens=2000, on_text=None):
         calls.append((prompt, system, max_tokens))
         return {"text": _reply(), "input_tokens": 900, "output_tokens": 1500}
 

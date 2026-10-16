@@ -60,7 +60,7 @@ git clone https://github.com/atgko/chalk.git
 The first start sets everything up, which takes a couple of minutes and needs internet. After that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
 
 - **Want to look around first?** Double-click **`Start Chalk Demo`** instead, or click **Open the demo course** on the launch screen. It opens a sample course with a syllabus already loaded. See [DEMO.md](DEMO.md) for a guided walkthrough.
-- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, paste its folder path under **Open a course project**.
+- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, pick it under **Your projects** (most recently used first) and click **Open**. For a project kept somewhere else, paste or browse to its folder under **Open a course project**.
 - **AI provider:** connect one on the welcome screen, or click **Skip for now**. Extraction, rollover, and export work without one, and you can connect later in the **Settings** tab.
 
 ### 2d. Manual setup (optional)
@@ -86,7 +86,7 @@ The app has eight tabs. Rollover, Generate, Export, and Metrics unlock once a co
 
 **Rollover.** Pick the target term. It defaults to the same season next year. For a term that isn't in the calendar data, choose **Another term** and enter the first day of classes. Under **Class meets on**, pick the days the class meets in the new term (pre-filled from the syllabus's meeting pattern). Holiday and break warnings then appear only when one lands on a class day. Each of the term's breaks has a toggle: switch one off if the class meets through it (some graduate programs do), and it's left out of the schedule. Click **Preview rollover** to see every week's old and new date, plus flags for anything to check by hand: a week landing on a holiday or break, a changed course length, or (markdown syllabi) due dates near the daylight-saving change. Click **Confirm rollover** to write the files. Previous versions are archived, never overwritten.
 
-**Generate.** Choose a content type and week (or, for a rubric, the assignment name and description), then any source materials to ground the draft in. The estimated maximum cost is shown before you click **Generate**. The draft appears for review. **Save** writes it to `outputs/`, **Regenerate** makes a new call (after asking), and **Discard** throws it away. If a draft already exists for that week, you'll be asked before it's replaced (the old one is archived). Under **Export**, download any draft except slides as Word or PDF, laid out like the assignment creator's documents (a header naming the document type, a title, and tables for rubrics), or as the markdown itself. Word and PDF leave out the AI-draft banner, since they're meant for students; the saved markdown keeps it.
+**Generate.** Choose a content type and week (or, for a rubric, the assignment name and description), then any source materials to ground the draft in. **Course level** sets how demanding the draft is: lower-division undergraduate, upper-division undergraduate, or graduate. It starts from the course number (1000–2000 level, 3000–5000 level, 6000 and up), and you can change it. For an assignment, tick **Include a task where students use AI as part of their learning** to add one task where students use an AI tool, document how they used it, and reflect on its limits. The estimated maximum cost is shown before you click **Generate**. The draft appears for review. **Save** writes it to `outputs/`, **Regenerate** makes a new call (after asking), and **Discard** throws it away. If a draft already exists for that week, you'll be asked before it's replaced (the old one is archived). Under **Export**, download any draft except slides as Word or PDF, laid out like the assignment creator's documents (a header naming the document type, a title, and tables for rubrics), or as the markdown itself. Word and PDF leave out the AI-draft banner, since they're meant for students; the saved markdown keeps it.
 
 **Drafts.** Every draft you've saved from Generate, grouped by type and in week order. Open one to read it and download it as Word, PDF, or markdown, as on Generate (slides as markdown only). **Show** narrows the list to one type. Each draft says when it was saved and how many earlier versions are in its folder's `.archive/`. To delete a draft, tick the confirm box and click **Delete**. The file moves to `.archive/` too, so it can still be recovered.
 
@@ -111,7 +111,8 @@ python toolkit.py export --project IS-6640-Fall-2027
 python toolkit.py add path/to/chapter-3-summary.pdf --project IS-6640-Fall-2027
 python toolkit.py generate quiz --week 3 --project IS-6640-Fall-2027 [--count 5] [--format mixed] [--source chapter-3-summary.pdf]
 python toolkit.py generate quiz --week 3 --multiple-choice 4 --short-answer 2   # a mixed quiz with a set split
-python toolkit.py generate discussion --week 3 [--count 3]
+python toolkit.py generate discussion --week 3 [--count 3] [--level graduate]   # level defaults from the course number
+python toolkit.py generate assignment --assignment "Design Brief" --assignment-goal "Defend a design." [--ai-component]
 python toolkit.py generate summary --week 3
 python toolkit.py generate slides --week 3 [--notes "bullet points or an excerpt"]
 python toolkit.py generate rubric --assignment "Lab 3" --description-file lab3.docx [--points 100]
@@ -305,6 +306,8 @@ Words in `{curly braces}` are filled in automatically. Each template must keep i
 | summary | `{week_number}`, `{topics}` |
 | slides | `{week_number}`, `{topics}`, `{slide_notes}` |
 
+Two placeholders are optional: `{course_level_guidance}` (every template) and `{ai_component_guidance}` (the assignment template) mark where the course-level and AI-use instructions go. Templates from before they existed still work: Chalk adds those instructions at the end of the prompt instead.
+
 Other braces, such as Pandoc's `{.columns}`, are left alone. If a project's template file is deleted, the toolkit's default (in `resources/prompts/`) is used.
 
 ## 10. Forking and customizing the repo
@@ -466,6 +469,9 @@ Convert the file to one of those types first.
 
 **"'…' isn't a Chalk course project (no config.json)."**
 Point at the project folder itself (the one containing `course.json` and `config.json`), or create a new project.
+
+**"There's already a course project named … in …"**
+You tried to create a project that already exists. Click **Open …** to open it, or choose another name. Chalk never overwrites a project: to start over, rename or delete that folder first.
 
 **"A folder named '…' already exists here and isn't empty. Pick another name."** / **"'…' isn't a usable project name."**
 Choose a new name without slashes, like `IS-6640-Fall-2027`.

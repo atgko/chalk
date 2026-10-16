@@ -8,6 +8,8 @@ Instructor notes or reading excerpt for this deck:
 Learning objectives for this course:
 {learning_objectives}
 
+{course_level_guidance}
+
 {source_material_context}
 
 Write the slide deck in markdown following these rules exactly:

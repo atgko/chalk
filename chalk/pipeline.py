@@ -29,8 +29,10 @@ from chalk.llm_client import CompletionResult
 from chalk.models import CourseData
 from chalk.pdf_import import PdfReadMethod, converted_docx_name
 from chalk.pdf_import.ai_reader import read_with_ai
+from chalk.pdf_import.blocks import blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
+from chalk.progress import CHARS_PER_TOKEN, ProgressCallback, report, writing_progress
 from chalk.project import ProjectPaths, copy_into_source, load_course, save_course
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
@@ -136,17 +138,27 @@ class PdfConversion:
     cost_usd: float | None = None
 
 
-def convert_pdf_syllabus(paths: ProjectPaths, pdf_path, *, method: PdfReadMethod = "local") -> PdfConversion:
+def convert_pdf_syllabus(
+    paths: ProjectPaths,
+    pdf_path,
+    *,
+    method: PdfReadMethod = "local",
+    on_progress: ProgressCallback | None = None,
+) -> PdfConversion:
     """Read a PDF syllabus into "<name> (from PDF).docx". An AI read logs
     a `generation` event (tokens and cost, never content) so it counts
     toward the project's AI cost. Failures are logged as
-    `extraction_error` events and re-raised."""
+    `extraction_error` events and re-raised. `on_progress` follows
+    chalk/progress.py; only an AI read reports a fraction."""
     pdf_path = Path(pdf_path)
     try:
+        report(on_progress, None, "Reading the PDF's pages")
         blocks = read_pdf_blocks(pdf_path)
         cost = None
         if method == "ai":
-            blocks, completion = read_with_ai(blocks)
+            report(on_progress, None, "Waiting for the AI to start reading")
+            on_text = writing_progress(on_progress, expected_ai_reading_tokens(blocks))
+            blocks, completion = read_with_ai(blocks, on_text=on_text)
             cost = _log_ai_reading(paths, pdf_path, completion)
     except ChalkError as exc:
         metrics.append_event(
@@ -157,6 +169,14 @@ def convert_pdf_syllabus(paths: ProjectPaths, pdf_path, *, method: PdfReadMethod
         raise
     docx_path = Path(tempfile.mkdtemp(prefix="chalk-pdf-")) / converted_docx_name(pdf_path)
     return PdfConversion(pdf_path.name, write_docx(blocks, docx_path), method, cost)
+
+
+def expected_ai_reading_tokens(blocks: list) -> int:
+    """How long the AI's structured reply should be, for the progress bar:
+    the syllabus text in tokens, scaled by the same output-to-input ratio
+    as the per-page cost estimate (the reply is the text again, as JSON)."""
+    input_tokens = len(blocks_as_text(blocks)) / CHARS_PER_TOKEN
+    return int(input_tokens * _AI_READING_OUTPUT_TOKENS_PER_PAGE / _AI_READING_INPUT_TOKENS_PER_PAGE)
 
 
 def estimate_ai_reading_cost_per_page(paths: ProjectPaths) -> float | None:
@@ -213,8 +233,10 @@ def preview_rollover(
     llm_generate_topics: bool = True,
     meeting_days: tuple[int, ...] = (),
     breaks_not_observed: frozenset[str] = frozenset(),
+    on_progress: ProgressCallback | None = None,
 ) -> RolloverPlan:
-    """Compute a rollover without writing anything.
+    """Compute a rollover without writing anything. `on_progress` follows
+    chalk/progress.py.
 
     Raises TermNotInCalendarError if `target_term` isn't in the project's
     calendars.json and no manual Week 1 date was given — the caller then
@@ -233,6 +255,7 @@ def preview_rollover(
         llm_generate_topics=llm_generate_topics,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
+        on_progress=on_progress,
     )
     mismatch_flag = _duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)
     if mismatch_flag:

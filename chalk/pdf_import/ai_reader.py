@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, ValidationError
 from chalk.errors import ExtractionError
 from chalk.llm_client import CompletionResult, complete
 from chalk.pdf_import.blocks import Block, Paragraph, Table, blocks_as_text
+from chalk.progress import TextCallback
 
 # Generous for a long syllabus copied out in full, and under the ceiling
 # where the Anthropic SDK insists on streaming.
@@ -156,19 +157,24 @@ class _Syllabus(BaseModel):
 
 
 def build_prompt(local_blocks: list[Block]) -> str:
+    """The reading prompt, with the text read on this computer filled in."""
     return _PROMPT.replace("{syllabus_text}", blocks_as_text(local_blocks))
 
 
-def read_with_ai(local_blocks: list[Block]) -> tuple[list[Block], CompletionResult]:
+def read_with_ai(
+    local_blocks: list[Block], *, on_text: TextCallback | None = None
+) -> tuple[list[Block], CompletionResult]:
     """Ask the configured LLM to structure the syllabus. Returns the blocks
     and the completion (for token and cost logging). Raises
     LLMProviderError if the call fails and ExtractionError if the reply
-    isn't the JSON asked for."""
-    result = complete(build_prompt(local_blocks), system=SYSTEM_PROMPT, max_tokens=MAX_TOKENS)
+    isn't the JSON asked for. `on_text` reports the reply streaming in."""
+    result = complete(build_prompt(local_blocks), system=SYSTEM_PROMPT, max_tokens=MAX_TOKENS, on_text=on_text)
     return parse_reply(result["text"]), result
 
 
 def parse_reply(text: str) -> list[Block]:
+    """The AI's JSON reply as blocks. Raises ExtractionError, saying what
+    to try instead, if it isn't the JSON asked for (e.g. cut off)."""
     try:
         syllabus = _Syllabus.model_validate(json.loads(_json_object(text)))
     except (ValueError, ValidationError) as exc:

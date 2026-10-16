@@ -1,5 +1,8 @@
 """Rollover tab (PRD section 7.2 / F-02): pick a target term, preview
-every date change and flag, and only then confirm and write files."""
+every date change and flag, and only then confirm and write files.
+
+The preview runs in the background, since drafting topics for added weeks
+calls the AI and shouldn't stop if the instructor switches tabs."""
 
 from __future__ import annotations
 
@@ -12,10 +15,11 @@ from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, preview_rollover
+from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
 from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
 from chalk.rollover.season_change import multi_day_breaks
-from ui import common, session, tables
+from ui import background, common, session, tables
 from ui.session import StoredPlan
 
 OTHER_TERM = "Another term (not in the calendar)"
@@ -23,7 +27,15 @@ _EARLIEST_WEEK1 = dt.date(2000, 1, 1)
 _LATEST_WEEK1 = dt.date(2100, 12, 31)
 
 
+_JOB = "rollover-preview"
+
+
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
+    _apply_finished_job()
+    if background.is_running(_JOB):
+        st.info("Computing the new schedule. The preview will appear here when it's ready.")
+        return
+
     term, week1_date = _render_term_inputs(paths, course_data)
     duration = int(
         st.number_input("Duration (weeks)", min_value=1, value=course_data.course.duration_weeks, step=1)
@@ -115,24 +127,47 @@ def _short_range(entry: dict) -> str:
 
 
 def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> None:
+    background.start(_JOB, f"Computing the rollover to {inputs[0]}", _compute_plan, paths, course_data, inputs)
+    st.rerun()
+
+
+def _compute_plan(
+    paths: ProjectPaths, course_data: CourseData, inputs: tuple, *, on_progress: ProgressCallback
+) -> StoredPlan:
+    """Runs on the background thread, so no Streamlit calls here."""
     term, week1_date, duration, use_llm, meeting_days, breaks_not_observed = inputs[:6]
+    plan = preview_rollover(
+        paths,
+        course_data,
+        term,
+        target_duration_weeks=duration,
+        manual_week1_date=week1_date,
+        llm_generate_topics=use_llm,
+        meeting_days=meeting_days,
+        breaks_not_observed=breaks_not_observed,
+        on_progress=on_progress,
+    )
+    return StoredPlan(inputs, plan)
+
+
+def _apply_finished_job() -> None:
+    future = background.take_finished(_JOB)
+    if future is None:
+        return
+    elsewhere = session.active_tab() != "Rollover"
     try:
-        with st.spinner("Computing the new schedule…"):
-            plan = preview_rollover(
-                paths,
-                course_data,
-                term,
-                target_duration_weeks=duration,
-                manual_week1_date=week1_date,
-                llm_generate_topics=use_llm,
-                meeting_days=meeting_days,
-                breaks_not_observed=breaks_not_observed,
-            )
+        stored = future.result()
     except ChalkError as exc:
+        if elsewhere:
+            session.flash_error(f"Rollover preview failed: {exc.user_message}")
+            st.rerun()
         st.error(exc.user_message)
         return
-    session.set_rollover_plan(StoredPlan(inputs, plan))
+    session.set_rollover_plan(stored)
     session.set_rollover_written([])
+    if elsewhere:
+        session.flash(f"The rollover preview for {stored.inputs[0]} is ready on the Rollover tab.")
+        st.rerun()
 
 
 def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:

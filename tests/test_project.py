@@ -12,6 +12,7 @@ from chalk.project import (
     ProjectPaths,
     add_source,
     init_project,
+    list_projects,
     list_source_files,
     load_course,
     open_project,
@@ -267,3 +268,24 @@ def test_zip_outputs_contains_every_current_output(tmp_project):
     with zipfile.ZipFile(io.BytesIO(zip_outputs(tmp_project))) as archive:
         assert sorted(archive.namelist()) == ["canvas.html", "quizzes/week-1-quiz.md"]
         assert archive.read("canvas.html") == b"<table>"
+
+
+# ---- list_projects (launch screen) -----------------------------------------------
+
+
+def test_list_projects_puts_the_most_recently_used_first(tmp_path):
+    import os
+
+    older = init_project(tmp_path, "IS-6640-Spring-2027")
+    newer = init_project(tmp_path, "IS-4490-Fall-2027")
+    (tmp_path / "notes").mkdir()  # not a project
+    (tmp_path / "readme.txt").write_text("hi", encoding="utf-8")
+    os.utime(newer.config_json, (1_000, 1_000))
+    os.utime(older.config_json, (2_000, 2_000))
+    save_course(newer, build_sample_course_data())  # used just now
+
+    assert [p.root.name for p in list_projects(tmp_path)] == ["IS-4490-Fall-2027", "IS-6640-Spring-2027"]
+
+
+def test_list_projects_of_a_missing_folder_is_empty(tmp_path):
+    assert list_projects(tmp_path / "nowhere") == []

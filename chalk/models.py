@@ -39,6 +39,7 @@ class CourseInfo(BaseModel):
 
 
 class Assessment(BaseModel):
+    """One graded component and its share of the final grade (0-1)."""
     name: str
     weight: float = Field(ge=0, le=1)
 
@@ -73,6 +74,7 @@ class Week(BaseModel):
 
 
 class UniversityDate(BaseModel):
+    """A row of the syllabus's University Dates table: one date, or a span."""
     event: str
     date: dt.date | None = None
     date_start: dt.date | None = None
@@ -91,6 +93,7 @@ class UniversityDate(BaseModel):
 
 
 class SourceMaterialRef(BaseModel):
+    """A file added to the project's source/ folder, and when."""
     filename: str
     added_at: dt.datetime
 
