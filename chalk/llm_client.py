@@ -4,9 +4,9 @@ This is the only module in Chalk that imports `openai` or `anthropic`
 directly. Every other module calls `complete()` and never touches a
 provider SDK — swapping providers is a `.env` change only
 (`LLM_PROVIDER`/`LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`), never a code
-change. OpenAI, Google Gemini, and Ollama share one code path because
-Gemini and Ollama expose OpenAI-compatible APIs; Anthropic has a different
-response shape and is handled in its own branch.
+change. OpenAI and Ollama share one code path because Ollama exposes an
+OpenAI-compatible API; Anthropic has a different response shape and is
+handled in its own branch.
 
 DECISIONS.md adds retry-with-backoff on top of the PRD's original sketch:
 a transient rate-limit or timeout shouldn't force the instructor to
@@ -31,15 +31,6 @@ from chalk.errors import LLMProviderError
 _MAX_ATTEMPTS = 3
 _BACKOFF_BASE_SECONDS = 1.0
 
-# TEMPORARY, for testing (BACKLOG.md): append the provider's own error text
-# to refused-request messages so teammates can tell a restricted key from a
-# blocked model or region. Set to False before the presentation.
-_SHOW_PROVIDER_DETAILS = True
-
-# OpenAI answers an account with no API credits with a 429 carrying this
-# code. Retrying can't help, so it isn't treated as a transient rate limit.
-_OUT_OF_CREDITS_CODE = "insufficient_quota"
-
 _AUTH_EXCEPTIONS: tuple[type[Exception], ...] = (
     openai.AuthenticationError,
     anthropic.AuthenticationError,
@@ -54,18 +45,6 @@ _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
     anthropic.RateLimitError,
     anthropic.APITimeoutError,
 )
-_STATUS_EXCEPTIONS: tuple[type[Exception], ...] = (
-    openai.APIStatusError,
-    anthropic.APIStatusError,
-)
-_PERMISSION_EXCEPTIONS: tuple[type[Exception], ...] = (
-    openai.PermissionDeniedError,
-    anthropic.PermissionDeniedError,
-)
-_NOT_FOUND_EXCEPTIONS: tuple[type[Exception], ...] = (
-    openai.NotFoundError,
-    anthropic.NotFoundError,
-)
 
 
 class CompletionResult(TypedDict):
@@ -75,11 +54,6 @@ class CompletionResult(TypedDict):
 
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1"
-_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-
-# Gemini 3 models always think, and thinking tokens count against
-# max_tokens, so ask for the lowest level that every current model accepts.
-_GEMINI_REASONING_EFFORT = "low"
 
 
 def _get_provider() -> str:
@@ -102,8 +76,6 @@ def _auth_error_message() -> str:
         return f"The endpoint at {local_url} did not accept the API key. Check LLM_API_KEY in your .env."
     if _get_provider() == "anthropic":
         return "The Anthropic API key was not accepted. Check it at console.anthropic.com and try again."
-    if _get_provider() == "gemini":
-        return "The Gemini API key was not accepted. Check it at aistudio.google.com and try again."
     return "The OpenAI API key was not accepted. Check it at platform.openai.com and try again."
 
 
@@ -120,68 +92,11 @@ def _connection_error_message() -> str:
     )
 
 
-def _provider_label() -> str:
-    if _local_base_url():
-        return "local model"
-    return {"anthropic": "Anthropic", "gemini": "Gemini"}.get(_get_provider(), "OpenAI")
-
-
-def _is_out_of_credits(exc: Exception) -> bool:
-    return getattr(exc, "code", None) == _OUT_OF_CREDITS_CODE
-
-
-def _out_of_credits_message() -> str:
-    return (
-        "Your OpenAI account has no API credits. Add credits at "
-        "platform.openai.com/settings/organization/billing and try again. "
-        "A ChatGPT subscription does not include API use."
-    )
-
-
-def _provider_detail(exc: Exception) -> str:
-    """The provider's own explanation, from the error body when there is one.
-    OpenAI's SDK passes the inner error object as the body; Anthropic's
-    passes the whole response, with the message under "error"."""
-    body = getattr(exc, "body", None)
-    if isinstance(body, dict):
-        error = body.get("error", body)
-        if isinstance(error, dict) and error.get("message"):
-            return str(error["message"])
-    return str(getattr(exc, "message", "") or exc)
-
-
-def _status_error_message(exc: Exception) -> str:
-    """Messages for a request the provider received and refused (403, 404,
-    and any other HTTP error without its own message)."""
-    label = _provider_label()
-    model = os.getenv("LLM_MODEL", "")
-    if isinstance(exc, _PERMISSION_EXCEPTIONS):
-        message = (
-            f"{label} refused this request (error 403). The API key may be restricted, "
-            f'the project may not allow the model "{model}", or the service may not be '
-            "available in your region or network."
-        )
-    elif isinstance(exc, _NOT_FOUND_EXCEPTIONS):
-        message = (
-            f'The model "{model}" isn\'t available to this {label} API key (error 404). '
-            "Choose a different model in Settings."
-        )
-    else:
-        status = getattr(exc, "status_code", "unknown")
-        message = f"{label} returned an error (status {status})."
-    if _SHOW_PROVIDER_DETAILS:
-        message += f" Provider said: {_provider_detail(exc)}"
-    return message
-
-
 def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
-    """OpenAI, Gemini, and Ollama: all speak the OpenAI chat API."""
-    is_gemini = _get_provider() == "gemini"
     client = openai.OpenAI(
         api_key=os.getenv("LLM_API_KEY", "ollama"),
-        base_url=os.getenv("LLM_BASE_URL") or (_GEMINI_BASE_URL if is_gemini else _OPENAI_BASE_URL),
+        base_url=os.getenv("LLM_BASE_URL") or _OPENAI_BASE_URL,
     )
-    extra = {"reasoning_effort": _GEMINI_REASONING_EFFORT} if is_gemini else {}
     response = client.chat.completions.create(
         model=os.getenv("LLM_MODEL", "gpt-4o"),
         messages=[
@@ -189,11 +104,9 @@ def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
             {"role": "user", "content": prompt},
         ],
         max_tokens=max_tokens,
-        **extra,
     )
     return {
-        # None when the token limit ran out before any answer text.
-        "text": response.choices[0].message.content or "",
+        "text": response.choices[0].message.content,
         "input_tokens": response.usage.prompt_tokens,
         "output_tokens": response.usage.completion_tokens,
     }
@@ -241,15 +154,10 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
             raise LLMProviderError(_connection_error_message()) from exc
 
         except _TRANSIENT_EXCEPTIONS as exc:
-            if _is_out_of_credits(exc):
-                raise LLMProviderError(_out_of_credits_message()) from exc
             last_transient_error = exc
             if attempt < _MAX_ATTEMPTS - 1:
                 time.sleep(_BACKOFF_BASE_SECONDS * (2**attempt))
                 continue
-
-        except _STATUS_EXCEPTIONS as exc:
-            raise LLMProviderError(_status_error_message(exc)) from exc
 
         except Exception as exc:
             raise LLMProviderError(

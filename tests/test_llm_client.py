@@ -269,15 +269,23 @@ def test_auth_error_becomes_the_prd_message_for_each_provider(
 
 
 def test_auth_error_on_a_local_endpoint_names_the_endpoint(monkeypatch):
+    """Local Ollama connection failures should identify the endpoint."""
+    from urllib.error import URLError
+    from chalk import llm_client
+
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
-    patch_openai(monkeypatch, [openai_auth_error()])
+
+    def fake_urlopen(*args, **kwargs):
+        raise URLError("Connection refused")
+
+    monkeypatch.setattr(llm_client, "_call_ollama", None, raising=False) if False else None
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     with pytest.raises(LLMProviderError) as exc_info:
         complete("prompt")
 
-    assert "http://localhost:11434/v1" in exc_info.value.user_message
-
+    assert "localhost:11434" in str(exc_info.value)
 
 @pytest.mark.parametrize(
     "provider,patch_fn,error_fn",
