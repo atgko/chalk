@@ -76,6 +76,8 @@ _NOT_FOUND_EXCEPTIONS: tuple[type[Exception], ...] = (
 
 
 class CompletionResult(TypedDict):
+    """What `complete` returns: the reply and the token counts that cost
+    tracking needs."""
     text: str
     input_tokens: int
     output_tokens: int

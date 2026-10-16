@@ -46,6 +46,8 @@ _IS6640_ASSESSMENTS = [
 
 
 def build_is6640_word_syllabus(path: Path, *, term: str = "Fall 2026", first_week: dt.date = dt.date(2026, 8, 24)) -> Path:
+    """The demo's Word syllabus: a synthetic look-alike of IS 6640, marked
+    as a sample, with a 10-week schedule starting `first_week`."""
     document = Document()
     document.add_paragraph(SAMPLE_NOTICE).runs[0].italic = True
     for label, value in (
@@ -130,6 +132,8 @@ _IS4490_TOPICS = [
 
 
 def build_is4490_markdown_syllabus(path: Path) -> Path:
+    """The demo's markdown syllabus: a synthetic IS 4490 with break rows,
+    for trying the markdown path."""
     first_week = dt.date(2026, 8, 24)
     break_rows_before_week = {
         8: "| - | 10/10 - 10/18 | Fall Break |  |",
@@ -191,6 +195,8 @@ def build_is4490_markdown_syllabus(path: Path) -> Path:
 
 
 def write_subnetting_notes(path: Path) -> Path:
+    """Sample instructor notes for the demo's source materials, so
+    generation can be tried with a source file."""
     path.write_text(
         "# Week 3 notes: subnetting (sample instructor notes)\n\n"
         "- A subnet mask splits an IPv4 address into network and host portions.\n"

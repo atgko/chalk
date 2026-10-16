@@ -30,6 +30,7 @@ WRITING_STEP = "The AI is writing"
 
 
 def report(on_progress: ProgressCallback | None, fraction: float | None, step: str) -> None:
+    """Pass a report on, if anyone asked for progress."""
     if on_progress is not None:
         on_progress(fraction, step)
 

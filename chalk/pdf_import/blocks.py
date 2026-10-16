@@ -14,6 +14,7 @@ ParagraphKind = Literal["body", "heading", "bullet"]
 
 @dataclass(frozen=True)
 class Paragraph:
+    """One paragraph from the PDF. `kind` picks its Word style."""
     text: str
     kind: ParagraphKind = "body"
 

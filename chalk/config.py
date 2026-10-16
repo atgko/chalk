@@ -143,6 +143,7 @@ _FOOTER_LABEL = {
 
 @dataclass(frozen=True)
 class ProviderSettings:
+    """What the provider form produces, checked and ready to write to .env."""
     provider: str
     api_key: str
     base_url: str

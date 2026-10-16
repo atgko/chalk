@@ -44,6 +44,8 @@ _MONTH_NAMES = {
 
 @dataclass(frozen=True)
 class ConsistencyResult:
+    """The term-label check's outcome. `detail` explains a mismatch in
+    plain English for the Upload tab and the CLI."""
     passed: bool
     term: str
     week1_date: dt.date | None

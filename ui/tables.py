@@ -15,6 +15,8 @@ def _md(date: dt.date) -> str:
 
 
 def week_rows(course_data: CourseData) -> list[dict[str, Any]]:
+    """The Review tab's schedule: weeks and breaks in date order, a break
+    showing its date span and name."""
     rows = []
     for week in sorted(course_data.weeks, key=lambda w: w.date or w.date_start):
         if week.is_break:
@@ -53,6 +55,8 @@ def university_date_rows(course_data: CourseData) -> list[dict[str, str]]:
 
 
 def preview_rows(preview: RolloverPreview) -> list[dict[str, str]]:
+    """The Rollover preview table: each week's current and new date, and
+    a check mark or the flags to look at."""
     rows = []
     for change in preview.week_changes:
         is_break = change.week_number is None

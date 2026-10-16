@@ -50,6 +50,7 @@ class Progress:
 
 @dataclass(frozen=True)
 class Job:
+    """A running or finished job, kept in session state under its name."""
     label: str
     future: Future
     started_at: float

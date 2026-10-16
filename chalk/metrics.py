@@ -105,6 +105,8 @@ class MetricsSummary:
 
 
 def summarize_events(events: list[dict[str, Any]]) -> MetricsSummary:
+    """Totals over the eval log for the Metrics tab, the footer, and
+    `toolkit.py status`."""
     def of_type(event_type: str) -> list[dict[str, Any]]:
         return [e for e in events if e.get("event_type") == event_type]
 

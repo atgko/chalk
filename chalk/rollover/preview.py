@@ -76,6 +76,8 @@ _PLACEHOLDER_DATE = dt.date(1900, 1, 1)
 
 @dataclass
 class WeekChange:
+    """One row of the rollover preview: a week (or break) moving from
+    `old_date` to `new_date`, and anything to check about it."""
     week_number: int | None
     label: str
     old_date: dt.date | None
@@ -85,6 +87,7 @@ class WeekChange:
 
 @dataclass(frozen=True)
 class RolloverPreview:
+    """Everything the instructor reviews before confirming a rollover."""
     source_term: str
     target_term: str
     source_duration_weeks: int

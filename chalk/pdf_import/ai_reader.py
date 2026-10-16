@@ -157,6 +157,7 @@ class _Syllabus(BaseModel):
 
 
 def build_prompt(local_blocks: list[Block]) -> str:
+    """The reading prompt, with the text read on this computer filled in."""
     return _PROMPT.replace("{syllabus_text}", blocks_as_text(local_blocks))
 
 
@@ -172,6 +173,8 @@ def read_with_ai(
 
 
 def parse_reply(text: str) -> list[Block]:
+    """The AI's JSON reply as blocks. Raises ExtractionError, saying what
+    to try instead, if it isn't the JSON asked for (e.g. cut off)."""
     try:
         syllabus = _Syllabus.model_validate(json.loads(_json_object(text)))
     except (ValueError, ValidationError) as exc:

@@ -96,6 +96,8 @@ def main(
     out: TextIO | None = None,
     err: TextIO | None = None,
 ) -> int:
+    """Run `toolkit.py` with `argv` and return the exit code. Input and
+    output are parameters so tests can drive it without a terminal."""
     console = _Console(out or sys.stdout, err or sys.stderr, input_fn)
     args = build_parser().parse_args(argv)
     try:
@@ -460,6 +462,8 @@ def _format_course_summary(course_data: CourseData) -> str:
 
 
 def format_status(status: ProjectStatus, paths: ProjectPaths) -> str:
+    """The `status` command's summary: the course, source files, outputs,
+    cost to date, and the evaluation counts."""
     if status.course is None:
         course_line = "No course.json yet — run `extract` on your syllabus."
     else:

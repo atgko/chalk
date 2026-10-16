@@ -34,6 +34,7 @@ def render_header(title: str) -> None:
 
 
 def relative(path: Path, paths: ProjectPaths) -> str:
+    """`path` as shown to the instructor: relative to the project folder."""
     return path.relative_to(paths.root).as_posix()
 
 
