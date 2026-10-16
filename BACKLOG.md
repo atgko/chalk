@@ -36,7 +36,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
   - Ask the provider for its current model list (OpenAI, Anthropic, and Gemini all have a list-models API) when the key is tested, and offer those.
   - Keep the bundled rates current: review `resources/config.json` each term, with a "prices last checked" date in the file. Gemini's were checked 2026-10-07.
   - When a saved model is retired, the new 404 message already says to choose another one in Settings; a startup check could warn sooner.
-- **P2: Read submissions from Canvas's SpeedGrader zip (sponsor meeting, Oct 15).** SpeedGrader can download all of an assignment's submissions as one zip file, which makes a natural input for the grading feature. Canvas puts the student's name and ID in each file name inside the zip, so the guardrails above have to cover file names as well as file contents. (The meeting note on this was cut off; check with whoever took the notes what else was meant.)
+- **P2: Read submissions from Canvas's SpeedGrader zip (sponsor meeting, Oct 15).** SpeedGrader can download all of an assignment's submissions as one zip file, which makes a natural input for the grading feature. Canvas puts the student's name and ID in each file name inside the zip, so the guardrails above have to cover file names as well as file contents.
 
 ## Handoff and sustainability (sponsor meeting, Oct 15)
 
