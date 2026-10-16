@@ -45,7 +45,7 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
 
     response = complete(
         prompt,
-        json_mode=True,
+        
         system="You are a careful university rubric evidence evaluator.",
         max_tokens=2000,
     )
@@ -75,7 +75,7 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
         )
         retry_response = complete(
             retry_prompt,
-            json_mode=True,
+            
             system="You are a careful university rubric evidence evaluator.",
             max_tokens=2000,
         )

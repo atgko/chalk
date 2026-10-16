@@ -99,7 +99,8 @@ def render(paths):
             st.error(str(exc))
         except LLMProviderError as exc:
             st.error(str(exc))
-        except Exception:
+        except Exception as exc:
+            st.error(f"Grading error: {type(exc).__name__}: {exc}")
             st.error(
                 "The submission could not be processed. "
                 "Check the file format and try again."

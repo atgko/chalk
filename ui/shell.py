@@ -1,4 +1,4 @@
-"""App shell: project resolution, first-run setup, the eight tabs, tab
+"""App shell: project resolution, first-run setup, the seven tabs, tab
 gating, and the provider/cost footer (PRD section 7, DECISIONS.md).
 
 Every tab renders inside `_guarded`, so no traceback ever reaches the
@@ -21,11 +21,10 @@ from chalk.errors import ChalkError
 from chalk.metrics import read_events, summarize_events
 from chalk.models import CourseData
 from chalk.project import ProjectPaths, load_course, open_project
+from ui import grading_view
 from ui import (
-    drafts_view,
     export_view,
     generate_view,
-    grading_view,
     metrics_view,
     project_picker,
     review_view,
@@ -37,7 +36,7 @@ from ui import (
 )
 from ui.common import NEEDS_COURSE_MESSAGE, render_header
 
-TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Grading Assistant", "Drafts", "Export", "Metrics", "Settings")
+TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Grading Assistant", "Export", "Metrics", "Settings")
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +62,7 @@ def main(argv: list[str] | None = None) -> None:
         st.success(message)
 
     course_data = _load_course_or_warn(paths)
-    session.apply_tab_request()
-    upload, review, rollover, generate, grading, drafts, export, metrics, settings = st.tabs(
-        TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
-    )
+    upload, review, rollover, generate, grading, export, metrics, settings = st.tabs(TAB_NAMES)
     with upload:
         _guarded(upload_view.render, paths)
     with review:
@@ -77,8 +73,6 @@ def main(argv: list[str] | None = None) -> None:
             _gated(course_data, view.render, paths, course_data)
     with grading:
         _guarded(grading_view.render, paths)
-    with drafts:
-        _guarded(drafts_view.render, paths)
     with metrics:
         _gated(course_data, metrics_view.render, paths)
     with settings:
@@ -126,7 +120,7 @@ def _warn_if_unsaved_extraction(course_data: CourseData | None) -> None:
     st.warning(
         f"You extracted {pending.course_data.course.title} but haven't saved it yet. This tab still "
         f"shows the saved course ({course_data.course.title}). Click **Confirm and save** on the "
-        "Review tab to use the new syllabus, or **Discard** there to drop it."
+        "Review tab to use the new syllabus."
     )
 
 

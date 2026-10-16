@@ -54,7 +54,7 @@ def grade_criterion(submission, rubric, criterion, instructions=""):
 
     response = complete(
         prompt,
-        json_mode=True,
+        
         system="You are a rubric-based university grading assistant.",
         max_tokens=2000 if "localhost:11434" in os.getenv("LLM_BASE_URL", "") or "127.0.0.1:11434" in os.getenv("LLM_BASE_URL", "") else 500,
     )

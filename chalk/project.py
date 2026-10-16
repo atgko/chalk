@@ -26,8 +26,7 @@ from chalk.models import CourseData, SourceMaterialRef
 RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 
 SOURCE_SUFFIXES = (".pdf", ".docx", ".md", ".txt")
-# One per generated content type (chalk/generation/specs.py; a test checks they match).
-OUTPUT_SUBDIRS = ("quizzes", "discussions", "assignments", "rubrics", "summaries", "slides")
+OUTPUT_SUBDIRS = ("quizzes", "discussions", "rubrics", "summaries", "slides")
 
 _PROJECT_GITIGNORE = ".env\n"
 
@@ -186,7 +185,7 @@ def add_source(paths: ProjectPaths, file_path, *, now: dt.datetime | None = None
 
     course_data = load_course(paths)
     if course_data is not None:
-        ref = SourceMaterialRef(filename=destination.name, added_at=now or dt.datetime.now(dt.UTC))
+        ref = SourceMaterialRef(filename=destination.name, added_at=now or dt.datetime.now(dt.timezone.utc))
         kept = [m for m in course_data.source_materials if m.filename != destination.name]
         save_course(paths, course_data.model_copy(update={"source_materials": [*kept, ref]}))
 

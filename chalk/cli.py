@@ -27,7 +27,6 @@ from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
-from chalk.extractors.consistency import grading_weight_warning
 from chalk.generation.engine import (
     GenerationRequest,
     current_env,
@@ -176,12 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--week", type=int, help="Week number (all types except rubric).")
     generate.add_argument("--count", type=int, help="Quiz questions (default 5) or discussion prompts (default 3).")
     generate.add_argument("--format", choices=QUIZ_FORMATS, default="mixed", help="Quiz question format.")
-    generate.add_argument("--multiple-choice", type=int, help="Mixed quiz: how many multiple-choice questions.")
-    generate.add_argument("--short-answer", type=int, help="Mixed quiz: how many short-answer questions.")
     generate.add_argument("--assignment", help="Rubric: the assignment's name.")
-    generate.add_argument("--assignment-goal", default="", help="Assignment: required learning goal.")
-    generate.add_argument("--assignment-mode", choices=("create", "enhance"), default="create", help="Assignment: create or enhance an existing assignment.")
-
     generate.add_argument("--description", help="Rubric: the assignment description, as text.")
     generate.add_argument("--description-file", type=Path, help="Rubric: read the description from a file.")
     generate.add_argument("--points", type=int, default=DEFAULT_RUBRIC_POINTS, help="Rubric: total points.")
@@ -318,13 +312,6 @@ def _cmd_generate(args, console: _Console) -> int:
     return 0
 
 
-def _split_total(args) -> int | None:
-    """A mixed quiz's total when only the split was given."""
-    if args.multiple_choice is None or args.short_answer is None:
-        return None
-    return args.multiple_choice + args.short_answer
-
-
 def _generation_request(args) -> GenerationRequest:
     description = args.description or ""
     if args.description_file is not None:
@@ -334,15 +321,10 @@ def _generation_request(args) -> GenerationRequest:
     return GenerationRequest(
         content_type=args.type,
         week_number=args.week,
-        question_count=args.count or _split_total(args) or DEFAULT_QUESTION_COUNT,
+        question_count=args.count or DEFAULT_QUESTION_COUNT,
         quiz_format=args.format,
-        multiple_choice_count=args.multiple_choice,
-        short_answer_count=args.short_answer,
         prompt_count=args.count or DEFAULT_PROMPT_COUNT,
         assignment_name=args.assignment or "",
-        assignment_goal=args.assignment_goal,
-        assignment_mode=args.assignment_mode,
-
         assignment_description=description,
         total_points=args.points,
         slide_notes=args.notes or "",
@@ -433,7 +415,6 @@ def _preview_date(date: dt.date) -> str:
 def _format_course_summary(course_data: CourseData) -> str:
     course = course_data.course
     breaks = sum(1 for week in course_data.weeks if week.is_break)
-    weight_warning = grading_weight_warning(course_data)
     return "\n".join(
         [
             f"Extracted: {course.title} — {course.term}",
@@ -443,7 +424,6 @@ def _format_course_summary(course_data: CourseData) -> str:
                 f"{len(course_data.assessments)} assessments, "
                 f"{len(course_data.university_dates)} university dates"
             ),
-            *([f"  Warning: {weight_warning}"] if weight_warning else []),
         ]
     )
 
