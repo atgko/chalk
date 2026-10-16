@@ -1,7 +1,8 @@
 """Generate tab (PRD section 7.2 / F-05): choose a content type and its
 options, see the cost estimate, generate a draft, review it inline, then
 Save (archiving any previous version), Regenerate (after confirming the
-new paid call), or Discard."""
+new paid call), or Discard. Generation runs in the background, so the
+instructor can switch tabs while it works (ui/background.py)."""
 
 from __future__ import annotations
 
@@ -34,11 +35,18 @@ from chalk.generation.specs import (
 )
 from chalk.models import CourseData
 from chalk.project import SOURCE_SUFFIXES, ProjectPaths, add_source, list_source_files
-from ui import common, session
+from ui import background, common, session
 from ui.upload_view import save_upload
+
+_JOB = "generate"
 
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
+    _apply_finished_job()
+    if background.is_running(_JOB):
+        st.info("Generating your draft. It will appear here when it's ready.")
+        return
+
     draft = session.get_draft()
     if draft is not None:
         _render_draft(paths, course_data, draft)
@@ -254,14 +262,35 @@ def _rubric_fields() -> dict:
 
 
 def _run(paths: ProjectPaths, course_data: CourseData, request: GenerationRequest) -> None:
+    background.start(_JOB, f"Generating a draft ({_describe(request)})", generate, paths, course_data, request)
+    st.rerun()
+
+
+def _apply_finished_job() -> None:
+    """Show a draft generated in the background, or why it failed. If the
+    instructor moved to another tab meanwhile, say where to find it."""
+    future = background.take_finished(_JOB)
+    if future is None:
+        return
+    elsewhere = session.active_tab() != "Generate"
     try:
-        with st.spinner("Generating — this can take a minute…"):
-            draft = generate(paths, course_data, request)
+        draft = future.result()
     except ChalkError as exc:
+        if elsewhere:
+            session.flash_error(f"Generation failed: {exc.user_message}")
+            st.rerun()
         st.error(exc.user_message)
         return
     session.set_draft(draft)
-    st.rerun()
+    if elsewhere:
+        session.flash(f"Your draft ({_describe(draft.request)}) is ready on the Generate tab.")
+        st.rerun()
+
+
+def _describe(request: GenerationRequest) -> str:
+    subject = _subject(request)
+    label = SPECS[request.content_type].label
+    return f"{label}, {subject}" if subject else label
 
 
 def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: GeneratedDraft) -> None:

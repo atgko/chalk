@@ -7,13 +7,14 @@ test_ui_helpers.py, and upload results are injected via session state.
 """
 
 import datetime as dt
+from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
-from chalk.pipeline import extract_syllabus, save_reviewed_course
+from chalk.pipeline import extract_syllabus
 from chalk.project import ProjectPaths, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
 from ui import session
@@ -21,32 +22,23 @@ from ui.common import NEEDS_COURSE_MESSAGE
 from ui.session import PendingExtraction, TableChoice
 
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
-_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+pytestmark = pytest.mark.usefixtures("isolated_env")
 
 
 @pytest.fixture(autouse=True)
-def isolated_env(monkeypatch):
-    """The app loads the project's .env into os.environ; register every
-    provider variable with monkeypatch so each test's changes are undone."""
-    for key in _ENV_KEYS:
-        monkeypatch.delenv(key, raising=False)
+def inline_jobs(monkeypatch):
+    """Run background jobs (ui/background.py) inline, so a click's result
+    is there on the next run. test_background.py covers the real threads."""
 
+    def run_now(fn, *args, **kwargs) -> Future:
+        future: Future = Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - the view reports it, as with a real thread
+            future.set_exception(exc)
+        return future
 
-@pytest.fixture
-def project(tmp_project):
-    (tmp_project.env).write_text(
-        "LLM_PROVIDER=openai\nLLM_API_KEY=sk-test\nLLM_BASE_URL=https://api.openai.com/v1\nLLM_MODEL=gpt-4o\n",
-        encoding="utf-8",
-    )
-    return tmp_project
-
-
-@pytest.fixture
-def saved_project(project, tmp_path):
-    syllabus = md_builder.build_minimal_syllabus(tmp_path / "syllabus.md")
-    course_data, _ = extract_syllabus(project, syllabus)
-    save_reviewed_course(project, course_data)
-    return project
+    monkeypatch.setattr("ui.background._submit", run_now)
 
 
 def launch(paths=None, **state) -> AppTest:

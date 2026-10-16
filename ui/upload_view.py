@@ -6,6 +6,9 @@ consistency check (PRD section 6.1).
 A PDF syllabus is read into a Word file first, the way the instructor
 chooses: on this computer (free, private) or with AI (handles unusual
 layouts, costs a few cents). Either way they can download that Word file.
+
+Extraction runs in the background, so switching tabs doesn't stop an AI
+read of a PDF partway through (ui/background.py).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from chalk.pipeline import (
     extract_syllabus,
 )
 from chalk.project import ProjectPaths
-from ui import common, session
+from ui import background, common, session
 from ui.session import PendingExtraction, TableChoice
 
 _PDF_METHOD_LABELS = {
@@ -107,7 +110,17 @@ def _ai_cost_notice(conversion: PdfConversion | None) -> str | None:
     return f"Read {conversion.pdf_name} with AI. Cost: {format_cost(conversion.cost_usd)}."
 
 
+_JOB = "extract"
+
+
 def render(paths: ProjectPaths) -> None:
+    finished = background.take_finished(_JOB)
+    if finished is not None:
+        _apply(finished.result(), elsewhere=session.active_tab() != "Upload")
+    if background.is_running(_JOB):
+        st.info("Reading your syllabus. The result will appear here when it's ready.")
+        return
+
     table_choice = session.get_table_choice()
     if table_choice is not None:
         _render_table_picker(paths, table_choice)
@@ -127,10 +140,10 @@ def render(paths: ProjectPaths) -> None:
         can_extract = pdf_method == "local" or env_is_configured(paths.env)
 
     if st.button("Extract course", type="primary", disabled=not can_extract):
-        spinner = "Reading the PDF — this can take a minute…" if is_pdf(uploaded.name) else "Reading the syllabus…"
-        with st.spinner(spinner):
-            outcome = extract_upload(paths, save_upload(uploaded.name, uploaded.getvalue()), pdf_method=pdf_method)
-        _apply(outcome)
+        label = f"Reading {uploaded.name}"
+        upload_path = save_upload(uploaded.name, uploaded.getvalue())
+        background.start(_JOB, label, extract_upload, paths, upload_path, pdf_method=pdf_method)
+        st.rerun()
 
     if pending is not None:
         st.success(
@@ -171,18 +184,29 @@ def _render_converted_download(paths: ProjectPaths, pending: PendingExtraction) 
         common.download_button(source, paths, key_prefix="converted-pdf")
 
 
-def _apply(outcome: UploadOutcome) -> None:
+def _apply(outcome: UploadOutcome, *, elsewhere: bool = False) -> None:
+    """Act on an extraction. `elsewhere` means the instructor moved to
+    another tab while it ran: leave them there and say what happened."""
     if outcome.error:
-        st.error(outcome.error)
-        return
+        if not elsewhere:
+            st.error(outcome.error)
+            return
+        session.flash_error(outcome.error)
+        st.rerun()
     session.set_table_choice(outcome.table_choice)
+    messages = [outcome.notice] if outcome.notice else []
     if outcome.pending is not None:
         session.set_pending_extraction(outcome.pending)
         session.set_rollover_plan(None)
         if outcome.pending.acknowledged:  # otherwise the term warning stays on Upload
-            session.go_to_tab("Review")
-    if outcome.notice:
-        session.flash(outcome.notice)
+            if elsewhere:
+                messages.append(f"Extracted {outcome.pending.course_data.course.title}. Check it on the Review tab.")
+            else:
+                session.go_to_tab("Review")
+    if elsewhere and (outcome.table_choice or (outcome.pending and not outcome.pending.acknowledged)):
+        messages.append("Your syllabus is read. Chalk needs a decision from you on the Upload tab.")
+    if messages:
+        session.flash(" ".join(messages))
     st.rerun()
 
 
