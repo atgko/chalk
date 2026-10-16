@@ -5,6 +5,8 @@ Week {week_number} covers: {topics}
 Learning objectives for this course:
 {learning_objectives}
 
+{course_level_guidance}
+
 Generate {question_count} questions in {format} format.
 Questions should connect concepts across the week rather than test isolated recall.
 Reference specific course elements (module names, tools, frameworks) where relevant.

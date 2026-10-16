@@ -13,6 +13,12 @@ import streamlit as st
 from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
+from chalk.generation.course_level import (
+    COURSE_LEVELS,
+    LEVEL_LABELS,
+    UPPER_DIVISION,
+    level_from_course_number,
+)
 from chalk.generation.document_export import can_export
 from chalk.generation.engine import (
     GeneratedDraft,
@@ -95,6 +101,7 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
         fields |= _rubric_fields()
     elif spec.key == "slides":
         fields["slide_notes"] = st.text_area("Bullet points or a reading excerpt (optional)")
+    fields["course_level"] = _course_level_choice(course_data)
 
     syllabus_name = Path(course_data.course.source_file).name
     materials = [name for name in list_source_files(paths) if name != syllabus_name]
@@ -168,6 +175,23 @@ def _render_source_uploader(paths: ProjectPaths) -> None:
             st.rerun()
 
 
+def _course_level_choice(course_data: CourseData) -> str:
+    """How demanding the draft should be, defaulting to what the course
+    number implies (chalk/generation/course_level.py)."""
+    implied = level_from_course_number(course_data.course.number)
+    level = st.selectbox(
+        "Course level",
+        COURSE_LEVELS,
+        index=COURSE_LEVELS.index(implied or UPPER_DIVISION),
+        format_func=LEVEL_LABELS.get,
+        key="course-level",
+        help="Sets how demanding the draft is: from guided, introductory work to graduate-level analysis.",
+    )
+    if implied is None:
+        st.caption("Chalk couldn't tell the level from the course number, so check this one.")
+    return level
+
+
 def _assignment_fields() -> dict:
     st.markdown("### Assignment Creator / Enhancer")
     mode_label = st.radio(
@@ -191,6 +215,13 @@ def _assignment_fields() -> dict:
         )
         if uploaded is not None:
             description = read_source_text(save_upload(uploaded.name, uploaded.getvalue()))
+    include_ai = st.checkbox(
+        "Include a task where students use AI as part of their learning",
+        key="assignment-ai-component",
+        help="Students use an AI tool for one task (e.g. brainstorming or feedback on a draft), "
+        "document how they used it, and reflect on its limits. The learning goal is still shown "
+        "through their own work.",
+    )
     requirements = st.text_area(
         "Requirements or constraints (optional)",
         placeholder="Length, format, deliverables, allowed AI use, grading expectations, or anything Chalk should preserve.",
@@ -246,6 +277,7 @@ def _assignment_fields() -> dict:
         "assignment_format": assignment_format,
         "assignment_evaluation": evaluation,
         "assignment_submission": submission,
+        "include_ai_component": include_ai,
     }
 
 

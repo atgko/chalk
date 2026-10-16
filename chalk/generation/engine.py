@@ -19,6 +19,7 @@ from chalk import costs, metrics
 from chalk.archiving import archive_before_write
 from chalk.config import load_config
 from chalk.errors import GenerationError
+from chalk.generation.course_level import AI_COMPONENT_GUIDANCE, level_guidance
 from chalk.generation.prompts import fill_template, load_template
 from chalk.generation.slides import normalize_slides
 from chalk.generation.source_context import build_source_context
@@ -68,6 +69,9 @@ class GenerationRequest:
     total_points: int = DEFAULT_RUBRIC_POINTS
     slide_notes: str = ""
     source_files: tuple[str, ...] = ()
+    # chalk/generation/course_level.py. None leaves the level to the model.
+    course_level: str | None = None
+    include_ai_component: bool = False  # assignments only
 
 
 @dataclass(frozen=True)
@@ -113,7 +117,23 @@ def build_prompt(paths: ProjectPaths, course_data: CourseData, request: Generati
         "source_material_context": build_source_context(paths, list(request.source_files)),
         **_type_variables(spec, course_data, request),
     }
-    return fill_template(template, variables)
+    optional = _optional_guidance(spec, request)
+    prompt = fill_template(template, variables | optional)
+    # A template from before these variables existed: add the guidance at the end.
+    unplaced = [text for name, text in optional.items() if text and f"{{{name}}}" not in template]
+    if not unplaced:
+        return prompt
+    return "\n\n".join([prompt.rstrip(), *unplaced]) + "\n"
+
+
+def _optional_guidance(spec: ContentSpec, request: GenerationRequest) -> dict[str, str]:
+    """Course level and the assignment's AI-use component: optional
+    template variables, empty when not asked for."""
+    include_ai = spec.key == "assignment" and request.include_ai_component
+    return {
+        "course_level_guidance": level_guidance(request.course_level),
+        "ai_component_guidance": AI_COMPONENT_GUIDANCE if include_ai else "",
+    }
 
 
 def _type_variables(spec: ContentSpec, course_data: CourseData, request: GenerationRequest) -> dict[str, str]:

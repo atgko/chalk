@@ -28,6 +28,7 @@ from chalk.demo import TRY_THESE_DIR, open_demo_project
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
 from chalk.extractors.consistency import grading_weight_warning
+from chalk.generation.course_level import COURSE_LEVELS, level_from_course_number
 from chalk.generation.engine import (
     GenerationRequest,
     current_env,
@@ -186,6 +187,14 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--description-file", type=Path, help="Rubric: read the description from a file.")
     generate.add_argument("--points", type=int, default=DEFAULT_RUBRIC_POINTS, help="Rubric: total points.")
     generate.add_argument("--notes", help="Slides: bullet points or a reading excerpt.")
+    generate.add_argument(
+        "--level",
+        choices=COURSE_LEVELS,
+        help="Course level (default: from the course number, e.g. 6000 and up is graduate).",
+    )
+    generate.add_argument(
+        "--ai-component", action="store_true", help="Assignment: include a task where students use AI to learn."
+    )
     generate.add_argument("--source", action="append", help="A file in source/ to ground the draft in (repeatable).")
     generate.add_argument("--yes", action="store_true", help="Overwrite an existing draft without asking.")
     generate.set_defaults(handler=_cmd_generate)
@@ -297,7 +306,7 @@ def _cmd_generate(args, console: _Console) -> int:
     paths = open_project(args.project)
     _require_provider(paths)
     course_data = require_course(paths)
-    request = _generation_request(args)
+    request = _generation_request(args, course_data)
     if spec_for(request.content_type).per_week and request.week_number is None:
         raise ChalkError("Say which week to generate for, e.g. --week 3.")
 
@@ -325,7 +334,7 @@ def _split_total(args) -> int | None:
     return args.multiple_choice + args.short_answer
 
 
-def _generation_request(args) -> GenerationRequest:
+def _generation_request(args, course_data: CourseData) -> GenerationRequest:
     description = args.description or ""
     if args.description_file is not None:
         if not args.description_file.is_file():
@@ -347,6 +356,8 @@ def _generation_request(args) -> GenerationRequest:
         total_points=args.points,
         slide_notes=args.notes or "",
         source_files=tuple(args.source or ()),
+        course_level=args.level or level_from_course_number(course_data.course.number),
+        include_ai_component=args.ai_component,
     )
 
 

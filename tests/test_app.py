@@ -940,3 +940,26 @@ def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
     at = click(launch(), "Reset the demo course")
     assert_no_exception(at)
     assert (demo_root / ".chalk-demo").exists()
+
+
+def test_generate_defaults_the_course_level_from_the_course_number(saved_project, llm):
+    at = launch(saved_project)
+    level = widget(at.selectbox, "Course level")
+    assert level.value == "upper-division"  # IS 4490
+
+    level.set_value("graduate")
+    at = click(at.run(), "Generate")
+
+    assert "COURSE LEVEL: graduate." in llm[-1]
+
+
+def test_an_assignment_can_include_an_ai_use_task(saved_project, llm):
+    at = launch(saved_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+    widget(at.text_input, "Assignment name").input("Design Brief")
+    widget(at.text_area, "What should students learn or demonstrate?").input("Defend a design.")
+    widget(at.checkbox, "Include a task where students use AI as part of their learning").check()
+    at = click(at.run(), "Generate")
+
+    assert "AI-USE COMPONENT" in llm[-1]

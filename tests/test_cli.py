@@ -422,3 +422,22 @@ def test_demo_command_creates_then_reopens_then_resets(tmp_path):
 
     assert run("demo", "--dir", str(tmp_path), "--reset").code == 0
     assert not (root / "outputs" / "scratch.txt").exists()
+
+
+def test_generate_takes_the_course_level_from_the_course_number(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))  # IS 4490
+
+    assert run("generate", "quiz", "--week", "2", "--project", str(project)).code == 0
+
+    assert "COURSE LEVEL: upper-division undergraduate." in llm[-1]
+
+
+def test_generate_level_and_ai_component_flags(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+
+    result = run("generate", "assignment", "--assignment", "Design Brief", "--assignment-goal", "Defend a design.",
+                 "--level", "graduate", "--ai-component", "--project", str(project))
+
+    assert result.code == 0, result.err
+    assert "COURSE LEVEL: graduate." in llm[-1]
+    assert "AI-USE COMPONENT" in llm[-1]
