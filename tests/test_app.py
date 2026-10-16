@@ -15,7 +15,7 @@ from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
 from chalk.pipeline import extract_syllabus
-from chalk.project import ProjectPaths, load_course, save_course
+from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
 from ui import session
 from ui.common import NEEDS_COURSE_MESSAGE
@@ -963,3 +963,58 @@ def test_an_assignment_can_include_an_ai_use_task(saved_project, llm):
     at = click(at.run(), "Generate")
 
     assert "AI-USE COMPONENT" in llm[-1]
+
+
+# ---- Launch screen: your projects, and creating one that exists ---------------------------
+
+
+@pytest.fixture
+def projects_folder(tmp_path, monkeypatch):
+    """The launch screen's default projects/ folder, empty to start."""
+    folder = tmp_path / "projects"
+    folder.mkdir()
+    monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", folder)
+    return folder
+
+
+def test_your_projects_lists_and_opens_projects_in_the_projects_folder(projects_folder):
+    init_project(projects_folder, "IS-4490-Fall-2027")
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+
+    choice = widget(at.selectbox, "Your projects")
+    assert sorted(choice.options) == ["IS-4490-Fall-2027", "IS-6640-Fall-2027"]
+    second = choice.options[1]
+    choice.select_index(1)
+    at = click(at, "Open")
+
+    assert_no_exception(at)
+    assert any(f"Opened project {second}." in s.value for s in at.success)
+
+
+def test_no_project_list_when_the_projects_folder_is_empty(projects_folder):
+    at = launch()
+    assert "Your projects" not in {s.label for s in at.selectbox}
+
+
+def test_creating_a_project_that_exists_offers_to_open_it(projects_folder):
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+    widget(at.text_input, "Project name").input("IS-6640-Fall-2027")
+
+    at = click(at, "Create project")
+
+    assert any("already a course project named IS-6640-Fall-2027" in w.value for w in at.warning)
+    at = click(at, "Open IS-6640-Fall-2027")
+    assert_no_exception(at)
+    assert any("Opened project IS-6640-Fall-2027" in s.value for s in at.success)
+
+
+def test_choosing_another_name_dismisses_the_offer(projects_folder):
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+    widget(at.text_input, "Project name").input("IS-6640-Fall-2027")
+    at = click(click(at, "Create project"), "Choose another name")
+
+    assert not any("already a course project" in w.value for w in at.warning)
+    assert "Open IS-6640-Fall-2027" not in {b.label for b in at.button}

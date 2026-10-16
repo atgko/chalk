@@ -60,7 +60,7 @@ git clone https://github.com/atgko/chalk.git
 The first start sets everything up, which takes a couple of minutes and needs internet. After that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
 
 - **Want to look around first?** Double-click **`Start Chalk Demo`** instead, or click **Open the demo course** on the launch screen. It opens a sample course with a syllabus already loaded. See [DEMO.md](DEMO.md) for a guided walkthrough.
-- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, paste its folder path under **Open a course project**.
+- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, pick it under **Your projects** (most recently used first) and click **Open**. For a project kept somewhere else, paste or browse to its folder under **Open a course project**.
 - **AI provider:** connect one on the welcome screen, or click **Skip for now**. Extraction, rollover, and export work without one, and you can connect later in the **Settings** tab.
 
 ### 2d. Manual setup (optional)
@@ -469,6 +469,9 @@ Convert the file to one of those types first.
 
 **"'…' isn't a Chalk course project (no config.json)."**
 Point at the project folder itself (the one containing `course.json` and `config.json`), or create a new project.
+
+**"There's already a course project named … in …"**
+You tried to create a project that already exists. Click **Open …** to open it, or choose another name. Chalk never overwrites a project: to start over, rename or delete that folder first.
 
 **"A folder named '…' already exists here and isn't empty. Pick another name."** / **"'…' isn't a usable project name."**
 Choose a new name without slashes, like `IS-6640-Fall-2027`.
