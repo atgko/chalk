@@ -47,6 +47,20 @@ _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
 )
 
 
+_STATUS_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.APIStatusError,
+    anthropic.APIStatusError,
+)
+_PERMISSION_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.PermissionDeniedError,
+    anthropic.PermissionDeniedError,
+)
+_NOT_FOUND_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.NotFoundError,
+    anthropic.NotFoundError,
+)
+
+
 class CompletionResult(TypedDict):
     text: str
     input_tokens: int
@@ -54,6 +68,8 @@ class CompletionResult(TypedDict):
 
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1"
+_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+_GEMINI_REASONING_EFFORT = "low"
 
 
 def _get_provider() -> str:
@@ -76,6 +92,8 @@ def _auth_error_message() -> str:
         return f"The endpoint at {local_url} did not accept the API key. Check LLM_API_KEY in your .env."
     if _get_provider() == "anthropic":
         return "The Anthropic API key was not accepted. Check it at console.anthropic.com and try again."
+    if _get_provider() == "gemini":
+        return "The Gemini API key was not accepted. Check it at aistudio.google.com and try again."
     return "The OpenAI API key was not accepted. Check it at platform.openai.com and try again."
 
 
@@ -92,11 +110,75 @@ def _connection_error_message() -> str:
     )
 
 
+
+_SHOW_PROVIDER_DETAILS = True
+
+
+def _provider_label() -> str:
+    if _local_base_url():
+        return "local model"
+    return {"anthropic": "Anthropic", "gemini": "Gemini"}.get(
+        _get_provider(), "OpenAI"
+    )
+
+
+def _is_out_of_credits(exc: Exception) -> bool:
+    return getattr(exc, "code", None) == "insufficient_quota"
+
+
+def _out_of_credits_message() -> str:
+    return (
+        "Your OpenAI account has no API credits. Add credits at "
+        "platform.openai.com/settings/organization/billing and try again. "
+        "A ChatGPT subscription does not include API use."
+    )
+
+
+def _provider_detail(exc: Exception) -> str:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error", body)
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])
+    return str(getattr(exc, "message", "") or exc)
+
+
+def _status_error_message(exc: Exception) -> str:
+    label = _provider_label()
+    model = os.getenv("LLM_MODEL", "")
+    if isinstance(exc, _PERMISSION_EXCEPTIONS):
+        message = (
+            f'{label} refused this request (error 403). The API key may be restricted, '
+            f'the project may not allow the model "{model}", or the service may not be '
+            "available in your region or network."
+        )
+    elif isinstance(exc, _NOT_FOUND_EXCEPTIONS):
+        local_url = _local_base_url()
+        if local_url:
+            message = (
+                f"The model '{model}' isn't available at the local endpoint "
+                f"{local_url} (error 404). Choose a different model in Settings."
+            )
+        else:
+            message = (
+                f"The model '{model}' isn't available to this {label} API key (error 404). "
+                "Choose a different model in Settings."
+            )
+    else:
+        status = getattr(exc, "status_code", "unknown")
+        message = f"{label} returned an error (status {status})."
+    if _SHOW_PROVIDER_DETAILS and not isinstance(exc, _NOT_FOUND_EXCEPTIONS):
+        message += f" Provider said: {_provider_detail(exc)}"
+    return message
+
+
+
 def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
     client = openai.OpenAI(
         api_key=os.getenv("LLM_API_KEY", "ollama"),
-        base_url=os.getenv("LLM_BASE_URL") or _OPENAI_BASE_URL,
+        base_url=os.getenv("LLM_BASE_URL") or (_GEMINI_BASE_URL if _get_provider() == "gemini" else _OPENAI_BASE_URL),
     )
+    extra = {"reasoning_effort": _GEMINI_REASONING_EFFORT} if _get_provider() == "gemini" else {}
     response = client.chat.completions.create(
         model=os.getenv("LLM_MODEL", "gpt-4o"),
         messages=[
@@ -104,9 +186,10 @@ def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
             {"role": "user", "content": prompt},
         ],
         max_tokens=max_tokens,
+        **extra,
     )
     return {
-        "text": response.choices[0].message.content,
+        "text": response.choices[0].message.content or "",
         "input_tokens": response.usage.prompt_tokens,
         "output_tokens": response.usage.completion_tokens,
     }
@@ -154,10 +237,15 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
             raise LLMProviderError(_connection_error_message()) from exc
 
         except _TRANSIENT_EXCEPTIONS as exc:
+            if _is_out_of_credits(exc):
+                raise LLMProviderError(_out_of_credits_message()) from exc
             last_transient_error = exc
             if attempt < _MAX_ATTEMPTS - 1:
                 time.sleep(_BACKOFF_BASE_SECONDS * (2**attempt))
                 continue
+
+        except _STATUS_EXCEPTIONS as exc:
+            raise LLMProviderError(_status_error_message(exc)) from exc
 
         except Exception as exc:
             raise LLMProviderError(

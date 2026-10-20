@@ -50,6 +50,8 @@ class GenerationRequest:
     week_number: int | None = None
     question_count: int = DEFAULT_QUESTION_COUNT
     quiz_format: str = "mixed"
+    multiple_choice_count: int | None = None
+    short_answer_count: int | None = None
     prompt_count: int = DEFAULT_PROMPT_COUNT
     assignment_name: str = ""
     assignment_description: str = ""
@@ -195,6 +197,24 @@ def _type_variables(spec: ContentSpec, course_data: CourseData, request: Generat
         if request.quiz_format not in QUIZ_FORMATS:
             raise GenerationError(f"Quiz format must be one of: {', '.join(QUIZ_FORMATS)}.")
         variables |= {"question_count": str(request.question_count), "format": request.quiz_format}
+        if request.quiz_format == "mixed":
+            mc = request.multiple_choice_count
+            sa = request.short_answer_count
+            if (mc is None) != (sa is None):
+                raise GenerationError("Give both the multiple-choice and the short-answer count")
+            if mc is not None and sa is not None:
+                if mc < 1 or sa < 1:
+                    raise GenerationError(
+                        "A mixed quiz needs at least one multiple-choice and one short-answer question"
+                    )
+                if mc + sa != request.question_count:
+                    raise GenerationError(
+                        f"{mc} multiple choice and {sa} short answer make "
+                        f"{mc + sa} questions, not {request.question_count}"
+                    )
+                variables["format"] = (
+                    f"mixed (exactly {mc} multiple choice and {sa} short answer)"
+                )
     elif spec.key == "discussion":
         _require_positive(request.prompt_count, "Prompt count")
         variables["prompt_count"] = str(request.prompt_count)

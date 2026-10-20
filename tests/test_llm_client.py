@@ -379,7 +379,7 @@ def test_unknown_model_names_the_model(monkeypatch):
         complete("prompt")
 
     assert exc_info.value.user_message.startswith(
-        'The model "gpt-retired" isn\'t available to this OpenAI API key (error 404).'
+        "The model 'gpt-retired' isn't available to this OpenAI API key (error 404)."
     )
 
 
