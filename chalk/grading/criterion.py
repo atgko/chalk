@@ -73,7 +73,7 @@ def grade_criterion(submission, rubric, criterion, instructions=""):
     deduction_comment = data.get("deduction_comment", "")
 
     if isinstance(earned, bool) or not isinstance(earned, (int, float)):
-        raise ValueError("The AI returned an invalid numeric score.")
+        raise TypeError("The AI returned an invalid numeric score.")
 
     if not 0 <= earned <= maximum:
         raise ValueError("The AI returned a score outside the rubric range.")
@@ -82,7 +82,7 @@ def grade_criterion(submission, rubric, criterion, instructions=""):
         raise ValueError("The AI did not explain its grading recommendation.")
 
     if not isinstance(deduction_comment, str):
-        raise ValueError("The AI returned an invalid deduction comment.")
+        raise TypeError("The AI returned an invalid deduction comment.")
 
     if earned < maximum and not deduction_comment.strip():
         deduction_comment = (

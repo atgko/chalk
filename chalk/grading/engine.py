@@ -172,12 +172,12 @@ def analyze_submission_structured(
         ) from exc
 
     if not isinstance(data, dict):
-        raise ValueError("The AI returned an invalid grading result.")
+        raise TypeError("The AI returned an invalid grading result.")
 
     ai_criteria = data.get("criteria")
 
     if not isinstance(ai_criteria, list):
-        raise ValueError("The AI did not return valid rubric criteria.")
+        raise TypeError("The AI did not return valid rubric criteria.")
 
     if len(ai_criteria) != len(trusted_criteria):
         raise ValueError(
@@ -187,7 +187,7 @@ def analyze_submission_structured(
 
     for expected, actual in zip(trusted_criteria, ai_criteria):
         if not isinstance(actual, dict):
-            raise ValueError("The AI returned an invalid rubric criterion.")
+            raise TypeError("The AI returned an invalid rubric criterion.")
 
         # Verify the AI evaluated the correct rubric category.
         ai_name = actual.get("name")
@@ -208,12 +208,6 @@ def analyze_submission_structured(
     import re as rubric_re
 
     # Detect explicit totals such as "100 points" or "(100 points)".
-    totals = rubric_re.findall(
-        r"(?<![\\w.])(\\d+(?:\\.\\d+)?)\\s*(?:total\\s*)?points?\\b",
-        rubric,
-        flags=rubric_re.IGNORECASE,
-    )
-
     # Prefer an explicitly labeled overall total when available.
     explicit_total = rubric_re.search(
         r"(?:total|rubric)\\s*[:(=-]?\\s*(\\d+(?:\\.\\d+)?)\\s*points?\\b",
@@ -236,7 +230,7 @@ def analyze_submission_structured(
     notes = data.get("instructor_notes", "")
 
     if not isinstance(feedback, str) or not isinstance(notes, str):
-        raise ValueError("The AI returned invalid feedback fields.")
+        raise TypeError("The AI returned invalid feedback fields.")
 
     return {
         **scores,

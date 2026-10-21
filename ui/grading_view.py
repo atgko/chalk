@@ -100,7 +100,7 @@ def render(paths):
             st.error(str(exc))
         except LLMProviderError as exc:
             st.error(str(exc))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - Keep the grading UI from crashing.
             st.error(f"Grading error: {type(exc).__name__}: {exc}")
             st.error(
                 "The submission could not be processed. "

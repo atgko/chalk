@@ -20,10 +20,10 @@ def calculate_evidence_score(subrequirements, evaluations):
             raise ValueError("Subrequirement points must be positive.")
 
         if not isinstance(met, bool):
-            raise ValueError("Each evaluation must have a true/false met value.")
+            raise TypeError("Each evaluation must have a true/false met value.")
 
         if not isinstance(evidence, str):
-            raise ValueError("Evidence must be text.")
+            raise TypeError("Evidence must be text.")
 
         if met and not evidence.strip():
             raise ValueError("Satisfied requirements need supporting evidence.")

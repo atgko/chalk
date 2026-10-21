@@ -58,7 +58,7 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
     data = json.loads(raw)
 
     if not isinstance(data, dict) or not isinstance(data.get("evaluations"), list):
-        raise ValueError("AI did not return a valid evaluations list.")
+        raise TypeError("AI did not return a valid evaluations list.")
 
     try:
         result = calculate_evidence_score(requirements, data["evaluations"])
@@ -91,7 +91,7 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
             not isinstance(retry_data, dict)
             or not isinstance(retry_data.get("evaluations"), list)
         ):
-            raise ValueError(
+            raise TypeError(
                 "AI retry did not return a valid evaluations list. "
                 "Instructor review is required."
             )
