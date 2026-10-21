@@ -76,8 +76,8 @@ def analyze_submission_structured(
     """Request structured preliminary grading recommendations."""
     import json
     import re
-    from chalk.grading.rubric import parse_rubric
 
+    from chalk.grading.rubric import parse_rubric
     from chalk.grading.scoring import calculate_scores
 
     if not submission.strip():

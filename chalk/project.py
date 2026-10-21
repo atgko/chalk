@@ -185,7 +185,7 @@ def add_source(paths: ProjectPaths, file_path, *, now: dt.datetime | None = None
 
     course_data = load_course(paths)
     if course_data is not None:
-        ref = SourceMaterialRef(filename=destination.name, added_at=now or dt.datetime.now(dt.timezone.utc))
+        ref = SourceMaterialRef(filename=destination.name, added_at=now or dt.datetime.now(dt.UTC))
         kept = [m for m in course_data.source_materials if m.filename != destination.name]
         save_course(paths, course_data.model_copy(update={"source_materials": [*kept, ref]}))
 

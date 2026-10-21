@@ -13,8 +13,8 @@ def calculate_scores(criteria):
         raise GradingValidationError("At least one rubric criterion is required.")
 
     results = []
-    earned_total = Decimal("0")
-    possible_total = Decimal("0")
+    earned_total = Decimal(0)
+    possible_total = Decimal(0)
 
     for criterion in criteria:
         if not isinstance(criterion, dict):

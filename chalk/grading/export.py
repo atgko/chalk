@@ -62,9 +62,10 @@ def export_word(result):
 
 def export_pdf(result):
     """Generate a PDF grading report."""
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
     from xml.sax.saxutils import escape
+
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
     output = BytesIO()
     doc = SimpleDocTemplate(output)

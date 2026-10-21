@@ -18,6 +18,8 @@ from dataclasses import dataclass
 
 from chalk.models import CourseData, Week
 
+_WEIGHT_TOLERANCE = 0.000001
+
 _SEASON_START_MONTHS = {
     "fall": {8, 9},
     "spring": {1, 2},

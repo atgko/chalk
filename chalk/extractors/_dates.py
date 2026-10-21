@@ -29,6 +29,7 @@ def year_from_term(term: str) -> int | None:
 
 
 import datetime as dt
+
 from chalk.models import Week
 
 _NEW_YEAR_GAP = dt.timedelta(days=180)

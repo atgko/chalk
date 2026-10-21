@@ -1,4 +1,5 @@
-from chalk.grading.export import export_word, export_pdf
+from chalk.grading.export import export_pdf, export_word
+
 """AI Grading Assistant interface."""
 
 from io import BytesIO

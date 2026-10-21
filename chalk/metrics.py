@@ -40,7 +40,7 @@ def append_event(log_path: Path, event_type: EventType, payload: dict[str, Any])
     log_path.parent.mkdir(parents=True, exist_ok=True)
     event = {
         "event_type": event_type,
-        "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "timestamp": dt.datetime.now(dt.UTC).isoformat(),
         **payload,
     }
     with log_path.open("a", encoding="utf-8") as f:

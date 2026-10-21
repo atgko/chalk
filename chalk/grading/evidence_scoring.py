@@ -8,7 +8,7 @@ def calculate_evidence_score(subrequirements, evaluations):
     if len(subrequirements) != len(evaluations):
         raise ValueError("Every subrequirement must have an evaluation.")
 
-    earned = Decimal("0")
+    earned = Decimal(0)
     details = []
 
     for requirement, evaluation in zip(subrequirements, evaluations):
@@ -28,7 +28,7 @@ def calculate_evidence_score(subrequirements, evaluations):
         if met and not evidence.strip():
             raise ValueError("Satisfied requirements need supporting evidence.")
 
-        awarded = points if met else Decimal("0")
+        awarded = points if met else Decimal(0)
         earned += awarded
 
         details.append({

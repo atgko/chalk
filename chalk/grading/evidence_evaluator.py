@@ -3,8 +3,8 @@
 import json
 import re
 
-from chalk.llm_client import complete
 from chalk.grading.evidence_scoring import calculate_evidence_score
+from chalk.llm_client import complete
 
 
 def evaluate_weighted_criterion(submission, criterion, instructions=""):

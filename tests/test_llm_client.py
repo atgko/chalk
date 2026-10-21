@@ -271,6 +271,7 @@ def test_auth_error_becomes_the_prd_message_for_each_provider(
 def test_auth_error_on_a_local_endpoint_names_the_endpoint(monkeypatch):
     """Local Ollama connection failures should identify the endpoint."""
     from urllib.error import URLError
+
     from chalk import llm_client
 
     monkeypatch.setenv("LLM_PROVIDER", "openai")

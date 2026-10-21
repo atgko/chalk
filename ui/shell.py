@@ -21,10 +21,10 @@ from chalk.errors import ChalkError
 from chalk.metrics import read_events, summarize_events
 from chalk.models import CourseData
 from chalk.project import ProjectPaths, load_course, open_project
-from ui import grading_view
 from ui import (
     export_view,
     generate_view,
+    grading_view,
     metrics_view,
     project_picker,
     review_view,
