@@ -12,7 +12,9 @@ from chalk.extractors.undated_schedule import (
     date_undated_schedule,
     default_week1,
     provisional_week1,
+    syllabus_lists_breaks,
 )
+from chalk.models import UniversityDate
 from chalk.pdf_import.tables import assemble, freeze
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from tests.fixtures.docx_builder import _add_front_matter
@@ -118,7 +120,7 @@ def test_default_week1_is_the_terms_first_class_day(tmp_path):
 def test_dating_skips_a_multi_day_break_and_adds_its_row(tmp_path):
     course_data = extract_course_data(_outline_syllabus(tmp_path / "o.docx"))
 
-    dated = date_undated_schedule(course_data, dt.date(2026, 8, 24), _CALENDARS)
+    dated = date_undated_schedule(course_data, dt.date(2026, 8, 24), _CALENDARS, skip_breaks=True)
 
     dates = [w.date for w in _regular(dated)]
     assert dates[6] == dt.date(2026, 10, 5)
@@ -132,12 +134,37 @@ def test_dating_skips_a_multi_day_break_and_adds_its_row(tmp_path):
 
 def test_changing_week1_redates_and_doesnt_duplicate_the_break(tmp_path):
     course_data = extract_course_data(_outline_syllabus(tmp_path / "o.docx"))
-    first = date_undated_schedule(course_data, dt.date(2026, 8, 24), _CALENDARS)
+    first = date_undated_schedule(course_data, dt.date(2026, 8, 24), _CALENDARS, skip_breaks=True)
 
-    again = date_undated_schedule(first, dt.date(2026, 8, 31), _CALENDARS)
+    again = date_undated_schedule(first, dt.date(2026, 8, 31), _CALENDARS, skip_breaks=True)
 
     assert _regular(again)[0].date == dt.date(2026, 8, 31)
     assert sum(1 for w in again.weeks if w.is_break) == 1
+
+
+def test_without_breaks_the_class_meets_through_them(tmp_path):
+    course_data = extract_course_data(_outline_syllabus(tmp_path / "o.docx"))
+    with_break = date_undated_schedule(course_data, dt.date(2026, 8, 24), _CALENDARS, skip_breaks=True)
+
+    dated = date_undated_schedule(with_break, dt.date(2026, 9, 28), _CALENDARS, skip_breaks=False)
+
+    assert not any(w.is_break for w in dated.weeks)  # the earlier break row is gone too
+    dates = [w.date for w in dated.weeks]
+    assert dates[2] == dt.date(2026, 10, 12)  # in Fall Break, which this course doesn't take
+    assert dates == [dt.date(2026, 9, 28) + dt.timedelta(weeks=n) for n in range(10)]
+
+
+def test_a_syllabus_lists_breaks_only_when_it_mentions_one(tmp_path):
+    course_data = extract_course_data(_outline_syllabus(tmp_path / "o.docx"))
+    assert not syllabus_lists_breaks(course_data)
+
+    def with_dates(*dates):
+        return course_data.model_copy(update={"university_dates": list(dates)})
+
+    assert not syllabus_lists_breaks(with_dates(UniversityDate(event="Last day to drop", date=dt.date(2026, 9, 4))))
+    assert syllabus_lists_breaks(with_dates(UniversityDate(event="Fall break", date=dt.date(2026, 10, 12))))
+    span = UniversityDate(event="No classes", date_start=dt.date(2026, 10, 10), date_end=dt.date(2026, 10, 18))
+    assert syllabus_lists_breaks(with_dates(span))
 
 
 # ---- Rollover writer --------------------------------------------------------------

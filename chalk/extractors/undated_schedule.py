@@ -3,9 +3,11 @@
 Some syllabi number their class meetings ("Meeting 1" to "Meeting 10")
 without saying when they fall (UAT of PR #18, IS 6490). Every Chalk
 feature works from dated weeks, so the weeks get dates: one week apart
-from a Week 1 date, moving past any multi-day break in the term's
-calendar (Fall Break, Spring Break), each of which becomes a break row.
-Single-day holidays don't move a week; rollover flags those as usual.
+from a Week 1 date. If the class takes the term's multi-day breaks (Fall
+Break, Spring Break), the weeks move past them and each becomes a break
+row. Chalk assumes it does only when the syllabus mentions a break
+(`syllabus_lists_breaks`), as rollover does; the Review tab can change
+that. Single-day holidays don't move a week; rollover flags those as usual.
 
 The extractor gives the weeks provisional dates from the season
 (`provisional_week1`), since it has no calendar. The pipeline then dates
@@ -51,13 +53,27 @@ def default_week1(course: CourseInfo, calendars: dict) -> dt.date:
     return _next_weekday(start, parse_meeting_days(course.meeting_pattern))
 
 
-def date_undated_schedule(course_data: CourseData, week1: dt.date, calendars: dict) -> CourseData:
-    """The course with its weeks dated a week apart from `week1`, skipping
-    the weeks of the term's multi-day breaks, which become break rows."""
+def syllabus_lists_breaks(course_data: CourseData) -> bool:
+    """Whether the syllabus mentions a break (in its University Dates),
+    the sign that its class takes the term's breaks. A Session 2-3 course
+    that says nothing about Fall Break may well meet through it (UAT
+    round 2), so the default is to skip a break only when it's mentioned."""
+    return any(
+        "break" in item.event.lower() or item.date_start is not None for item in course_data.university_dates
+    )
+
+
+def date_undated_schedule(
+    course_data: CourseData, week1: dt.date, calendars: dict, *, skip_breaks: bool
+) -> CourseData:
+    """The course with its weeks dated a week apart from `week1`. With
+    `skip_breaks`, the weeks of the term's multi-day breaks are skipped
+    and become break rows; without it, the class meets through them."""
     entry = find_term(calendars, course_data.course.term)
+    term_breaks = multi_day_breaks(entry.get("no_class_dates", []) if entry else []) if skip_breaks else []
     breaks = [
         (dt.date.fromisoformat(b["date_start"]), dt.date.fromisoformat(b["date_end"]), b["label"])
-        for b in multi_day_breaks(entry.get("no_class_dates", []) if entry else [])
+        for b in term_breaks
     ]
     weeks: list[Week] = []
     added: set[tuple] = set()

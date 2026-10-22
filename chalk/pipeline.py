@@ -99,7 +99,12 @@ def extract_syllabus(
         )
         if course_data.course.undated_schedule:
             calendars = load_calendars(paths.calendars_json)
-            course_data = date_undated_schedule(course_data, default_week1(course_data.course, calendars), calendars)
+            course_data = date_undated_schedule(
+                course_data,
+                default_week1(course_data.course, calendars),
+                calendars,
+                skip_breaks=syllabus_lists_breaks(course_data),
+            )
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,
