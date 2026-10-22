@@ -16,6 +16,8 @@ _STYLE_BY_KIND = {"heading": "Heading 2", "bullet": "List Bullet", "body": None}
 
 
 def write_docx(blocks: list[Block], path: Path) -> Path:
+    """Write the blocks as a Word document (headings, bullets, tables), which
+    the Word extraction path then reads like any uploaded syllabus."""
     document = Document()
     for block in blocks:
         if isinstance(block, Paragraph):

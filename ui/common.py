@@ -8,13 +8,17 @@ import streamlit as st
 
 from chalk.generation.document_export import EXPORT_FORMATS, document_title, export_document
 from chalk.project import ProjectPaths
+from ui import session
 
 FERPA_NOTICE = (
     "Course materials only — don't upload student work, grades, rosters, or any other "
     "student information (FERPA)."
 )
 KICKER = "Syllabus & course materials toolkit"
-NEEDS_COURSE_MESSAGE = "Upload and extract a syllabus first — this tab needs a saved course.json."
+NEEDS_COURSE_MESSAGE = (
+    "Start by uploading your syllabus. Chalk reads its schedule and course details, and this "
+    "tab works from them."
+)
 
 _MIME_TYPES = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -33,7 +37,16 @@ def render_header(title: str) -> None:
     st.title(title)
 
 
+def render_needs_course(tab: str) -> None:
+    """What a tab shows before any syllabus is saved: why it's empty and
+    a button to the Upload tab (UAT of PR #18: the old message named
+    course.json, which means nothing to a professor)."""
+    st.info(NEEDS_COURSE_MESSAGE, icon="📄")
+    st.button("Go to Upload", key=f"needs-course-{tab}", on_click=session.go_to_tab, args=("Upload",))
+
+
 def relative(path: Path, paths: ProjectPaths) -> str:
+    """`path` as shown to the instructor: relative to the project folder."""
     return path.relative_to(paths.root).as_posix()
 
 

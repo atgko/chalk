@@ -24,13 +24,19 @@ from chalk.course_brief import write_course_brief
 from chalk.errors import ChalkError, ProjectError, TermNotInCalendarError
 from chalk.extractors import extract_course
 from chalk.extractors.consistency import ConsistencyResult
+from chalk.extractors.undated_schedule import (
+    date_undated_schedule,
+    default_week1,
+    syllabus_lists_breaks,
+)
 from chalk.generation.engine import current_env
-from chalk.llm_client import CompletionResult
 from chalk.models import CourseData
 from chalk.pdf_import import PdfReadMethod, converted_docx_name
-from chalk.pdf_import.ai_reader import read_with_ai
+from chalk.pdf_import.ai_reader import AiReading, ask_ai_to_read, blocks_from_reply
+from chalk.pdf_import.blocks import blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
+from chalk.progress import CHARS_PER_TOKEN, ProgressCallback, report, writing_progress
 from chalk.project import ProjectPaths, copy_into_source, load_course, save_course
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
@@ -91,6 +97,14 @@ def extract_syllabus(
         course_data, consistency = extract_course(
             syllabus_path, eval_log_path=paths.eval_log, schedule_table_index=schedule_table_index
         )
+        if course_data.course.undated_schedule:
+            calendars = load_calendars(paths.calendars_json)
+            course_data = date_undated_schedule(
+                course_data,
+                default_week1(course_data.course, calendars),
+                calendars,
+                skip_breaks=syllabus_lists_breaks(course_data),
+            )
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,
@@ -136,18 +150,32 @@ class PdfConversion:
     cost_usd: float | None = None
 
 
-def convert_pdf_syllabus(paths: ProjectPaths, pdf_path, *, method: PdfReadMethod = "local") -> PdfConversion:
+def convert_pdf_syllabus(
+    paths: ProjectPaths,
+    pdf_path,
+    *,
+    method: PdfReadMethod = "local",
+    on_progress: ProgressCallback | None = None,
+) -> PdfConversion:
     """Read a PDF syllabus into "<name> (from PDF).docx". An AI read logs
     a `generation` event (tokens and cost, never content) so it counts
     toward the project's AI cost. Failures are logged as
-    `extraction_error` events and re-raised."""
+    `extraction_error` events and re-raised. `on_progress` follows
+    chalk/progress.py; only an AI read reports a fraction."""
     pdf_path = Path(pdf_path)
     try:
+        report(on_progress, None, "Reading the PDF's pages")
         blocks = read_pdf_blocks(pdf_path)
         cost = None
         if method == "ai":
-            blocks, completion = read_with_ai(blocks)
-            cost = _log_ai_reading(paths, pdf_path, completion)
+            report(on_progress, None, "Waiting for the AI to start reading")
+            on_text = writing_progress(on_progress, expected_ai_reading_tokens(blocks))
+            reading = ask_ai_to_read(blocks, on_text=on_text)
+            if reading.replies:  # paid for even if it can't be used
+                cost = _log_ai_reading(paths, pdf_path, reading)
+            if reading.error is not None:
+                raise reading.error
+            blocks = blocks_from_reply(reading)
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,
@@ -159,6 +187,14 @@ def convert_pdf_syllabus(paths: ProjectPaths, pdf_path, *, method: PdfReadMethod
     return PdfConversion(pdf_path.name, write_docx(blocks, docx_path), method, cost)
 
 
+def expected_ai_reading_tokens(blocks: list) -> int:
+    """How long the AI's structured reply should be, for the progress bar:
+    the syllabus text in tokens, scaled by the same output-to-input ratio
+    as the per-page cost estimate (the reply is the text again, as JSON)."""
+    input_tokens = len(blocks_as_text(blocks)) / CHARS_PER_TOKEN
+    return int(input_tokens * _AI_READING_OUTPUT_TOKENS_PER_PAGE / _AI_READING_INPUT_TOKENS_PER_PAGE)
+
+
 def estimate_ai_reading_cost_per_page(paths: ProjectPaths) -> float | None:
     """Rough cost of reading one PDF page with AI, shown before the
     instructor picks a reader. None when the model has no cost rate."""
@@ -166,12 +202,12 @@ def estimate_ai_reading_cost_per_page(paths: ProjectPaths) -> float | None:
     return costs.cost_usd(rate, _AI_READING_INPUT_TOKENS_PER_PAGE, _AI_READING_OUTPUT_TOKENS_PER_PAGE)
 
 
-def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, completion: CompletionResult) -> float | None:
+def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, reading: AiReading) -> float | None:
     env = current_env()
     cost = costs.cost_usd(
         costs.rate_for(load_config(paths.config_json), env),
-        completion["input_tokens"],
-        completion["output_tokens"],
+        reading.input_tokens,
+        reading.output_tokens,
     )
     metrics.append_event(
         paths.eval_log,
@@ -182,8 +218,8 @@ def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, completion: CompletionR
             "output_file": f"source/{converted_docx_name(pdf_path)}",
             "provider": env["LLM_PROVIDER"],
             "model": env["LLM_MODEL"] or "unknown model",
-            "input_tokens": completion["input_tokens"],
-            "output_tokens": completion["output_tokens"],
+            "input_tokens": reading.input_tokens,
+            "output_tokens": reading.output_tokens,
             "cost_usd": cost,
             "source_file_count": 0,
         },
@@ -213,8 +249,10 @@ def preview_rollover(
     llm_generate_topics: bool = True,
     meeting_days: tuple[int, ...] = (),
     breaks_not_observed: frozenset[str] = frozenset(),
+    on_progress: ProgressCallback | None = None,
 ) -> RolloverPlan:
-    """Compute a rollover without writing anything.
+    """Compute a rollover without writing anything. `on_progress` follows
+    chalk/progress.py.
 
     Raises TermNotInCalendarError if `target_term` isn't in the project's
     calendars.json and no manual Week 1 date was given — the caller then
@@ -233,6 +271,7 @@ def preview_rollover(
         llm_generate_topics=llm_generate_topics,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
+        on_progress=on_progress,
     )
     mismatch_flag = _duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)
     if mismatch_flag:

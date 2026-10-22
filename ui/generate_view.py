@@ -1,7 +1,8 @@
 """Generate tab (PRD section 7.2 / F-05): choose a content type and its
 options, see the cost estimate, generate a draft, review it inline, then
 Save (archiving any previous version), Regenerate (after confirming the
-new paid call), or Discard."""
+new paid call), or Discard. Generation runs in the background, so the
+instructor can switch tabs while it works (ui/background.py)."""
 
 from __future__ import annotations
 
@@ -12,6 +13,12 @@ import streamlit as st
 from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
+from chalk.generation.course_level import (
+    COURSE_LEVELS,
+    LEVEL_LABELS,
+    UPPER_DIVISION,
+    level_from_course_number,
+)
 from chalk.generation.document_export import can_export
 from chalk.generation.engine import (
     GeneratedDraft,
@@ -34,11 +41,22 @@ from chalk.generation.specs import (
 )
 from chalk.models import CourseData
 from chalk.project import SOURCE_SUFFIXES, ProjectPaths, add_source, list_source_files
-from ui import common, session
+from ui import background, common, session
 from ui.upload_view import save_upload
+
+_JOB = "generate"
+_TAB = "Generate"
 
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
+    _apply_finished_job()
+    error = background.pop_error(_TAB)
+    if error:
+        st.error(error)
+    if background.is_running(_JOB):
+        background.render_progress(_JOB)
+        return
+
     draft = session.get_draft()
     if draft is not None:
         _render_draft(paths, course_data, draft)
@@ -87,6 +105,7 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
         fields |= _rubric_fields()
     elif spec.key == "slides":
         fields["slide_notes"] = st.text_area("Bullet points or a reading excerpt (optional)")
+    fields["course_level"] = _course_level_choice(course_data)
 
     syllabus_name = Path(course_data.course.source_file).name
     materials = [name for name in list_source_files(paths) if name != syllabus_name]
@@ -160,6 +179,23 @@ def _render_source_uploader(paths: ProjectPaths) -> None:
             st.rerun()
 
 
+def _course_level_choice(course_data: CourseData) -> str:
+    """How demanding the draft should be, defaulting to what the course
+    number implies (chalk/generation/course_level.py)."""
+    implied = level_from_course_number(course_data.course.number)
+    level = st.selectbox(
+        "Course level",
+        COURSE_LEVELS,
+        index=COURSE_LEVELS.index(implied or UPPER_DIVISION),
+        format_func=LEVEL_LABELS.get,
+        key="course-level",
+        help="Sets how demanding the draft is: from guided, introductory work to graduate-level analysis.",
+    )
+    if implied is None:
+        st.caption("Chalk couldn't tell the level from the course number, so check this one.")
+    return level
+
+
 def _assignment_fields() -> dict:
     st.markdown("### Assignment Creator / Enhancer")
     mode_label = st.radio(
@@ -183,6 +219,13 @@ def _assignment_fields() -> dict:
         )
         if uploaded is not None:
             description = read_source_text(save_upload(uploaded.name, uploaded.getvalue()))
+    include_ai = st.checkbox(
+        "Include a task where students use AI as part of their learning",
+        key="assignment-ai-component",
+        help="Students use an AI tool for one task (e.g. brainstorming or feedback on a draft), "
+        "document how they used it, and reflect on its limits. The learning goal is still shown "
+        "through their own work.",
+    )
     requirements = st.text_area(
         "Requirements or constraints (optional)",
         placeholder="Length, format, deliverables, allowed AI use, grading expectations, or anything Chalk should preserve.",
@@ -238,6 +281,7 @@ def _assignment_fields() -> dict:
         "assignment_format": assignment_format,
         "assignment_evaluation": evaluation,
         "assignment_submission": submission,
+        "include_ai_component": include_ai,
     }
 
 
@@ -254,14 +298,37 @@ def _rubric_fields() -> dict:
 
 
 def _run(paths: ProjectPaths, course_data: CourseData, request: GenerationRequest) -> None:
+    background.start(
+        _JOB, f"Generating a draft ({_describe(request)})", generate, paths, course_data, request, tab=_TAB
+    )
+    st.rerun()
+
+
+def _apply_finished_job() -> None:
+    """Show a draft generated in the background, or why it failed. If the
+    instructor moved to another tab meanwhile, say where to find it."""
+    future = background.take_finished(_JOB)
+    if future is None:
+        return
+    elsewhere = session.active_tab() != _TAB
     try:
-        with st.spinner("Generating — this can take a minute…"):
-            draft = generate(paths, course_data, request)
+        draft = future.result()
     except ChalkError as exc:
+        if elsewhere:
+            background.finished_elsewhere(_TAB, f"Generation failed: {exc.user_message}", failed=True)
+            st.rerun()
         st.error(exc.user_message)
         return
     session.set_draft(draft)
-    st.rerun()
+    if elsewhere:
+        background.finished_elsewhere(_TAB, f"Your draft ({_describe(draft.request)}) is ready on the Generate tab.")
+        st.rerun()
+
+
+def _describe(request: GenerationRequest) -> str:
+    subject = _subject(request)
+    label = SPECS[request.content_type].label
+    return f"{label}, {subject}" if subject else label
 
 
 def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: GeneratedDraft) -> None:

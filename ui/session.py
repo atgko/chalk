@@ -29,6 +29,8 @@ _ROLLOVER_WRITTEN_KEY = "chalk_rollover_written"
 _DRAFT_KEY = "chalk_draft"
 _REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
+_SWITCHING_KEY = "chalk_switching_course"
+_PDF_TRIED_KEY = "chalk_pdf_methods_tried"
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,19 @@ def set_project(paths: ProjectPaths) -> None:
     st.session_state[PROJECT_ROOT_KEY] = str(paths.root)
 
 
+def leave_project() -> None:
+    """Back to the launch screen to pick another course. Everything kept
+    for this course (drafts, a pending extraction, a rollover preview) is
+    dropped, and the `--project` the app was started with is ignored from
+    now on, or it would reopen the same course."""
+    st.session_state.clear()
+    st.session_state[_SWITCHING_KEY] = True
+
+
+def is_switching_course() -> bool:
+    return st.session_state.get(_SWITCHING_KEY, False)
+
+
 def setup_skipped() -> bool:
     return st.session_state.get(_SETUP_SKIPPED_KEY, False)
 
@@ -91,6 +106,16 @@ def get_pending_extraction() -> PendingExtraction | None:
 
 def set_pending_extraction(pending: PendingExtraction | None) -> None:
     st.session_state[_PENDING_EXTRACTION_KEY] = pending
+
+
+def pdf_methods_tried(filename: str) -> frozenset[str]:
+    """The ways ("local", "ai") this PDF has been read this session."""
+    return frozenset(st.session_state.get(_PDF_TRIED_KEY, {}).get(filename, ()))
+
+
+def record_pdf_method(filename: str, method: str) -> None:
+    tried = st.session_state.get(_PDF_TRIED_KEY, {})
+    st.session_state[_PDF_TRIED_KEY] = {**tried, filename: frozenset({*tried.get(filename, ()), method})}
 
 
 def get_table_choice() -> TableChoice | None:
@@ -148,6 +173,10 @@ def go_to_tab(name: str) -> None:
     once it has rendered in this run, so the shell applies the request
     before it draws the tabs (`apply_tab_request`)."""
     st.session_state[_NEXT_TAB_KEY] = name
+
+
+def active_tab() -> str:
+    return st.session_state.get(ACTIVE_TAB_KEY) or "Upload"
 
 
 def apply_tab_request() -> None:

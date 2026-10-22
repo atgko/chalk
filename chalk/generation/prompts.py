@@ -25,6 +25,8 @@ _PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 
 
 def template_path(prompts_dir: Path, spec: ContentSpec, *, resources_dir: Path = RESOURCES_DIR) -> Path:
+    """The project's copy of the template, or the bundled default when the
+    project has none."""
     project_copy = prompts_dir / spec.template_name
     return project_copy if project_copy.exists() else resources_dir / "prompts" / spec.template_name
 
@@ -50,4 +52,5 @@ def load_template(prompts_dir: Path, spec: ContentSpec, *, resources_dir: Path =
 
 
 def fill_template(template: str, variables: dict[str, str]) -> str:
+    """Replace each known `{variable}`; leave every other brace as it is."""
     return _PLACEHOLDER_RE.sub(lambda m: variables.get(m.group(1), m.group(0)), template)

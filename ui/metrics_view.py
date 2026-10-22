@@ -7,7 +7,7 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
-from chalk.config import describe_provider, read_env
+from chalk.config import describe_provider, effective_env
 from chalk.metrics import read_events, summarize_events
 from chalk.project import ProjectPaths
 from chalk.report import render_evaluation_report
@@ -26,7 +26,7 @@ def render(paths: ProjectPaths) -> None:
         help=f"Overridden with Continue anyway: {summary.consistency_overrides}",
     )
     errors.metric("Extraction errors", len(summary.extraction_errors))
-    st.caption(f"Provider in use: {describe_provider(read_env(paths.env))}")
+    st.caption(f"Provider in use: {describe_provider(effective_env(paths.env))}")
     st.download_button(
         "Download evaluation report",
         data=render_evaluation_report(events, project_name=paths.root.name, generated_on=dt.date.today()),

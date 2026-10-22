@@ -8,6 +8,8 @@ Assignment description:
 Learning objectives for this course:
 {learning_objectives}
 
+{course_level_guidance}
+
 {source_material_context}
 
 Draft a rubric worth {total_points} points in total.

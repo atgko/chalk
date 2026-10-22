@@ -6,10 +6,14 @@ save"."""
 
 from __future__ import annotations
 
+import datetime as dt
+
 import streamlit as st
 
+from chalk.calendar_data import load_calendars
 from chalk.errors import ChalkError
 from chalk.extractors.consistency import grading_weight_warning
+from chalk.extractors.undated_schedule import date_undated_schedule, syllabus_lists_breaks
 from chalk.models import CourseData
 from chalk.pipeline import save_reviewed_course
 from chalk.project import ProjectPaths
@@ -27,8 +31,9 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
         st.info("Upload and extract a syllabus first.")
         return
 
-    st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.json.")
+    st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.")
     details = _render_course_details(course_data)
+    course_data = _render_week1_date(paths, course_data)
     duration = _render_duration(course_data)
     _render_lists(course_data)
 
@@ -57,7 +62,7 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
             return
         session.set_pending_extraction(None)
         session.set_rollover_plan(None)
-        session.flash("Saved course.json and regenerated the course brief.")
+        session.flash("Saved the course and updated the course brief.")
         st.rerun()
 
 
@@ -87,6 +92,50 @@ def _render_course_details(course_data: CourseData) -> dict:
         details[name] = columns[index % 3].text_input(label, value=value).strip()
     details["title"] = details["title"] or course.title  # never save a blank title
     return details
+
+
+def _render_week1_date(paths: ProjectPaths, course_data: CourseData) -> CourseData:
+    """A schedule with no dates of its own was dated by Chalk: say so, and
+    let the instructor change Week 1 and whether the class takes the
+    term's breaks, which re-dates the weeks."""
+    if not course_data.course.undated_schedule:
+        return course_data
+    current = next(week.date for week in course_data.weeks if not week.is_break)
+    st.info(
+        "This syllabus's schedule has no dates, so Chalk gave each week a date, one week apart, "
+        "starting from the Week 1 date below. Check that it's the date of the first class.",
+        icon="📅",
+    )
+    calendars = load_calendars(paths.calendars_json)
+    # Keyed to this extraction, so a choice made for one upload doesn't carry over to the next.
+    key = course_data.course.extracted_at.isoformat()
+    week1 = st.date_input("Week 1 date", value=current, format="MM/DD/YYYY", key=f"undated-week1-{key}")
+    if not isinstance(week1, dt.date):
+        week1 = current
+    skip_breaks = _render_break_choice(course_data, week1, calendars, key)
+    return date_undated_schedule(course_data, week1, calendars, skip_breaks=skip_breaks)
+
+
+def _render_break_choice(course_data: CourseData, week1: dt.date, calendars: dict, key: str) -> bool:
+    """Whether the class takes the term's breaks that fall in its weeks
+    (none: nothing to ask). Ticked when the syllabus mentions a break."""
+    with_breaks = date_undated_schedule(course_data, week1, calendars, skip_breaks=True)
+    breaks = [week.label for week in with_breaks.weeks if week.is_break]
+    if not breaks:
+        return False
+    mentioned = syllabus_lists_breaks(course_data)
+    return st.checkbox(
+        f"No class during {' or '.join(breaks)}",
+        value=mentioned,
+        key=f"undated-breaks-{key}",
+        help="Ticked, the weeks after the break move a week later and the break shows in the "
+        "schedule. "
+        + (
+            "The syllabus mentions a break, so Chalk assumed the class takes it."
+            if mentioned
+            else "The syllabus doesn't mention this break, so Chalk assumed the class meets through it."
+        ),
+    )
 
 
 def _credits_error(credits_text: str) -> str | None:

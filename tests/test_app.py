@@ -7,46 +7,38 @@ test_ui_helpers.py, and upload results are injected via session state.
 """
 
 import datetime as dt
+from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
-from chalk.pipeline import extract_syllabus, save_reviewed_course
-from chalk.project import ProjectPaths, load_course, save_course
+from chalk.pipeline import extract_syllabus
+from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
 from ui import session
 from ui.common import NEEDS_COURSE_MESSAGE
 from ui.session import PendingExtraction, TableChoice
 
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
-_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+pytestmark = pytest.mark.usefixtures("isolated_env")
 
 
 @pytest.fixture(autouse=True)
-def isolated_env(monkeypatch):
-    """The app loads the project's .env into os.environ; register every
-    provider variable with monkeypatch so each test's changes are undone."""
-    for key in _ENV_KEYS:
-        monkeypatch.delenv(key, raising=False)
+def inline_jobs(monkeypatch):
+    """Run background jobs (ui/background.py) inline, so a click's result
+    is there on the next run. test_background.py covers the real threads."""
 
+    def run_now(fn, *args, **kwargs) -> Future:
+        future: Future = Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except Exception as exc:  # noqa: BLE001 - the view reports it, as with a real thread
+            future.set_exception(exc)
+        return future
 
-@pytest.fixture
-def project(tmp_project):
-    (tmp_project.env).write_text(
-        "LLM_PROVIDER=openai\nLLM_API_KEY=sk-test\nLLM_BASE_URL=https://api.openai.com/v1\nLLM_MODEL=gpt-4o\n",
-        encoding="utf-8",
-    )
-    return tmp_project
-
-
-@pytest.fixture
-def saved_project(project, tmp_path):
-    syllabus = md_builder.build_minimal_syllabus(tmp_path / "syllabus.md")
-    course_data, _ = extract_syllabus(project, syllabus)
-    save_reviewed_course(project, course_data)
-    return project
+    monkeypatch.setattr("ui.background._submit", run_now)
 
 
 def launch(paths=None, **state) -> AppTest:
@@ -286,7 +278,10 @@ def test_first_run_setup_can_be_skipped(tmp_project):
     assert "Provider: Not configured" in at.caption[-1].value
 
 
-def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
+def test_first_run_setup_validates_then_saves_for_every_course(tmp_project, monkeypatch):
+    from chalk.saved_provider import read_saved_provider
+    from ui.provider_form import SAVED_EVERYWHERE
+
     calls = []
     monkeypatch.setattr(
         "chalk.config.complete", lambda prompt, max_tokens=5: calls.append(prompt) or {}
@@ -297,8 +292,21 @@ def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
 
     assert_no_exception(at)
     assert calls
-    assert "LLM_BASE_URL=" in tmp_project.env.read_text(encoding="utf-8")
+    assert read_saved_provider()["LLM_BASE_URL"] == "http://localhost:11434/v1"
+    assert not tmp_project.env.exists()  # nothing in a plain file
+    assert SAVED_EVERYWHERE in texts(at.success)
     assert "Provider: Local model llama3.1:70b" in at.caption[-1].value
+
+
+def test_a_new_course_skips_setup_once_a_key_is_saved(tmp_project):
+    from chalk.saved_provider import save_provider
+
+    save_provider({"LLM_PROVIDER": "openai", "LLM_API_KEY": "sk-saved", "LLM_BASE_URL": "", "LLM_MODEL": "gpt-4o"})
+    at = launch(tmp_project)
+
+    assert_no_exception(at)
+    assert "Test connection and continue" not in {b.label for b in at.button}
+    assert "Provider: OpenAI gpt-4o" in at.caption[-1].value
 
 
 def test_first_run_setup_shows_the_provider_error_and_writes_nothing(tmp_project, monkeypatch):
@@ -329,11 +337,16 @@ def test_settings_keeps_the_saved_key_when_left_blank_and_switches_model(project
     widget(at.selectbox, "Model").set_value("gpt-4o-mini")
     at = click(at.run(), "Test connection and save")
 
+    from chalk.config import read_env
+    from chalk.saved_provider import read_saved_provider
+    from ui.provider_form import SAVED_EVERYWHERE
+
     assert_no_exception(at)
-    env_text = project.env.read_text(encoding="utf-8")
-    assert "LLM_API_KEY='sk-test'" in env_text or "LLM_API_KEY=sk-test" in env_text
-    assert "gpt-4o-mini" in env_text
-    assert "Connected and saved." in texts(at.success)
+    saved = read_saved_provider()
+    assert saved["LLM_API_KEY"] == "sk-test"  # the course's key, kept
+    assert saved["LLM_MODEL"] == "gpt-4o-mini"
+    assert read_env(project.env) == {}  # moved out of the course's plain-text file
+    assert SAVED_EVERYWHERE in texts(at.success)
 
 
 # ---- Tab gating --------------------------------------------------------------------
@@ -343,13 +356,54 @@ def test_gated_tabs_redirect_until_a_course_exists(project):
     at = launch(project)
     assert_no_exception(at)
     assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 4
+    assert "course.json" not in NEEDS_COURSE_MESSAGE  # professors don't know the file
+    [style] = at.get("html")
+    for position in (3, 4, 6, 7):  # Rollover, Generate, Export, Metrics are dimmed
+        assert f'[data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
+    assert "nth-of-type(1) {opacity" not in style.proto.body
+
+
+def test_go_to_upload_opens_the_upload_tab(project):
+    at = launch(project, **{session.ACTIVE_TAB_KEY: "Generate"})
+    [button] = [b for b in at.button if b.key == "needs-course-Generate"]
+    at = button.click().run()
+    assert_no_exception(at)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Upload"
+
+
+def test_tabs_are_not_dimmed_once_a_course_is_saved(saved_project):
+    [style] = launch(saved_project).get("html")
+    assert "opacity" not in style.proto.body
+
+
+# ---- Switching course --------------------------------------------------------------
+
+
+def test_switch_course_goes_back_to_the_projects_list(saved_project):
+    at = launch(saved_project, chalk_course_state="kept for this course")
+    at = click(at, "All courses")
+    assert_no_exception(at)
+    assert "Open a course project" in [h.value for h in at.subheader]
+    assert "chalk_course_state" not in at.session_state  # nothing carries over to the next course
+    assert session.PROJECT_ROOT_KEY not in at.session_state
+
+
+def test_switch_course_waits_for_running_ai_work(saved_project):
+    from concurrent.futures import Future
+
+    from ui import background
+
+    running = background.Job("Generating a draft", Future(), 0.0, tab="Generate")
+    at = launch(saved_project, **{background._JOBS_KEY: {"generate": running}})
+    [button] = [b for b in at.button if b.label == "All courses"]
+    assert button.disabled
 
 
 def test_unreadable_course_json_is_reported_not_raised(project):
     project.course_json.write_text("{not json", encoding="utf-8")
     at = launch(project)
     assert_no_exception(at)
-    assert "course.json couldn't be read" in at.error[0].value
+    assert "couldn't read this course's saved details (course.json)" in at.error[0].value
 
 
 def test_unexpected_errors_in_a_tab_are_contained(saved_project, monkeypatch):
@@ -445,6 +499,24 @@ def test_failed_extraction_stays_on_the_upload_tab(project, tmp_path):
     assert at.error
     assert at.session_state[session.ACTIVE_TAB_KEY] == "Upload"
 
+def test_a_failed_read_is_cleared_once_a_read_succeeds(project, tmp_path):
+    bad = TableChoice(md_builder.build_syllabus_with_no_schedule_table(tmp_path / "bad.md"), ["a", "b"])
+    at = click(launch(project, chalk_table_choice=bad), "Use this table")
+    assert at.error
+    at = at.run()
+    assert at.error  # stays while the instructor decides what to try next
+
+    good = md_builder.build_syllabus_with_multiple_candidate_tables(tmp_path / "two.md")
+    at.session_state["chalk_table_choice"] = TableChoice(good, ["Week | Dates / 1 | first", "b"])
+    at = click(at.run(), "Use this table")
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Review"
+    at.session_state[session.ACTIVE_TAB_KEY] = "Upload"
+    at = at.run()
+
+    assert_no_exception(at)
+    assert not at.error
+
+
 def test_table_picker_can_be_cancelled(project, tmp_path):
     choice = TableChoice(tmp_path / "x.md", ["a", "b"])
     at = click(launch(project, chalk_table_choice=choice), "Cancel")
@@ -465,7 +537,7 @@ def test_review_then_confirm_and_save_writes_course_json_and_brief(project, tmp_
     assert_no_exception(at)
     assert load_course(project).course.duration_weeks == 4
     assert project.course_brief.exists()
-    assert "Saved course.json and regenerated the course brief." in texts(at.success)
+    assert "Saved the course and updated the course brief." in texts(at.success)
 
 
 def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_project, tmp_path):
@@ -479,7 +551,7 @@ def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_p
     assert_no_exception(at)
     assert at.session_state[session._PENDING_EXTRACTION_KEY] is None
     assert "Discarded the new extraction. The saved course is unchanged." in texts(at.success)
-    assert "Showing the saved course.json." in texts(at.caption)
+    assert "Showing the saved course." in texts(at.caption)
     assert load_course(saved_project).course.title == saved_title
 
 
@@ -521,7 +593,7 @@ def test_review_rejects_non_numeric_credits(project, tmp_path):
 
 def test_review_shows_the_saved_course_when_nothing_is_pending(saved_project):
     at = launch(saved_project)
-    assert "Showing the saved course.json." in texts(at.caption)
+    assert "Showing the saved course." in texts(at.caption)
     assert "Upload a syllabus" not in texts(at.info)
 
 
@@ -647,7 +719,7 @@ def test_rollover_errors_are_shown_plainly(saved_project):
 def llm(monkeypatch):
     calls = []
 
-    def _complete(prompt, system="", max_tokens=2000):
+    def _complete(prompt, system="", max_tokens=2000, on_text=None):
         calls.append(prompt)
         return {
             "text": f"## Questions\nQ1. Draft number {len(calls)}",
@@ -861,11 +933,11 @@ def test_slides_draft_is_shown_as_markdown_source(saved_project, llm):
 def test_generation_errors_are_shown_plainly(saved_project, monkeypatch):
     from chalk.errors import LLMProviderError
 
-    def _down(prompt, system="", max_tokens=2000):
+    def _down(prompt, system="", max_tokens=2000, on_text=None):
         raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)
-    at = click(launch(saved_project), "Generate")
+    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
     assert any("Could not reach the LLM provider" in e.value for e in at.error)
 
 
@@ -875,6 +947,10 @@ def test_export_lists_outputs_and_shows_canvas_html(saved_project):
     assert_no_exception(at)
     assert "Regenerated outputs/canvas.html and outputs/course-brief.md." in texts(at.success)
     assert at.code[0].value.startswith("<!-- Generated by Chalk")
+    steps = [m.value for m in at.markdown if "Update Syllabus" in m.value]
+    assert steps and "**View**, then **HTML Editor**" in steps[0]
+    [preview] = [e for e in at.expander if e.label == "Preview: how it will look in Canvas"]
+    assert "Detailed Syllabus" in preview.children[0].proto.body
 
 
 def test_export_with_no_outputs_yet(saved_project):
@@ -948,3 +1024,125 @@ def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
     at = click(launch(), "Reset the demo course")
     assert_no_exception(at)
     assert (demo_root / ".chalk-demo").exists()
+
+
+def test_generate_defaults_the_course_level_from_the_course_number(saved_project, llm):
+    at = launch(saved_project)
+    level = widget(at.selectbox, "Course level")
+    assert level.value == "upper-division"  # IS 4490
+
+    level.set_value("graduate")
+    at = click(at.run(), "Generate")
+
+    assert "COURSE LEVEL: graduate." in llm[-1]
+
+
+def test_an_assignment_can_include_an_ai_use_task(saved_project, llm):
+    at = launch(saved_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+    widget(at.text_input, "Assignment name").input("Design Brief")
+    widget(at.text_area, "What should students learn or demonstrate?").input("Defend a design.")
+    widget(at.checkbox, "Include a task where students use AI as part of their learning").check()
+    at = click(at.run(), "Generate")
+
+    assert "AI-USE COMPONENT" in llm[-1]
+
+
+# ---- Launch screen: your projects, and creating one that exists ---------------------------
+
+
+@pytest.fixture
+def projects_folder(tmp_path, monkeypatch):
+    """The launch screen's default projects/ folder, empty to start."""
+    folder = tmp_path / "projects"
+    folder.mkdir()
+    monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", folder)
+    return folder
+
+
+def test_your_projects_lists_and_opens_projects_in_the_projects_folder(projects_folder):
+    init_project(projects_folder, "IS-4490-Fall-2027")
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+
+    choice = widget(at.selectbox, "Your projects")
+    assert sorted(choice.options) == ["IS-4490-Fall-2027", "IS-6640-Fall-2027"]
+    second = choice.options[1]
+    choice.select_index(1)
+    at = click(at, "Open")
+
+    assert_no_exception(at)
+    assert any(f"Opened project {second}." in s.value for s in at.success)
+
+
+def test_no_project_list_when_the_projects_folder_is_empty(projects_folder):
+    at = launch()
+    assert "Your projects" not in {s.label for s in at.selectbox}
+
+
+def test_creating_a_project_that_exists_offers_to_open_it(projects_folder):
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+    widget(at.text_input, "Project name").input("IS-6640-Fall-2027")
+
+    at = click(at, "Create project")
+
+    assert any("already a course project named IS-6640-Fall-2027" in w.value for w in at.warning)
+    at = click(at, "Open IS-6640-Fall-2027")
+    assert_no_exception(at)
+    assert any("Opened project IS-6640-Fall-2027" in s.value for s in at.success)
+
+
+def test_choosing_another_name_dismisses_the_offer(projects_folder):
+    init_project(projects_folder, "IS-6640-Fall-2027")
+    at = launch()
+    widget(at.text_input, "Project name").input("IS-6640-Fall-2027")
+    at = click(click(at, "Create project"), "Choose another name")
+
+    assert not any("already a course project" in w.value for w in at.warning)
+    assert "Open IS-6640-Fall-2027" not in {b.label for b in at.button}
+
+
+# ---- A schedule with no dates -------------------------------------------------------
+
+
+def test_review_asks_for_week1_of_an_undated_schedule_and_redates_it(project, tmp_path):
+    import datetime as dt
+
+    from tests.test_undated_schedule import _outline_syllabus
+
+    pending = _pending(project, tmp_path, lambda path: _outline_syllabus(path, meetings=3), "outline.docx")
+    at = launch(project, chalk_pending_extraction=pending)
+    assert any("schedule has no dates" in i for i in texts(at.info))
+    [week1] = at.date_input
+    assert week1.value == dt.date(2026, 8, 24)  # Fall 2026's first day, from the calendar
+
+    week1.set_value(dt.date(2026, 8, 31))
+    at = click(at.run(), "Confirm and save")
+
+    assert_no_exception(at)
+    weeks = [w.date for w in load_course(project).weeks if not w.is_break]
+    assert weeks == [dt.date(2026, 8, 31), dt.date(2026, 9, 7), dt.date(2026, 9, 14)]
+
+
+def test_review_assumes_an_undated_class_meets_through_a_break_it_doesnt_mention(project, tmp_path):
+    from tests.test_undated_schedule import _outline_syllabus
+
+    pending = _pending(project, tmp_path, _outline_syllabus, "outline.docx")  # 10 meetings, crosses Fall Break
+    at = launch(project, chalk_pending_extraction=pending)
+    [no_class] = at.checkbox
+    assert no_class.label == "No class during Fall Break (10/10 - 10/18)"
+    assert no_class.value is False
+    assert not any("Fall Break" in str(row) for row in at.dataframe[-1].value.values.tolist())
+
+    no_class.check()
+    at = click(at.run(), "Confirm and save")
+
+    assert_no_exception(at)
+    assert [w.label for w in load_course(project).weeks if w.is_break] == ["Fall Break (10/10 - 10/18)"]
+
+
+def test_review_doesnt_ask_for_week1_of_a_dated_schedule(project, tmp_path):
+    pending = _pending(project, tmp_path, md_builder.build_minimal_syllabus, "s.md")
+    assert not launch(project, chalk_pending_extraction=pending).date_input

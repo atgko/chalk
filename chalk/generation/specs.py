@@ -16,6 +16,9 @@ COMMON_VARIABLES = ("course_title", "learning_objectives", "source_material_cont
 
 @dataclass(frozen=True)
 class ContentSpec:
+    """One content type: its template, the variables that template must
+    keep, where drafts are saved, its token limit, and whether it's made
+    for a week (otherwise for a named assignment)."""
     key: str
     label: str
     output_subdir: str

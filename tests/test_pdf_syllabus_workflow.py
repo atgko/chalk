@@ -8,13 +8,14 @@ import pytest
 
 from chalk import metrics
 from chalk.cli import main
-from chalk.errors import ExtractionError
+from chalk.errors import ExtractionError, LLMProviderError
 from chalk.extractors import extract_course
 from chalk.pipeline import (
     PDF_READING_CONTENT_TYPE,
     confirm_rollover,
     convert_pdf_syllabus,
     estimate_ai_reading_cost_per_page,
+    expected_ai_reading_tokens,
     extract_syllabus,
     preview_rollover,
     save_reviewed_course,
@@ -44,8 +45,10 @@ def ai(monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "gpt-4o")
     state = {"reply": _reply(), "calls": 0}
 
-    def fake_complete(prompt, system="", max_tokens=2000):
+    def fake_complete(prompt, system="", max_tokens=2000, on_text=None):
         state["calls"] += 1
+        if on_text is not None:
+            on_text(len(state["reply"]))
         return {"text": state["reply"], "input_tokens": 1000, "output_tokens": 2000}
 
     monkeypatch.setattr("chalk.pdf_import.ai_reader.complete", fake_complete)
@@ -155,8 +158,27 @@ def test_a_failed_local_pdf_read_suggests_the_other_options(tmp_project, tmp_pat
 def test_a_failed_ai_read_does_not_suggest_ai_again(tmp_project, pdf, ai):
     ai["reply"] = "not json"
     outcome = extract_upload(tmp_project, pdf, pdf_method="ai")
-    assert "didn't come back in the expected form" in outcome.error
+    assert "didn't come back in a form Chalk can use" in outcome.error
     assert "Read it with AI" not in outcome.error
+    assert "Read it on this computer" in outcome.error
+
+
+def test_after_both_reads_fail_only_word_is_suggested(tmp_project, pdf, ai):
+    """UAT of PR #18: the AI read's error sent the professor back to the
+    local read, which had already failed on that PDF."""
+    ai["reply"] = "not json"
+    outcome = extract_upload(tmp_project, pdf, pdf_method="ai", tried=frozenset({"local"}))
+    assert "Read it on this computer" not in outcome.error
+    assert "couldn't read this PDF either way" in outcome.error
+    assert "save it as Word (.docx)" in outcome.error
+
+
+def test_an_ai_read_that_cannot_be_used_is_still_counted(tmp_project, pdf, ai):
+    from chalk.metrics import read_events, summarize_events
+
+    ai["reply"] = "not json"
+    extract_upload(tmp_project, pdf, pdf_method="ai")
+    assert summarize_events(read_events(tmp_project.eval_log)).total_cost_usd > 0
 
 
 def test_choosing_a_table_reuses_the_pdf_conversion(tmp_project, pdf, ai):
@@ -199,3 +221,59 @@ def test_cli_extracts_a_pdf_with_ai(tmp_project, pdf, ai):
     code, out, err = _run("extract", str(pdf), "--read-pdf-with", "ai", "--project", str(tmp_project.root))
     assert code == 0, err
     assert "IS 6640" in out
+
+
+# ---- Progress ------------------------------------------------------------------------
+
+
+def test_an_ai_read_reports_the_reply_streaming_in(tmp_project, pdf, ai):
+    reports = []
+
+    convert_pdf_syllabus(tmp_project, pdf, method="ai", on_progress=lambda f, s: reports.append((f, s)))
+
+    assert reports[:2] == [(None, "Reading the PDF's pages"), (None, "Waiting for the AI to start reading")]
+    fraction, step = reports[-1]
+    assert step == "The AI is writing"
+    assert 0 < fraction < 1
+
+
+def test_a_local_read_reports_steps_without_a_fraction(tmp_project, pdf):
+    reports = []
+    extract_upload(tmp_project, pdf, on_progress=lambda f, s: reports.append((f, s)))
+    assert reports == [(None, "Reading the PDF's pages"), (None, "Finding the course details and schedule")]
+
+
+def test_an_ai_read_upload_fills_most_of_the_bar_then_finishes(tmp_project, pdf, ai):
+    reports = []
+    extract_upload(tmp_project, pdf, pdf_method="ai", on_progress=lambda f, s: reports.append((f, s)))
+
+    writing = [f for f, s in reports if s == "The AI is writing"]
+    assert writing and all(0 < f <= 0.9 for f in writing)
+    assert reports[-1] == (0.95, "Finding the course details and schedule")
+
+
+def test_expected_ai_reading_length_scales_with_the_syllabus_text(pdf):
+    from chalk.pdf_import.blocks import blocks_as_text
+    from chalk.pdf_import.layout import read_pdf_blocks
+
+    blocks = read_pdf_blocks(pdf)
+    # 1,200 output tokens for every 800 input tokens, as in the cost estimate.
+    assert expected_ai_reading_tokens(blocks) == int(len(blocks_as_text(blocks)) / 4 * 1.5)
+
+
+def test_an_ai_read_that_fails_partway_still_logs_what_the_parts_cost(tmp_project, pdf, monkeypatch, ai):
+    def fake_complete(prompt, system="", max_tokens=2000, on_text=None):
+        if "part 2 of" in prompt:
+            raise LLMProviderError("The provider is busy.")
+        return {"text": ai["reply"], "input_tokens": 1000, "output_tokens": 2000}
+
+    monkeypatch.setattr("chalk.pdf_import.ai_reader.PART_CHARS", 200)
+    monkeypatch.setattr("chalk.pdf_import.ai_reader.complete", fake_complete)
+
+    with pytest.raises(LLMProviderError):
+        convert_pdf_syllabus(tmp_project, pdf, method="ai")
+
+    [event] = metrics.read_events_by_type(tmp_project.eval_log, "generation")
+    assert event["output_tokens"] >= 2000
+    [error] = metrics.read_events_by_type(tmp_project.eval_log, "extraction_error")
+    assert error["error_type"] == "LLMProviderError"

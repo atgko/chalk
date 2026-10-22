@@ -20,6 +20,9 @@ _H1_RE = re.compile(r"^#(?!#)\s*")
 
 
 def normalize_slides(text: str, *, default_title: str, author: str, banner: str) -> str:
+    """Bring an AI-written deck into the shape the slides template asks for,
+    whatever the model did: a title and author (no subtitle) in the front
+    matter, every slide under a "## " heading, and the AI-draft banner."""
     front_matter, body = _split_front_matter(text.strip())
     front_matter = [line for line in front_matter if not line.lower().startswith("subtitle:")]
     if not any(line.lower().startswith("title:") for line in front_matter):

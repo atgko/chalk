@@ -19,15 +19,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
-from dotenv import load_dotenv
-
 from chalk import branding
-from chalk.config import describe_provider
+from chalk.config import apply_provider_env, describe_provider
 from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
 from chalk.extractors.consistency import grading_weight_warning
+from chalk.generation.course_level import COURSE_LEVELS, level_from_course_number
 from chalk.generation.engine import (
     GenerationRequest,
     current_env,
@@ -95,6 +94,8 @@ def main(
     out: TextIO | None = None,
     err: TextIO | None = None,
 ) -> int:
+    """Run `toolkit.py` with `argv` and return the exit code. Input and
+    output are parameters so tests can drive it without a terminal."""
     console = _Console(out or sys.stdout, err or sys.stderr, input_fn)
     args = build_parser().parse_args(argv)
     try:
@@ -186,6 +187,14 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--description-file", type=Path, help="Rubric: read the description from a file.")
     generate.add_argument("--points", type=int, default=DEFAULT_RUBRIC_POINTS, help="Rubric: total points.")
     generate.add_argument("--notes", help="Slides: bullet points or a reading excerpt.")
+    generate.add_argument(
+        "--level",
+        choices=COURSE_LEVELS,
+        help="Course level (default: from the course number, e.g. 6000 and up is graduate).",
+    )
+    generate.add_argument(
+        "--ai-component", action="store_true", help="Assignment: include a task where students use AI to learn."
+    )
     generate.add_argument("--source", action="append", help="A file in source/ to ground the draft in (repeatable).")
     generate.add_argument("--yes", action="store_true", help="Overwrite an existing draft without asking.")
     generate.set_defaults(handler=_cmd_generate)
@@ -256,21 +265,19 @@ def _cmd_extract(args, console: _Console) -> int:
 
 
 def _require_provider(paths: ProjectPaths) -> None:
-    """Load the project's .env and fail with setup instructions if no LLM
-    provider is configured."""
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
+    """Load the project's provider (its .env, or the one saved for every
+    course) and fail with setup instructions if there is none."""
+    apply_provider_env(paths.env, override=False)
     if describe_provider(current_env()) == "Not configured":
         raise ChalkError(
-            "No LLM provider is configured. Copy .env.example to this project's .env and fill it in, "
-            "or set one up in the app's Settings tab."
+            "No LLM provider is configured. Set one up in the app's Settings tab (it's saved for "
+            "every course), or copy .env.example to this project's .env and fill it in."
         )
 
 
 def _cmd_rollover(args, console: _Console) -> int:
     paths = open_project(args.project)
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
+    apply_provider_env(paths.env, override=False)
     course_data = require_course(paths)
     plan = _preview_with_week1_fallback(paths, course_data, args, console)
     if plan is None:
@@ -297,7 +304,7 @@ def _cmd_generate(args, console: _Console) -> int:
     paths = open_project(args.project)
     _require_provider(paths)
     course_data = require_course(paths)
-    request = _generation_request(args)
+    request = _generation_request(args, course_data)
     if spec_for(request.content_type).per_week and request.week_number is None:
         raise ChalkError("Say which week to generate for, e.g. --week 3.")
 
@@ -325,7 +332,7 @@ def _split_total(args) -> int | None:
     return args.multiple_choice + args.short_answer
 
 
-def _generation_request(args) -> GenerationRequest:
+def _generation_request(args, course_data: CourseData) -> GenerationRequest:
     description = args.description or ""
     if args.description_file is not None:
         if not args.description_file.is_file():
@@ -347,6 +354,8 @@ def _generation_request(args) -> GenerationRequest:
         total_points=args.points,
         slide_notes=args.notes or "",
         source_files=tuple(args.source or ()),
+        course_level=args.level or level_from_course_number(course_data.course.number),
+        include_ai_component=args.ai_component,
     )
 
 
@@ -449,6 +458,8 @@ def _format_course_summary(course_data: CourseData) -> str:
 
 
 def format_status(status: ProjectStatus, paths: ProjectPaths) -> str:
+    """The `status` command's summary: the course, source files, outputs,
+    cost to date, and the evaluation counts."""
     if status.course is None:
         course_line = "No course.json yet — run `extract` on your syllabus."
     else:

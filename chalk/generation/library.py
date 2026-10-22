@@ -24,6 +24,7 @@ _ARCHIVE_SUFFIX = r"-\d{8}-\d{6}"
 
 @dataclass(frozen=True)
 class SavedDraft:
+    """A draft saved under outputs/, as the Drafts tab lists it."""
     spec: ContentSpec
     path: Path
     week_number: int | None

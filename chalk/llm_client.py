@@ -8,6 +8,12 @@ change. OpenAI, Google Gemini, and Ollama share one code path because
 Gemini and Ollama expose OpenAI-compatible APIs; Anthropic has a different
 response shape and is handled in its own branch.
 
+A caller that shows progress passes `on_text`, and the reply is streamed
+so it can be told how much text has arrived (chalk/progress.py). Only
+OpenAI and Anthropic stream: both report token usage at the end of a
+stream, which the cost tracking needs. Gemini and Ollama answer in one
+piece as before, and their progress shows the step without a fraction.
+
 DECISIONS.md adds retry-with-backoff on top of the PRD's original sketch:
 a transient rate-limit or timeout shouldn't force the instructor to
 manually click Regenerate.
@@ -23,6 +29,7 @@ import anthropic
 import openai
 
 from chalk.errors import LLMProviderError
+from chalk.progress import TextCallback
 
 # A brief network blip gets a few short retries before we give up and
 # surface LLMProviderError. Kept as small module constants rather than a
@@ -69,6 +76,8 @@ _NOT_FOUND_EXCEPTIONS: tuple[type[Exception], ...] = (
 
 
 class CompletionResult(TypedDict):
+    """What `complete` returns: the reply and the token counts that cost
+    tracking needs."""
     text: str
     input_tokens: int
     output_tokens: int
@@ -174,7 +183,10 @@ def _status_error_message(exc: Exception) -> str:
     return message
 
 
-def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
+_STREAMING_PROVIDERS = frozenset({"openai", "anthropic"})
+
+
+def _call_openai(prompt: str, system: str, max_tokens: int, on_text: TextCallback | None) -> CompletionResult:
     """OpenAI, Gemini, and Ollama: all speak the OpenAI chat API."""
     is_gemini = _get_provider() == "gemini"
     client = openai.OpenAI(
@@ -182,15 +194,18 @@ def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
         base_url=os.getenv("LLM_BASE_URL") or (_GEMINI_BASE_URL if is_gemini else _OPENAI_BASE_URL),
     )
     extra = {"reasoning_effort": _GEMINI_REASONING_EFFORT} if is_gemini else {}
-    response = client.chat.completions.create(
-        model=os.getenv("LLM_MODEL", "gpt-4o"),
-        messages=[
+    request = {
+        "model": os.getenv("LLM_MODEL", "gpt-4o"),
+        "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=max_tokens,
+        "max_tokens": max_tokens,
         **extra,
-    )
+    }
+    if on_text is not None and _get_provider() in _STREAMING_PROVIDERS:
+        return _stream_openai(client, request, on_text)
+    response = client.chat.completions.create(**request)
     return {
         # None when the token limit ran out before any answer text.
         "text": response.choices[0].message.content or "",
@@ -199,14 +214,48 @@ def _call_openai(prompt: str, system: str, max_tokens: int) -> CompletionResult:
     }
 
 
-def _call_anthropic(prompt: str, system: str, max_tokens: int) -> CompletionResult:
+def _stream_openai(client, request: dict, on_text: TextCallback) -> CompletionResult:
+    """The streamed form of the call above. Usage arrives in a final chunk
+    with no choices, because `include_usage` asks for it."""
+    parts: list[str] = []
+    received = 0
+    usage = None
+    for chunk in client.chat.completions.create(**request, stream=True, stream_options={"include_usage": True}):
+        if chunk.usage is not None:
+            usage = chunk.usage
+        text = chunk.choices[0].delta.content if chunk.choices else None
+        if text:
+            parts.append(text)
+            received += len(text)
+            on_text(received)
+    if usage is None:
+        raise LLMProviderError(
+            "The AI provider's reply ended before it said how many tokens it used. Please try again."
+        )
+    return {
+        "text": "".join(parts),
+        "input_tokens": usage.prompt_tokens,
+        "output_tokens": usage.completion_tokens,
+    }
+
+
+def _call_anthropic(prompt: str, system: str, max_tokens: int, on_text: TextCallback | None) -> CompletionResult:
     client = anthropic.Anthropic(api_key=os.getenv("LLM_API_KEY"))
-    response = client.messages.create(
-        model=os.getenv("LLM_MODEL", "claude-sonnet-5"),
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    request = {
+        "model": os.getenv("LLM_MODEL", "claude-sonnet-5"),
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if on_text is None:
+        response = client.messages.create(**request)
+    else:
+        received = 0
+        with client.messages.stream(**request) as stream:
+            for text in stream.text_stream:
+                received += len(text)
+                on_text(received)
+            response = stream.get_final_message()
     # Models with adaptive thinking may return thinking blocks (no .text)
     # ahead of the answer, so keep only the text blocks.
     return {
@@ -216,10 +265,14 @@ def _call_anthropic(prompt: str, system: str, max_tokens: int) -> CompletionResu
     }
 
 
-def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> CompletionResult:
+def complete(
+    prompt: str, system: str = "", max_tokens: int = 2000, *, on_text: TextCallback | None = None
+) -> CompletionResult:
     """Send a prompt to the configured LLM provider.
 
     Returns {"text": str, "input_tokens": int, "output_tokens": int}.
+    `on_text`, if given, is called with the number of reply characters
+    received so far as the reply streams in (OpenAI and Anthropic only).
     Raises LLMProviderError with a plain-English message on failure — the
     only exception type that escapes this module. Every caller wraps this
     call in a try/except for LLMProviderError and surfaces `.user_message`
@@ -232,7 +285,7 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
     last_transient_error: Exception | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            return call(prompt, system, max_tokens)
+            return call(prompt, system, max_tokens, on_text)
 
         except _AUTH_EXCEPTIONS as exc:
             raise LLMProviderError(_auth_error_message()) from exc
@@ -250,6 +303,9 @@ def complete(prompt: str, system: str = "", max_tokens: int = 2000) -> Completio
 
         except _STATUS_EXCEPTIONS as exc:
             raise LLMProviderError(_status_error_message(exc)) from exc
+
+        except LLMProviderError:
+            raise
 
         except Exception as exc:
             raise LLMProviderError(
