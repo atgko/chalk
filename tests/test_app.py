@@ -381,7 +381,7 @@ def test_tabs_are_not_dimmed_once_a_course_is_saved(saved_project):
 
 def test_switch_course_goes_back_to_the_projects_list(saved_project):
     at = launch(saved_project, chalk_course_state="kept for this course")
-    at = click(at, "Switch course")
+    at = click(at, "All courses")
     assert_no_exception(at)
     assert "Open a course project" in [h.value for h in at.subheader]
     assert "chalk_course_state" not in at.session_state  # nothing carries over to the next course
@@ -395,7 +395,7 @@ def test_switch_course_waits_for_running_ai_work(saved_project):
 
     running = background.Job("Generating a draft", Future(), 0.0, tab="Generate")
     at = launch(saved_project, **{background._JOBS_KEY: {"generate": running}})
-    [button] = [b for b in at.button if b.label == "Switch course"]
+    [button] = [b for b in at.button if b.label == "All courses"]
     assert button.disabled
 
 

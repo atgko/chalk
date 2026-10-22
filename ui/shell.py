@@ -101,22 +101,25 @@ def main(argv: list[str] | None = None) -> None:
     _render_footer(paths)
 
 
+ALL_COURSES = "All courses"
+
+
 def _render_course_line(paths: ProjectPaths) -> None:
-    """The open course, and a way back to the projects list. Switching
-    waits for a running job, whose result belongs to this course."""
-    name_col, switch_col = st.columns([5, 1], vertical_alignment="center")
-    name_col.caption(f"Course project: {paths.root.name}")
+    """A way back to the projects list, then the open course. The button
+    leads the line, bordered, where people look for "back": as a plain
+    text "Switch course" at the far right it went unnoticed (UAT round 2).
+    Leaving waits for a running job, whose result belongs to this course."""
     busy = background.any_running()
-    switch_col.button(
-        "Switch course",
-        key="switch-course",
-        type="tertiary",
-        icon=":material/swap_horiz:",
-        on_click=session.leave_project,
-        disabled=busy,
-        help="Wait for the current AI work to finish first." if busy else "Open or create another course.",
-        width="stretch",
-    )
+    with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        st.button(
+            ALL_COURSES,
+            key="switch-course",
+            icon=":material/arrow_back:",
+            on_click=session.leave_project,
+            disabled=busy,
+            help="Wait for the current AI work to finish first." if busy else "Open or create another course.",
+        )
+        st.caption(f"Course project: {paths.root.name}")
 
 
 def _resolve_project(argv: list[str]) -> ProjectPaths | None:
