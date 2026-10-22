@@ -35,9 +35,11 @@ from ui import (
     setup_view,
     upload_view,
 )
-from ui.common import NEEDS_COURSE_MESSAGE, render_header
+from ui.common import render_header, render_needs_course
 
 TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export", "Metrics", "Settings")
+# Tabs that work from a saved course: dimmed until there is one.
+NEEDS_COURSE_TABS = ("Rollover", "Generate", "Export", "Metrics")
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     render_header(branding.PROJECT_NAME)
-    st.caption(f"Course project: {paths.root.name}")
+    _render_course_line(paths)
     message = session.pop_flash()
     if message:
         st.success(message)
@@ -73,24 +75,50 @@ def main(argv: list[str] | None = None) -> None:
         _guarded(upload_view.render, paths)
     with review:
         _guarded(review_view.render, paths, course_data)
-    for tab, view in ((rollover, rollover_view), (generate, generate_view), (export, export_view)):
+    for tab, name, view in (
+        (rollover, "Rollover", rollover_view),
+        (generate, "Generate", generate_view),
+        (export, "Export", export_view),
+    ):
         with tab:
             _warn_if_unsaved_extraction(course_data)
-            _gated(course_data, view.render, paths, course_data)
+            _gated(name, course_data, view.render, paths, course_data)
     with drafts:
         _guarded(drafts_view.render, paths)
     with metrics:
-        _gated(course_data, metrics_view.render, paths)
+        _gated("Metrics", course_data, metrics_view.render, paths)
     with settings:
         _guarded(settings_view.render, paths)
-    background.render_tab_marks(TAB_NAMES, session.ACTIVE_TAB_KEY)
+    background.render_tab_marks(
+        TAB_NAMES, session.ACTIVE_TAB_KEY, inactive=NEEDS_COURSE_TABS if course_data is None else ()
+    )
 
     _render_footer(paths)
+
+
+def _render_course_line(paths: ProjectPaths) -> None:
+    """The open course, and a way back to the projects list. Switching
+    waits for a running job, whose result belongs to this course."""
+    name_col, switch_col = st.columns([5, 1], vertical_alignment="center")
+    name_col.caption(f"Course project: {paths.root.name}")
+    busy = background.any_running()
+    switch_col.button(
+        "Switch course",
+        key="switch-course",
+        type="tertiary",
+        icon=":material/swap_horiz:",
+        on_click=session.leave_project,
+        disabled=busy,
+        help="Wait for the current AI work to finish first." if busy else "Open or create another course.",
+        width="stretch",
+    )
 
 
 def _resolve_project(argv: list[str]) -> ProjectPaths | None:
     paths = session.get_project()
     if paths is None:
+        if session.is_switching_course():
+            return None
         root = project_picker.project_from_argv(argv)
         if root is None:
             return None
@@ -110,8 +138,8 @@ def _load_course_or_warn(paths: ProjectPaths) -> CourseData | None:
         return load_course(paths)
     except ValueError:
         st.error(
-            "course.json couldn't be read — it may have been edited by hand. "
-            "Fix it, or upload and extract the syllabus again (the old file will be archived)."
+            "Chalk couldn't read this course's saved details (course.json) — the file may have been "
+            "edited by hand. Upload the syllabus again to replace it (the old file will be archived)."
         )
         return None
 
@@ -131,9 +159,9 @@ def _warn_if_unsaved_extraction(course_data: CourseData | None) -> None:
     )
 
 
-def _gated(course_data: CourseData | None, render: Callable, *args) -> None:
+def _gated(tab: str, course_data: CourseData | None, render: Callable, *args) -> None:
     if course_data is None:
-        st.info(NEEDS_COURSE_MESSAGE)
+        render_needs_course(tab)
         return
     _guarded(render, *args)
 

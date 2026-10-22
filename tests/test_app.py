@@ -335,13 +335,54 @@ def test_gated_tabs_redirect_until_a_course_exists(project):
     at = launch(project)
     assert_no_exception(at)
     assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 4
+    assert "course.json" not in NEEDS_COURSE_MESSAGE  # professors don't know the file
+    [style] = at.get("html")
+    for position in (3, 4, 6, 7):  # Rollover, Generate, Export, Metrics are dimmed
+        assert f'[data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
+    assert "nth-of-type(1) {opacity" not in style.proto.body
+
+
+def test_go_to_upload_opens_the_upload_tab(project):
+    at = launch(project, **{session.ACTIVE_TAB_KEY: "Generate"})
+    [button] = [b for b in at.button if b.key == "needs-course-Generate"]
+    at = button.click().run()
+    assert_no_exception(at)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Upload"
+
+
+def test_tabs_are_not_dimmed_once_a_course_is_saved(saved_project):
+    [style] = launch(saved_project).get("html")
+    assert "opacity" not in style.proto.body
+
+
+# ---- Switching course --------------------------------------------------------------
+
+
+def test_switch_course_goes_back_to_the_projects_list(saved_project):
+    at = launch(saved_project, chalk_course_state="kept for this course")
+    at = click(at, "Switch course")
+    assert_no_exception(at)
+    assert "Open a course project" in [h.value for h in at.subheader]
+    assert "chalk_course_state" not in at.session_state  # nothing carries over to the next course
+    assert session.PROJECT_ROOT_KEY not in at.session_state
+
+
+def test_switch_course_waits_for_running_ai_work(saved_project):
+    from concurrent.futures import Future
+
+    from ui import background
+
+    running = background.Job("Generating a draft", Future(), 0.0, tab="Generate")
+    at = launch(saved_project, **{background._JOBS_KEY: {"generate": running}})
+    [button] = [b for b in at.button if b.label == "Switch course"]
+    assert button.disabled
 
 
 def test_unreadable_course_json_is_reported_not_raised(project):
     project.course_json.write_text("{not json", encoding="utf-8")
     at = launch(project)
     assert_no_exception(at)
-    assert "course.json couldn't be read" in at.error[0].value
+    assert "couldn't read this course's saved details (course.json)" in at.error[0].value
 
 
 def test_unexpected_errors_in_a_tab_are_contained(saved_project, monkeypatch):
@@ -457,7 +498,7 @@ def test_review_then_confirm_and_save_writes_course_json_and_brief(project, tmp_
     assert_no_exception(at)
     assert load_course(project).course.duration_weeks == 4
     assert project.course_brief.exists()
-    assert "Saved course.json and regenerated the course brief." in texts(at.success)
+    assert "Saved the course and updated the course brief." in texts(at.success)
 
 
 def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_project, tmp_path):
@@ -471,7 +512,7 @@ def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_p
     assert_no_exception(at)
     assert at.session_state[session._PENDING_EXTRACTION_KEY] is None
     assert "Discarded the new extraction. The saved course is unchanged." in texts(at.success)
-    assert "Showing the saved course.json." in texts(at.caption)
+    assert "Showing the saved course." in texts(at.caption)
     assert load_course(saved_project).course.title == saved_title
 
 
@@ -513,7 +554,7 @@ def test_review_rejects_non_numeric_credits(project, tmp_path):
 
 def test_review_shows_the_saved_course_when_nothing_is_pending(saved_project):
     at = launch(saved_project)
-    assert "Showing the saved course.json." in texts(at.caption)
+    assert "Showing the saved course." in texts(at.caption)
     assert "Upload a syllabus" not in texts(at.info)
 
 

@@ -1,5 +1,5 @@
-"""Launch screen: choose or create the one course project this app
-instance works on (DECISIONS.md — no in-app project switcher).
+"""Launch screen: choose or create the course project to work on. The
+app comes back here when the instructor clicks Switch course.
 
 Skipped entirely when the app is started with
 `streamlit run app.py -- --project <folder>`.

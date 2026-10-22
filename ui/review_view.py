@@ -27,7 +27,7 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
         st.info("Upload and extract a syllabus first.")
         return
 
-    st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.json.")
+    st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.")
     details = _render_course_details(course_data)
     duration = _render_duration(course_data)
     _render_lists(course_data)
@@ -57,7 +57,7 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
             return
         session.set_pending_extraction(None)
         session.set_rollover_plan(None)
-        session.flash("Saved course.json and regenerated the course brief.")
+        session.flash("Saved the course and updated the course brief.")
         st.rerun()
 
 

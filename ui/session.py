@@ -29,6 +29,7 @@ _ROLLOVER_WRITTEN_KEY = "chalk_rollover_written"
 _DRAFT_KEY = "chalk_draft"
 _REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
+_SWITCHING_KEY = "chalk_switching_course"
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,19 @@ def get_project() -> ProjectPaths | None:
 
 def set_project(paths: ProjectPaths) -> None:
     st.session_state[PROJECT_ROOT_KEY] = str(paths.root)
+
+
+def leave_project() -> None:
+    """Back to the launch screen to pick another course. Everything kept
+    for this course (drafts, a pending extraction, a rollover preview) is
+    dropped, and the `--project` the app was started with is ignored from
+    now on, or it would reopen the same course."""
+    st.session_state.clear()
+    st.session_state[_SWITCHING_KEY] = True
+
+
+def is_switching_course() -> bool:
+    return st.session_state.get(_SWITCHING_KEY, False)
 
 
 def setup_skipped() -> bool:
