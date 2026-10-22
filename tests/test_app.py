@@ -278,7 +278,10 @@ def test_first_run_setup_can_be_skipped(tmp_project):
     assert "Provider: Not configured" in at.caption[-1].value
 
 
-def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
+def test_first_run_setup_validates_then_saves_for_every_course(tmp_project, monkeypatch):
+    from chalk.saved_provider import read_saved_provider
+    from ui.provider_form import SAVED_EVERYWHERE
+
     calls = []
     monkeypatch.setattr(
         "chalk.config.complete", lambda prompt, max_tokens=5: calls.append(prompt) or {}
@@ -289,8 +292,21 @@ def test_first_run_setup_validates_then_writes_env(tmp_project, monkeypatch):
 
     assert_no_exception(at)
     assert calls
-    assert "LLM_BASE_URL=" in tmp_project.env.read_text(encoding="utf-8")
+    assert read_saved_provider()["LLM_BASE_URL"] == "http://localhost:11434/v1"
+    assert not tmp_project.env.exists()  # nothing in a plain file
+    assert SAVED_EVERYWHERE in texts(at.success)
     assert "Provider: Local model llama3.1:70b" in at.caption[-1].value
+
+
+def test_a_new_course_skips_setup_once_a_key_is_saved(tmp_project):
+    from chalk.saved_provider import save_provider
+
+    save_provider({"LLM_PROVIDER": "openai", "LLM_API_KEY": "sk-saved", "LLM_BASE_URL": "", "LLM_MODEL": "gpt-4o"})
+    at = launch(tmp_project)
+
+    assert_no_exception(at)
+    assert "Test connection and continue" not in {b.label for b in at.button}
+    assert "Provider: OpenAI gpt-4o" in at.caption[-1].value
 
 
 def test_first_run_setup_shows_the_provider_error_and_writes_nothing(tmp_project, monkeypatch):
@@ -321,11 +337,16 @@ def test_settings_keeps_the_saved_key_when_left_blank_and_switches_model(project
     widget(at.selectbox, "Model").set_value("gpt-4o-mini")
     at = click(at.run(), "Test connection and save")
 
+    from chalk.config import read_env
+    from chalk.saved_provider import read_saved_provider
+    from ui.provider_form import SAVED_EVERYWHERE
+
     assert_no_exception(at)
-    env_text = project.env.read_text(encoding="utf-8")
-    assert "LLM_API_KEY='sk-test'" in env_text or "LLM_API_KEY=sk-test" in env_text
-    assert "gpt-4o-mini" in env_text
-    assert "Connected and saved." in texts(at.success)
+    saved = read_saved_provider()
+    assert saved["LLM_API_KEY"] == "sk-test"  # the course's key, kept
+    assert saved["LLM_MODEL"] == "gpt-4o-mini"
+    assert read_env(project.env) == {}  # moved out of the course's plain-text file
+    assert SAVED_EVERYWHERE in texts(at.success)
 
 
 # ---- Tab gating --------------------------------------------------------------------

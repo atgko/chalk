@@ -1,6 +1,7 @@
-"""Project configuration: `.env` (LLM provider credentials) and
-`config.json` (institution, calendar file path, cost rates, output
-preferences).
+"""Project configuration: the LLM provider (saved once for every course
+in the OS credential store, chalk/saved_provider.py, or in a project's own
+`.env`) and `config.json` (institution, calendar file path, cost rates,
+output preferences).
 
 This is the one place that knows how to read/write a provider
 configuration and validate it with a live test call — both the CLI's
@@ -17,11 +18,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values, set_key, unset_key
 
 from chalk.errors import ChalkError
 from chalk.llm_client import complete
 from chalk.project import RESOURCES_DIR
+from chalk.saved_provider import CredentialStoreError, read_saved_provider, save_provider
 
 _BUNDLED_CONFIG = (RESOURCES_DIR / "config.json").resolve()
 _REQUIRED_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL")
@@ -57,16 +59,66 @@ def read_env(env_path: Path) -> dict[str, str]:
     return {key: value for key, value in dotenv_values(env_path).items() if value is not None}
 
 
+def _is_complete(values: dict[str, str]) -> bool:
+    return all(values.get(key) for key in _REQUIRED_ENV_KEYS)
+
+
+def effective_env(env_path: Path) -> dict[str, str]:
+    """The provider a project uses: its own `.env` when that has a
+    complete configuration, else the one saved for every course on this
+    computer, else {}."""
+    project = read_env(env_path)
+    if _is_complete(project):
+        return {key: project.get(key, "") for key in _ALL_ENV_KEYS}
+    return read_saved_provider()
+
+
 def env_is_configured(env_path: Path) -> bool:
-    """Structural check only: are the required keys present and non-empty?
+    """Structural check only: does the project have a provider, its own
+    or the computer's?
 
     This does NOT confirm the credentials actually work — that's
     validate_provider()'s job via a live test call. Used to decide
     whether to show first-run setup at all (PRD section 7.1: "Detect
     missing .env").
     """
-    values = read_env(env_path)
-    return all(values.get(key) for key in _REQUIRED_ENV_KEYS)
+    return _is_complete(effective_env(env_path))
+
+
+def apply_provider_env(env_path: Path, *, override: bool = True) -> None:
+    """Make the project's provider (effective_env) the live process
+    configuration. A key that isn't configured is removed, so a course
+    opened after another never borrows the first one's settings.
+
+    With override=False (the CLI), each variable already set in the shell
+    wins, and the project's `.env` fills the rest, over the saved
+    provider, one variable at a time, as load_dotenv(override=False) did."""
+    if not override:
+        values = {**read_saved_provider(), **read_env(env_path)}
+        for key in _ALL_ENV_KEYS:
+            if values.get(key) and key not in os.environ:
+                os.environ[key] = values[key]
+        return
+    values = effective_env(env_path)
+    for key in _ALL_ENV_KEYS:
+        if values.get(key):
+            os.environ[key] = values[key]
+        else:
+            os.environ.pop(key, None)
+
+
+def adopt_project_provider(env_path: Path) -> bool:
+    """Courses created before the key was saved computer-wide keep it in
+    their `.env`. The first such course opened shares it with every
+    course, if nothing is saved yet. Returns True when it did."""
+    project = read_env(env_path)
+    if not _is_complete(project) or _is_complete(read_saved_provider()):
+        return False
+    try:
+        save_provider(project)
+    except CredentialStoreError:
+        return False
+    return True
 
 
 def write_provider_env(
@@ -207,22 +259,39 @@ def describe_provider(env: dict[str, str]) -> str:
     return f"{_FOOTER_LABEL[choice_for_env(env)]} {env['LLM_MODEL']}"
 
 
-def validate_and_save_provider(env_path: Path, settings: ProviderSettings) -> None:
-    """Test-call the candidate settings, and only if that succeeds write
-    them to .env and make them the live process configuration."""
+def validate_and_save_provider(env_path: Path, settings: ProviderSettings) -> bool:
+    """Test-call the candidate settings, and only if that succeeds save
+    them for every course and make them the live process configuration.
+
+    The project's own `.env` provider lines are removed, since they would
+    otherwise override what was just saved. If the credential store
+    refuses, the settings go in the project's `.env` instead. Returns True
+    when they were saved for every course."""
     validate_provider(settings.provider, settings.api_key, settings.base_url, settings.model)
-    write_provider_env(
-        env_path,
-        provider=settings.provider,
-        api_key=settings.api_key,
-        base_url=settings.base_url,
-        model=settings.model,
-    )
-    os.environ.update(
-        {
-            "LLM_PROVIDER": settings.provider,
-            "LLM_API_KEY": settings.api_key,
-            "LLM_BASE_URL": settings.base_url,
-            "LLM_MODEL": settings.model,
-        }
-    )
+    values = {
+        "LLM_PROVIDER": settings.provider,
+        "LLM_API_KEY": settings.api_key,
+        "LLM_BASE_URL": settings.base_url,
+        "LLM_MODEL": settings.model,
+    }
+    try:
+        save_provider(values)
+    except CredentialStoreError:
+        write_provider_env(
+            env_path,
+            provider=settings.provider,
+            api_key=settings.api_key,
+            base_url=settings.base_url,
+            model=settings.model,
+        )
+        saved_for_every_course = False
+    else:
+        _remove_provider_lines(env_path)
+        saved_for_every_course = True
+    os.environ.update(values)
+    return saved_for_every_course
+
+
+def _remove_provider_lines(env_path: Path) -> None:
+    for key in set(read_env(env_path)) & set(_ALL_ENV_KEYS):
+        unset_key(str(env_path), key)

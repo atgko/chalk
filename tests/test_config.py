@@ -3,10 +3,14 @@ import os
 
 import pytest
 
+from chalk import saved_provider
 from chalk.config import (
     ProviderSettings,
+    adopt_project_provider,
+    apply_provider_env,
     choice_for_env,
     describe_provider,
+    effective_env,
     env_is_configured,
     load_config,
     model_options,
@@ -235,16 +239,105 @@ def test_describe_provider(env, text):
     assert describe_provider(env) == text
 
 
-def test_validate_and_save_writes_env_and_applies_it_after_a_successful_test_call(tmp_path, monkeypatch):
-    for key in ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
+_ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+_OPENAI = "LLM_PROVIDER=openai\nLLM_API_KEY=sk-course\nLLM_BASE_URL=\nLLM_MODEL=gpt-4o\n"
+
+
+@pytest.fixture
+def clean_env(monkeypatch):
+    for key in _ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
+
+
+def _save_for_every_course() -> None:
+    saved_provider.save_provider(
+        {"LLM_PROVIDER": "anthropic", "LLM_API_KEY": "sk-ant", "LLM_BASE_URL": "", "LLM_MODEL": "claude-sonnet-5"}
+    )
+
+
+def test_validate_and_save_saves_for_every_course_and_applies_it(tmp_path, monkeypatch, clean_env):
+    monkeypatch.setattr("chalk.config.complete", lambda prompt, max_tokens=5: {"text": "OK"})
+    env_path = tmp_path / ".env"
+    env_path.write_text(_OPENAI + "OTHER=kept\n", encoding="utf-8")
+
+    saved = validate_and_save_provider(env_path, ProviderSettings("anthropic", "sk-ant", "", "claude-sonnet-5"))
+
+    assert saved is True
+    assert saved_provider.read_saved_provider()["LLM_MODEL"] == "claude-sonnet-5"
+    assert read_env(env_path) == {"OTHER": "kept"}  # the course's own lines would override it
+    assert os.environ["LLM_PROVIDER"] == "anthropic"
+
+
+def test_validate_and_save_falls_back_to_the_course_when_the_store_refuses(
+    tmp_path, monkeypatch, clean_env, memory_keyring
+):
+    from keyring.errors import PasswordSetError
+
+    def _refuse(*args):
+        raise PasswordSetError("locked")
+
+    monkeypatch.setattr(memory_keyring, "set_password", _refuse)
     monkeypatch.setattr("chalk.config.complete", lambda prompt, max_tokens=5: {"text": "OK"})
     env_path = tmp_path / ".env"
 
-    validate_and_save_provider(env_path, ProviderSettings("anthropic", "sk-ant", "", "claude-sonnet-5"))
+    saved = validate_and_save_provider(env_path, ProviderSettings("anthropic", "sk-ant", "", "claude-sonnet-5"))
 
-    assert read_env(env_path)["LLM_MODEL"] == "claude-sonnet-5"
-    assert os.environ["LLM_PROVIDER"] == "anthropic"
+    assert saved is False
+    assert read_env(env_path)["LLM_API_KEY"] == "sk-ant"
+
+
+def test_a_course_without_its_own_provider_uses_the_saved_one(tmp_path):
+    env_path = tmp_path / ".env"
+    assert not env_is_configured(env_path)
+
+    _save_for_every_course()
+
+    assert env_is_configured(env_path)
+    assert effective_env(env_path)["LLM_API_KEY"] == "sk-ant"
+
+
+def test_a_course_with_a_complete_provider_of_its_own_keeps_it(tmp_path):
+    _save_for_every_course()
+    env_path = tmp_path / ".env"
+    env_path.write_text(_OPENAI, encoding="utf-8")
+    assert effective_env(env_path)["LLM_API_KEY"] == "sk-course"
+
+    env_path.write_text("LLM_MODEL=gpt-4o\n", encoding="utf-8")  # incomplete: not used
+    assert effective_env(env_path)["LLM_API_KEY"] == "sk-ant"
+
+
+def test_the_first_course_with_a_key_shares_it_with_every_course(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text(_OPENAI, encoding="utf-8")
+
+    assert adopt_project_provider(env_path) is True
+    assert saved_provider.read_saved_provider()["LLM_API_KEY"] == "sk-course"
+    assert adopt_project_provider(env_path) is False  # something is saved now
+
+
+def test_adopting_never_replaces_a_saved_provider(tmp_path):
+    _save_for_every_course()
+    env_path = tmp_path / ".env"
+    env_path.write_text(_OPENAI, encoding="utf-8")
+
+    assert adopt_project_provider(env_path) is False
+    assert saved_provider.read_saved_provider()["LLM_API_KEY"] == "sk-ant"
+
+
+def test_applying_a_course_without_a_provider_clears_the_previous_ones(tmp_path, clean_env):
+    first = tmp_path / "first.env"
+    first.write_text(_OPENAI, encoding="utf-8")
+    apply_provider_env(first)
+    assert os.environ["LLM_API_KEY"] == "sk-course"
+
+    apply_provider_env(tmp_path / "second.env")  # no .env, nothing saved
+
+    assert "LLM_API_KEY" not in os.environ
+
+
+def test_a_corrupt_saved_provider_reads_as_none(memory_keyring):
+    memory_keyring.set_password(saved_provider.SERVICE, saved_provider.ENTRY, "{not json")
+    assert saved_provider.read_saved_provider() == {}
 
 
 def test_validate_and_save_writes_nothing_when_the_test_call_fails(tmp_path, monkeypatch):

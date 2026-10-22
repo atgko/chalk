@@ -13,10 +13,15 @@ import sys
 from collections.abc import Callable
 
 import streamlit as st
-from dotenv import load_dotenv
 
 from chalk import branding
-from chalk.config import describe_provider, env_is_configured, read_env
+from chalk.config import (
+    adopt_project_provider,
+    apply_provider_env,
+    describe_provider,
+    effective_env,
+    env_is_configured,
+)
 from chalk.errors import ChalkError
 from chalk.metrics import read_events, summarize_events
 from chalk.models import CourseData
@@ -52,8 +57,8 @@ def main(argv: list[str] | None = None) -> None:
         project_picker.render()
         return
 
-    if paths.env.exists():
-        load_dotenv(paths.env, override=True)
+    adopt_project_provider(paths.env)
+    apply_provider_env(paths.env)
     if not env_is_configured(paths.env) and not session.setup_skipped():
         setup_view.render(paths)
         return
@@ -182,4 +187,4 @@ def _guarded(render: Callable, *args) -> None:
 def _render_footer(paths: ProjectPaths) -> None:
     cost = summarize_events(read_events(paths.eval_log)).total_cost_usd
     st.divider()
-    st.caption(f"Provider: {describe_provider(read_env(paths.env))} · Project cost to date: ${cost:.4f}")
+    st.caption(f"Provider: {describe_provider(effective_env(paths.env))} · Project cost to date: ${cost:.4f}")

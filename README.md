@@ -94,7 +94,7 @@ The app has eight tabs. Rollover, Generate, Export, and Metrics unlock once a co
 
 **Metrics.** Total AI cost, rollovers, consistency-check catches, extraction errors, generations by type, and rollover history. **Download evaluation report** produces a markdown summary for reporting.
 
-**Settings.** Change your AI provider, model, or API key. Every change is tested with a short call before it's saved.
+**Settings.** Change your AI provider, model, or API key. Every change is tested with a short call before it's saved. You enter your key once: it's saved in this computer's password store (Windows Credential Manager, or the Keychain on a Mac) and every course uses it.
 
 The footer always shows the active provider and the project's AI cost to date.
 
@@ -127,7 +127,7 @@ python toolkit.py status --project IS-6640-Fall-2027
 - `report` writes `outputs/evaluation-report.md`.
 - Run `python toolkit.py <command> -h` for every option.
 
-The CLI reads the project's `.env` for AI provider settings. Copy `.env.example` into the project folder as `.env` and fill it in (see section 8), or set it up once in the app's Settings tab.
+The CLI uses the AI provider saved in the app's Settings tab (one for every course). A project's own `.env` overrides it (see section 8), and so does any `LLM_*` variable already set in your shell.
 
 ## 5. Adding source materials
 
@@ -209,7 +209,7 @@ Calendar data lives in `data/calendars.json` inside each project. The toolkit's 
 
 ## 8. Choosing and configuring your AI provider
 
-The app's first-run screen and Settings tab write these values for you. To set them by hand, put them in the project's `.env` file (start from `.env.example`). Switching providers is only ever a `.env` change.
+The app's first-run screen and Settings tab save these values for you, once for every course, in this computer's password store. To give one course different settings by hand, put all four in that project's `.env` file (start from `.env.example`); a complete `.env` overrides the saved provider for that course.
 
 ### 8a. OpenAI (default)
 
@@ -486,7 +486,7 @@ A bug. Your files were not changed. The terminal window running the app has the 
 
 - **Everything stays local.** Projects, syllabi, outputs, and the metrics log live in folders on your computer. There is no Chalk server, account, or telemetry, and Streamlit's own anonymous usage statistics are switched off (`.streamlit/config.toml`).
 - **What goes to the AI provider:** only when you click Generate (or run `generate`), and only the filled-in prompt. That prompt contains the course title, learning objectives, the chosen week's topics, your options, and the text of the source materials you selected. With the Ollama option, nothing leaves the university network. Nothing is sent during extraction, rollover, or export, with two exceptions you choose: reading a PDF syllabus with **Read it with AI** sends the syllabus's full text, and lengthening a course during rollover with "Draft topics for the added weeks with AI" ticked sends the recent weeks' topics. Reading a PDF on this computer (the default) sends nothing.
-- **Your API key** is stored only in the project's `.env` file. The repo's `.gitignore` and each project's `.gitignore` keep it out of git. Never share or commit it.
+- **Your API key** is stored in your operating system's password store (Windows Credential Manager or the macOS Keychain), encrypted under your login, not in a file. If the store isn't available, or you set a key by hand, it goes in the project's `.env` instead, which the repo's and each project's `.gitignore` keep out of git. Never share or commit it. To remove the saved key, delete the **Chalk** entry in Windows Credential Manager (Windows credentials) or Keychain Access.
 - **FERPA: course materials only.** Never upload student work, grades, rosters, emails, or anything that identifies a student. Chalk is designed for syllabi and instructor-authored materials, the app says so wherever files are uploaded, and every prompt template instructs the model not to request or invent student information.
 - **The metrics log** (`eval-log.json`) records counts, token usage, costs, file names, and timestamps, never the content of your syllabus or generated drafts.
 - **Grading:** Chalk drafts rubrics only. It never grades or evaluates student work (CTE policy).

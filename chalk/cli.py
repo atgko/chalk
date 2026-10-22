@@ -19,10 +19,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
-from dotenv import load_dotenv
-
 from chalk import branding
-from chalk.config import describe_provider
+from chalk.config import apply_provider_env, describe_provider
 from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
 from chalk.errors import ChalkError, TermNotInCalendarError
@@ -267,21 +265,19 @@ def _cmd_extract(args, console: _Console) -> int:
 
 
 def _require_provider(paths: ProjectPaths) -> None:
-    """Load the project's .env and fail with setup instructions if no LLM
-    provider is configured."""
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
+    """Load the project's provider (its .env, or the one saved for every
+    course) and fail with setup instructions if there is none."""
+    apply_provider_env(paths.env, override=False)
     if describe_provider(current_env()) == "Not configured":
         raise ChalkError(
-            "No LLM provider is configured. Copy .env.example to this project's .env and fill it in, "
-            "or set one up in the app's Settings tab."
+            "No LLM provider is configured. Set one up in the app's Settings tab (it's saved for "
+            "every course), or copy .env.example to this project's .env and fill it in."
         )
 
 
 def _cmd_rollover(args, console: _Console) -> int:
     paths = open_project(args.project)
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
+    apply_provider_env(paths.env, override=False)
     course_data = require_course(paths)
     plan = _preview_with_week1_fallback(paths, course_data, args, console)
     if plan is None:

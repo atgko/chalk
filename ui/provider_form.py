@@ -10,10 +10,10 @@ from chalk.config import (
     DEFAULT_OLLAMA_URL,
     PROVIDER_CHOICES,
     choice_for_env,
+    effective_env,
     load_config,
     model_options,
     provider_settings,
-    read_env,
     validate_and_save_provider,
 )
 from chalk.errors import ChalkError
@@ -28,10 +28,18 @@ _CAPTIONS = (
 )
 
 
-def render(paths: ProjectPaths, *, submit_label: str, key: str) -> bool:
-    """Draw the form; returns True on the run where settings were
-    validated with a test call and saved."""
-    env = read_env(paths.env)
+SAVED_EVERYWHERE = "Connected. Your key is saved on this computer for all your courses."
+SAVED_HERE = (
+    "Connected. This computer's password store wasn't available, so your key is saved for this "
+    "course only."
+)
+
+
+def render(paths: ProjectPaths, *, submit_label: str, key: str) -> str | None:
+    """Draw the form. On the run where settings were validated with a
+    test call and saved, returns a message saying where they were saved;
+    otherwise None."""
+    env = effective_env(paths.env)
     saved_choice = choice_for_env(env) if env else "OpenAI"
     choice = st.radio(
         "LLM provider",
@@ -73,12 +81,12 @@ def render(paths: ProjectPaths, *, submit_label: str, key: str) -> bool:
         )
 
     if not st.button(submit_label, type="primary", key=f"{key}-submit"):
-        return False
+        return None
     try:
         settings = provider_settings(choice, api_key=api_key, model=model or "", base_url=base_url)
         with st.spinner("Testing the connection…"):
-            validate_and_save_provider(paths.env, settings)
+            saved_everywhere = validate_and_save_provider(paths.env, settings)
     except ChalkError as exc:
         st.error(exc.user_message)
-        return False
-    return True
+        return None
+    return SAVED_EVERYWHERE if saved_everywhere else SAVED_HERE

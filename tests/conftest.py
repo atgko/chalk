@@ -6,13 +6,45 @@ synthetic_md_factory, mock_llm_client, frozen_time. See PLAN.md Section 5
 ("Test Strategy") for the full fixture-to-task map.
 """
 
+import keyring
 import pytest
+from keyring.backend import KeyringBackend
 
 from chalk.pipeline import extract_syllabus, save_reviewed_course
 from chalk.project import init_project
 from tests.fixtures import md_builder
 
 _ENV_KEYS = ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")
+
+
+class MemoryKeyring(KeyringBackend):
+    """A credential store that lives in memory, so tests never touch the
+    real Windows Credential Manager or macOS Keychain."""
+
+    priority = 1
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.passwords: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service, username):
+        return self.passwords.get((service, username))
+
+    def set_password(self, service, username, password):
+        self.passwords[(service, username)] = password
+
+    def delete_password(self, service, username):
+        self.passwords.pop((service, username), None)
+
+
+@pytest.fixture(autouse=True)
+def memory_keyring():
+    """Every test gets an empty in-memory credential store."""
+    previous = keyring.get_keyring()
+    store = MemoryKeyring()
+    keyring.set_keyring(store)
+    yield store
+    keyring.set_keyring(previous)
 
 
 @pytest.fixture
