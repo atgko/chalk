@@ -31,6 +31,7 @@ from ui import (
     drafts_view,
     export_view,
     generate_view,
+    grading_view,
     metrics_view,
     project_picker,
     review_view,
@@ -42,7 +43,7 @@ from ui import (
 )
 from ui.common import render_header, render_needs_course
 
-TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export", "Metrics", "Settings")
+TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export", "Metrics", "Grading Assistant", "Settings")
 # Tabs that work from a saved course: dimmed until there is one.
 NEEDS_COURSE_TABS = ("Rollover", "Generate", "Export", "Metrics")
 
@@ -73,7 +74,7 @@ def main(argv: list[str] | None = None) -> None:
     course_data = _load_course_or_warn(paths)
     session.apply_tab_request()
     background.clear_mark(session.active_tab())
-    upload, review, rollover, generate, drafts, export, metrics, settings = st.tabs(
+    upload, review, rollover, generate, drafts, export, metrics, grading, settings = st.tabs(
         TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
     )
     with upload:
@@ -92,6 +93,8 @@ def main(argv: list[str] | None = None) -> None:
         _guarded(drafts_view.render, paths)
     with metrics:
         _gated("Metrics", course_data, metrics_view.render, paths)
+    with grading:
+        _guarded(grading_view.render, paths)
     with settings:
         _guarded(settings_view.render, paths)
     background.render_tab_marks(

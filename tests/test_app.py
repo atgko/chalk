@@ -273,6 +273,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Drafts",
         "Export",
         "Metrics",
+        "Grading Assistant",
         "Settings",
     ]
     assert "Provider: Not configured" in at.caption[-1].value
