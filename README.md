@@ -54,7 +54,7 @@ Most of Chalk never calls an AI model, so it costs nothing and nothing leaves yo
 | Canvas HTML and the course brief | Export |
 | Reading, downloading (Word, PDF, markdown), and deleting drafts you've already saved | Drafts |
 | Costs, rollover history, error counts, and the evaluation report | Metrics |
-| Opening, creating, and switching between courses | Launch screen, **Switch course** |
+| Opening, creating, and switching between courses | Launch screen, **All courses** (top left, above the tabs) |
 
 These need an AI provider, and each one says so before it runs:
 

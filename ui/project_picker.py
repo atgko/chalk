@@ -1,5 +1,5 @@
 """Launch screen: choose or create the course project to work on. The
-app comes back here when the instructor clicks Switch course.
+app comes back here when the instructor clicks All courses.
 
 Skipped entirely when the app is started with
 `streamlit run app.py -- --project <folder>`.
