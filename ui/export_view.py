@@ -39,5 +39,9 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
 
     if paths.canvas_html.exists():
         st.markdown("#### Canvas HTML")
-        st.caption("Use the copy button at the top right of the box, then paste into Canvas's HTML editor.")
+        st.caption(
+            "Your Canvas syllabus page, filled in from the course. Use the copy button at the top right "
+            "of the box, then in Canvas open the syllabus page's HTML editor and paste it in place of the "
+            "template. Fill in the parts marked \"Insert…\" (email, office hours, TAs) in Canvas."
+        )
         st.code(paths.canvas_html.read_text(encoding="utf-8"), language="html")
