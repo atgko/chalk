@@ -46,8 +46,8 @@ A console window opens. **The first start takes a few minutes** while it install
 
 The welcome screen asks for an AI provider.
 
-- **No API key?** Click **Skip for now** at the bottom.
-- **Have a key?** Choose OpenAI or Anthropic Claude, paste the key, pick a model, and click **Test connection and continue**. The key is saved only in the demo project on your computer.
+- **No API key?** Click **Skip for now** at the bottom. Everything except generating drafts works without one, and costs nothing: reading syllabi (including PDFs read on this computer), reviewing, rolling over to a new term, Canvas HTML, the course brief, and metrics. See section 1a of the README for the full list.
+- **Have a key?** Choose OpenAI or Anthropic Claude, paste the key, pick a model, and click **Test connection and continue**. The key is saved once in your computer's password store (Windows Credential Manager or the Mac Keychain), and every course you open uses it.
 
 ✅ **Check:** you see eight tabs: **Upload, Review, Rollover, Generate, Drafts, Export, Metrics, Settings**.
 

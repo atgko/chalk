@@ -11,6 +11,7 @@ Everything runs on your own computer. Your files never leave it, except for the 
 ## Contents
 
 1. [What this tool does](#1-what-this-tool-does)
+   - [What works without an API key (free)](#1a-what-works-without-an-api-key-free)
 2. [Quick start](#2-quick-start)
 3. [How to use the app](#3-how-to-use-the-app)
 4. [Command-line reference](#4-command-line-reference)
@@ -29,7 +30,7 @@ Everything runs on your own computer. Your files never leave it, except for the 
 
 | Feature | What you get | Needs an AI provider? |
 |---|---|---|
-| **Syllabus extraction** | Reads your syllabus into `course.json`: course details, learning objectives, grading weights, and the week-by-week schedule. Checks that the term label matches the Week 1 date. | No |
+| **Syllabus extraction** | Reads your syllabus into `course.json`: course details, learning objectives, grading weights, and the week-by-week schedule. Checks that the term label matches the Week 1 date. | No (a PDF can optionally be read with AI) |
 | **Semester rollover** | Shifts every date to a new term, inserts that term's breaks, and shows a full preview with flags before anything is written. | No* |
 | **Canvas HTML** | A schedule table you paste into Canvas's HTML editor. | No |
 | **Course brief** | A one-page overview of the course, rebuilt automatically after every extraction and rollover. | No |
@@ -37,6 +38,33 @@ Everything runs on your own computer. Your files never leave it, except for the 
 | **Metrics** | Cost, rollover history, consistency-check catches, extraction errors, plus a downloadable evaluation report. | No |
 
 \*Only if you lengthen a course during rollover and ask the AI to draft topics for the new weeks. Without a provider, those weeks are added as clearly marked placeholders.
+
+### 1a. What works without an API key (free)
+
+Most of Chalk never calls an AI model, so it costs nothing and nothing leaves your computer. You can use all of this without entering an API key: on the welcome screen, click **Skip for now**.
+
+| Free: no API key, no cost, works offline | Tab |
+|---|---|
+| Reading a Word (.docx) or markdown (.md) syllabus | Upload |
+| Reading a PDF syllabus with **Read it on this computer** (the default) | Upload |
+| Checking that the term label matches the Week 1 date | Upload |
+| Reviewing and correcting course details, grading weights, and every week, including dating a schedule that has no dates | Review |
+| Rolling a course over to a new term: new dates, the new term's breaks, holiday warnings, a full preview, and the updated Word or markdown syllabus | Rollover |
+| Lengthening or shortening a course at rollover (added weeks get placeholder topics to fill in) | Rollover |
+| Canvas HTML and the course brief | Export |
+| Reading, downloading (Word, PDF, markdown), and deleting drafts you've already saved | Drafts |
+| Costs, rollover history, error counts, and the evaluation report | Metrics |
+| Opening, creating, and switching between courses | Launch screen, **Switch course** |
+
+These need an AI provider, and each one says so before it runs:
+
+| Uses the AI provider (costs a few cents, sends course text to the provider) | Tab |
+|---|---|
+| Generating or regenerating a quiz, discussion prompts, an assignment, a rubric, a summary, or slides. The estimated maximum cost is shown before you click **Generate**. | Generate |
+| **Read it with AI** for a PDF whose layout the free reader can't follow. The cost per page is shown next to the option. | Upload |
+| "Draft topics for the added weeks with AI" when you lengthen a course. Untick it to add placeholder weeks for free. | Rollover |
+
+Every AI call's cost is added to the footer's "Project cost to date" and the Metrics tab. To use the AI features without paying per call, run a model on your own computer or a university server with Ollama (section 8c). It's free to use, but needs a powerful machine, is slower, and usually writes weaker drafts than OpenAI or Anthropic models.
 
 ## 2. Quick start
 
