@@ -8,7 +8,7 @@ import pytest
 
 from chalk import metrics
 from chalk.cli import main
-from chalk.errors import ExtractionError
+from chalk.errors import ExtractionError, LLMProviderError
 from chalk.extractors import extract_course
 from chalk.pipeline import (
     PDF_READING_CONTENT_TYPE,
@@ -259,3 +259,21 @@ def test_expected_ai_reading_length_scales_with_the_syllabus_text(pdf):
     blocks = read_pdf_blocks(pdf)
     # 1,200 output tokens for every 800 input tokens, as in the cost estimate.
     assert expected_ai_reading_tokens(blocks) == int(len(blocks_as_text(blocks)) / 4 * 1.5)
+
+
+def test_an_ai_read_that_fails_partway_still_logs_what_the_parts_cost(tmp_project, pdf, monkeypatch, ai):
+    def fake_complete(prompt, system="", max_tokens=2000, on_text=None):
+        if "part 2 of" in prompt:
+            raise LLMProviderError("The provider is busy.")
+        return {"text": ai["reply"], "input_tokens": 1000, "output_tokens": 2000}
+
+    monkeypatch.setattr("chalk.pdf_import.ai_reader.PART_CHARS", 200)
+    monkeypatch.setattr("chalk.pdf_import.ai_reader.complete", fake_complete)
+
+    with pytest.raises(LLMProviderError):
+        convert_pdf_syllabus(tmp_project, pdf, method="ai")
+
+    [event] = metrics.read_events_by_type(tmp_project.eval_log, "generation")
+    assert event["output_tokens"] >= 2000
+    [error] = metrics.read_events_by_type(tmp_project.eval_log, "extraction_error")
+    assert error["error_type"] == "LLMProviderError"

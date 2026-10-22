@@ -24,12 +24,15 @@ from chalk.course_brief import write_course_brief
 from chalk.errors import ChalkError, ProjectError, TermNotInCalendarError
 from chalk.extractors import extract_course
 from chalk.extractors.consistency import ConsistencyResult
-from chalk.extractors.undated_schedule import date_undated_schedule, default_week1
+from chalk.extractors.undated_schedule import (
+    date_undated_schedule,
+    default_week1,
+    syllabus_lists_breaks,
+)
 from chalk.generation.engine import current_env
-from chalk.llm_client import CompletionResult
 from chalk.models import CourseData
 from chalk.pdf_import import PdfReadMethod, converted_docx_name
-from chalk.pdf_import.ai_reader import ask_ai_to_read, blocks_from_reply
+from chalk.pdf_import.ai_reader import AiReading, ask_ai_to_read, blocks_from_reply
 from chalk.pdf_import.blocks import blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
@@ -162,9 +165,12 @@ def convert_pdf_syllabus(
         if method == "ai":
             report(on_progress, None, "Waiting for the AI to start reading")
             on_text = writing_progress(on_progress, expected_ai_reading_tokens(blocks))
-            completion = ask_ai_to_read(blocks, on_text=on_text)
-            cost = _log_ai_reading(paths, pdf_path, completion)  # paid for even if it can't be used
-            blocks = blocks_from_reply(completion)
+            reading = ask_ai_to_read(blocks, on_text=on_text)
+            if reading.replies:  # paid for even if it can't be used
+                cost = _log_ai_reading(paths, pdf_path, reading)
+            if reading.error is not None:
+                raise reading.error
+            blocks = blocks_from_reply(reading)
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,
@@ -191,12 +197,12 @@ def estimate_ai_reading_cost_per_page(paths: ProjectPaths) -> float | None:
     return costs.cost_usd(rate, _AI_READING_INPUT_TOKENS_PER_PAGE, _AI_READING_OUTPUT_TOKENS_PER_PAGE)
 
 
-def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, completion: CompletionResult) -> float | None:
+def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, reading: AiReading) -> float | None:
     env = current_env()
     cost = costs.cost_usd(
         costs.rate_for(load_config(paths.config_json), env),
-        completion["input_tokens"],
-        completion["output_tokens"],
+        reading.input_tokens,
+        reading.output_tokens,
     )
     metrics.append_event(
         paths.eval_log,
@@ -207,8 +213,8 @@ def _log_ai_reading(paths: ProjectPaths, pdf_path: Path, completion: CompletionR
             "output_file": f"source/{converted_docx_name(pdf_path)}",
             "provider": env["LLM_PROVIDER"],
             "model": env["LLM_MODEL"] or "unknown model",
-            "input_tokens": completion["input_tokens"],
-            "output_tokens": completion["output_tokens"],
+            "input_tokens": reading.input_tokens,
+            "output_tokens": reading.output_tokens,
             "cost_usd": cost,
             "source_file_count": 0,
         },
