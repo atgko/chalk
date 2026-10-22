@@ -14,7 +14,7 @@ import streamlit as st
 from chalk.calendar_data import find_term, load_calendars
 from chalk.errors import ChalkError
 from chalk.extractors.consistency import grading_weight_warning
-from chalk.extractors.undated_schedule import date_undated_schedule
+from chalk.extractors.undated_schedule import date_undated_schedule, syllabus_lists_breaks
 from chalk.models import CourseData
 from chalk.pipeline import save_reviewed_course
 from chalk.project import ProjectPaths
@@ -97,14 +97,15 @@ def _render_course_details(course_data: CourseData) -> dict:
 
 
 def _render_week1_date(paths: ProjectPaths, course_data: CourseData) -> CourseData:
-    """A schedule with no dates of its own was dated by Chalk: show from
-    when, and let the instructor change Week 1, which re-dates the rest."""
+    """A schedule with no dates of its own was dated by Chalk: say so, and
+    let the instructor change Week 1 and whether the class takes the
+    term's breaks, which re-dates the weeks."""
     if not course_data.course.undated_schedule:
         return course_data
     current = next(week.date for week in course_data.weeks if not week.is_break)
     st.info(
-        "This syllabus's schedule has no dates, so Chalk dated the weeks one week apart from the "
-        "first day of the term, skipping breaks. Check the date of the first class.",
+        "This syllabus's schedule has no dates, so Chalk gave each week a date, one week apart, "
+        "starting from the Week 1 date below. Check that it's the date of the first class.",
         icon="📅",
     )
     calendars = load_calendars(paths.calendars_json)
@@ -112,9 +113,10 @@ def _render_week1_date(paths: ProjectPaths, course_data: CourseData) -> CourseDa
     key = course_data.course.extracted_at.isoformat()
     suggested = _session_week1(course_data, calendars, key) or current
     week1 = st.date_input("Week 1 date", value=suggested, format="MM/DD/YYYY", key=f"undated-week1-{key}-{suggested}")
-    if not isinstance(week1, dt.date) or week1 == current:
-        return course_data
-    return date_undated_schedule(course_data, week1, calendars)
+    if not isinstance(week1, dt.date):
+        week1 = current
+    skip_breaks = _render_break_choice(course_data, week1, calendars, key)
+    return date_undated_schedule(course_data, week1, calendars, skip_breaks=skip_breaks)
 
 
 def _session_week1(course_data: CourseData, calendars: dict, key: str) -> dt.date | None:
@@ -137,6 +139,28 @@ def _session_week1(course_data: CourseData, calendars: dict, key: str) -> dt.dat
         "starts in to set Week 1; a 1.5-credit course is one session.",
     )
     return None if span.first == 1 else session_start(entry, span.first)
+
+
+def _render_break_choice(course_data: CourseData, week1: dt.date, calendars: dict, key: str) -> bool:
+    """Whether the class takes the term's breaks that fall in its weeks
+    (none: nothing to ask). Ticked when the syllabus mentions a break."""
+    with_breaks = date_undated_schedule(course_data, week1, calendars, skip_breaks=True)
+    breaks = [week.label for week in with_breaks.weeks if week.is_break]
+    if not breaks:
+        return False
+    mentioned = syllabus_lists_breaks(course_data)
+    return st.checkbox(
+        f"No class during {' or '.join(breaks)}",
+        value=mentioned,
+        key=f"undated-breaks-{key}",
+        help="Ticked, the weeks after the break move a week later and the break shows in the "
+        "schedule. "
+        + (
+            "The syllabus mentions a break, so Chalk assumed the class takes it."
+            if mentioned
+            else "The syllabus doesn't mention this break, so Chalk assumed the class meets through it."
+        ),
+    )
 
 
 _CREDITS_TEXT_RE = re.compile(r"^\d{1,2}(\.\d{1,2})?$")

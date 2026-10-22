@@ -244,12 +244,35 @@ def choice_for_env(env: dict[str, str]) -> str:
 
 def model_options(config: dict[str, Any], choice: str) -> list[str]:
     """Model dropdown choices: the cost_rates keys for a hosted provider, so
-    every selectable model has a cost rate (DECISIONS.md). Empty for
-    Ollama, whose model name stays free text."""
+    every selectable model has a cost rate (DECISIONS.md), with the
+    recommended one first so a new setup starts on it. Empty for Ollama,
+    whose model name stays free text."""
     section = COST_RATE_SECTION.get(choice)
     if section is None:
         return []
-    return list(config.get("cost_rates", {}).get(section, {}))
+    return sorted(config.get("cost_rates", {}).get(section, {}), key=lambda model: model not in RECOMMENDED_MODELS)
+
+
+# The best value for each hosted provider (UAT round 2: staff may not know
+# which model to pick). The other models are labelled by what they cost
+# next to it (`model_label`).
+RECOMMENDED_MODELS = frozenset({"gpt-4o-mini", "claude-haiku-4-5-20251001", "gemini-3.5-flash-lite"})
+
+
+def model_label(config: dict[str, Any], choice: str, model: str) -> str:
+    """The model dropdown's text: the recommended model says so, and a
+    pricier one says it's for heavier work and roughly what it costs next
+    to the recommended one, e.g. "gpt-4o (Most capable, for long syllabi
+    and heavier work: about 17× the cost)"."""
+    if model in RECOMMENDED_MODELS:
+        return f"{model} (Recommended: best value for everyday work)"
+    rates = config.get("cost_rates", {}).get(COST_RATE_SECTION.get(choice, ""), {})
+    recommended = next((rates[name] for name in rates if name in RECOMMENDED_MODELS), None)
+    if model not in rates or not recommended or not recommended.get("output_per_1k"):
+        return model
+    ratio = round(rates[model]["output_per_1k"] / recommended["output_per_1k"])
+    cost = f"about {ratio}× the cost" if ratio > 1 else "about the same cost"
+    return f"{model} (Most capable, for long syllabi and heavier work: {cost})"
 
 
 def describe_provider(env: dict[str, str]) -> str:

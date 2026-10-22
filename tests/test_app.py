@@ -1115,6 +1115,23 @@ def test_review_asks_for_week1_of_an_undated_schedule_and_redates_it(project, tm
     assert weeks == [dt.date(2026, 8, 31), dt.date(2026, 9, 7), dt.date(2026, 9, 14)]
 
 
+def test_review_assumes_an_undated_class_meets_through_a_break_it_doesnt_mention(project, tmp_path):
+    from tests.test_undated_schedule import _outline_syllabus
+
+    pending = _pending(project, tmp_path, _outline_syllabus, "outline.docx")  # 10 meetings, crosses Fall Break
+    at = launch(project, chalk_pending_extraction=pending)
+    [no_class] = at.checkbox
+    assert no_class.label == "No class during Fall Break (10/10 - 10/18)"
+    assert no_class.value is False
+    assert not any("Fall Break" in str(row) for row in at.dataframe[-1].value.values.tolist())
+
+    no_class.check()
+    at = click(at.run(), "Confirm and save")
+
+    assert_no_exception(at)
+    assert [w.label for w in load_course(project).weeks if w.is_break] == ["Fall Break (10/10 - 10/18)"]
+
+
 def test_review_doesnt_ask_for_week1_of_a_dated_schedule(project, tmp_path):
     pending = _pending(project, tmp_path, md_builder.build_minimal_syllabus, "s.md")
     assert not launch(project, chalk_pending_extraction=pending).date_input

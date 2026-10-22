@@ -32,7 +32,7 @@ Everything runs on your own computer. Your files never leave it, except for the 
 |---|---|---|
 | **Syllabus extraction** | Reads your syllabus into `course.json`: course details, learning objectives, grading weights, and the week-by-week schedule. Checks that the term label matches the Week 1 date. | No (a PDF can optionally be read with AI) |
 | **Semester rollover** | Shifts every date to a new term, inserts that term's breaks, and shows a full preview with flags before anything is written. | No* |
-| **Canvas HTML** | A schedule table you paste into Canvas's HTML editor. | No |
+| **Canvas HTML** | Your Canvas syllabus page, filled in: the course banner, instructor details, objectives, grading, the schedule, and the standard help and accessibility sections. Paste it into the syllabus page's HTML editor in place of the template. | No |
 | **Course brief** | A one-page overview of the course, rebuilt automatically after every extraction and rollover. | No |
 | **Content drafts** | Quizzes, discussion prompts, rubrics, module summaries, slide outlines. | Yes |
 | **Metrics** | Cost, rollover history, consistency-check catches, extraction errors, plus a downloadable evaluation report. | No |
@@ -181,7 +181,7 @@ IS-6640-Fall-2027/
   outputs/
     syllabus.docx        Rolled-over Word syllabus (Word input)
     syllabus.md          Rolled-over markdown syllabus (markdown input)
-    canvas.html          Schedule table for Canvas's HTML editor
+    canvas.html          Canvas syllabus page, for its HTML editor
     course-brief.md      One-page course overview
     evaluation-report.md Metrics summary (from `report` or the Metrics tab)
     quizzes/  discussions/  assignments/  rubrics/  summaries/  slides/
