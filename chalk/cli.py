@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TextIO
 
 from chalk import branding
+from chalk.calendar_data import find_term, load_calendars
 from chalk.config import apply_provider_env, describe_provider
 from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
@@ -65,6 +66,7 @@ from chalk.project import (
 )
 from chalk.report import write_evaluation_report
 from chalk.rollover.meeting_days import parse_meeting_days
+from chalk.sessions import SessionSpan, is_summer, parse_session, session_start
 
 _RULE = "─" * 64
 
@@ -149,7 +151,17 @@ def build_parser() -> argparse.ArgumentParser:
     rollover = commands.add_parser("rollover", parents=[project_arg], help="Roll the course to a new term.")
     rollover.add_argument("--term", required=True, help='Target term, e.g. "Fall 2027".')
     rollover.add_argument("--weeks", type=int, help="New course length in weeks (default: unchanged).")
-    rollover.add_argument("--week1-date", type=_parse_date, help="First day of classes (YYYY-MM-DD), for terms not in the calendar.")
+    rollover.add_argument(
+        "--week1-date",
+        type=_parse_date,
+        help="First day of classes (YYYY-MM-DD): required for terms not in the calendar, overrides --session.",
+    )
+    rollover.add_argument(
+        "--session",
+        type=_parse_session,
+        help="Which 5-week sessions the course runs in: 1, 2, 3, 1-2, 2-3, or 1-3 (default: the full term). "
+        "Sets Week 1 and, unless --weeks is given, the length.",
+    )
     rollover.add_argument("--no-llm", action="store_true", help="Don't ask the LLM to draft topics for added weeks.")
     rollover.add_argument(
         "--meeting-days",
@@ -380,14 +392,25 @@ def _cmd_status(args, console: _Console) -> int:
 def _preview_with_week1_fallback(
     paths: ProjectPaths, course_data: CourseData, args, console: _Console
 ) -> RolloverPlan | None:
+    week1_date, weeks = args.week1_date, args.weeks
+    if args.session is not None and not args.session.is_full_term:
+        term_entry = find_term(load_calendars(paths.calendars_json), args.term)
+        if is_summer(args.term):
+            console.error("Summer terms have no sessions: summer courses run --weeks 10 or --weeks 12.")
+            return None
+        if term_entry is None and week1_date is None:
+            console.error(f"{args.term} isn't in the calendar, so Chalk can't find its sessions. Pass --week1-date.")
+            return None
+        week1_date = week1_date or session_start(term_entry, args.session.first)
+        weeks = weeks or args.session.weeks
     kwargs = {
-        "target_duration_weeks": args.weeks,
+        "target_duration_weeks": weeks,
         "llm_generate_topics": not args.no_llm,
         "meeting_days": args.meeting_days,
         "breaks_not_observed": frozenset(args.no_break),
     }
     try:
-        return preview_rollover(paths, course_data, args.term, manual_week1_date=args.week1_date, **kwargs)
+        return preview_rollover(paths, course_data, args.term, manual_week1_date=week1_date, **kwargs)
     except TermNotInCalendarError as exc:
         if args.yes:
             raise
@@ -486,6 +509,13 @@ def _relative(path: Path, paths: ProjectPaths) -> str:
         return path.relative_to(paths.root).as_posix()
     except ValueError:  # pragma: no cover - every workflow writes inside the project
         return str(path)
+
+
+def _parse_session(text: str) -> SessionSpan:
+    try:
+        return parse_session(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def _parse_date(text: str) -> dt.date:

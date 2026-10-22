@@ -48,7 +48,7 @@ def _render_overview(course_data: CourseData) -> str:
         ("Course", course_line),
         ("Term", f"{course.term} ({term_range})"),
         ("Duration", f"{course.duration_weeks} weeks"),
-        ("Credits", "" if course.credits is None else str(course.credits)),
+        ("Credits", "" if course.credits is None else f"{course.credits:g}"),
         ("Meeting pattern", course.meeting_pattern),
         ("Instructor", course.instructor),
     ]

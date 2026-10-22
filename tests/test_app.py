@@ -587,8 +587,19 @@ def test_review_rejects_non_numeric_credits(project, tmp_path):
     widget(at.text_input, "Credits").set_value("three")
     at = click(at.run(), "Confirm and save")
 
-    assert any("Credits must be a whole number" in e for e in texts(at.error))
+    assert any("Credits must be a number like 3 or 1.5" in e for e in texts(at.error))
     assert load_course(project).course.credits is None
+
+
+def test_review_accepts_one_and_a_half_credits(project, tmp_path):
+    _save_course_missing_details(project, tmp_path)
+    at = launch(project)
+
+    widget(at.text_input, "Credits").set_value("1.5")
+    at = click(at.run(), "Confirm and save")
+
+    assert_no_exception(at)
+    assert load_course(project).course.credits == 1.5
 
 
 def test_review_shows_the_saved_course_when_nothing_is_pending(saved_project):
@@ -1146,3 +1157,70 @@ def test_review_assumes_an_undated_class_meets_through_a_break_it_doesnt_mention
 def test_review_doesnt_ask_for_week1_of_a_dated_schedule(project, tmp_path):
     pending = _pending(project, tmp_path, md_builder.build_minimal_syllabus, "s.md")
     assert not launch(project, chalk_pending_extraction=pending).date_input
+
+
+# ---- Sessions -----------------------------------------------------------------------
+
+
+def test_rollover_into_a_later_session_sets_week1_and_the_length(saved_project):
+    import datetime as dt
+
+    from chalk.sessions import SessionSpan
+
+    at = launch(saved_project)
+    widget(at.selectbox, "Session").set_value(SessionSpan(2, 3))
+    at = at.run()
+    assert "Session 2 of Fall 2027 starts Monday, September 27." in texts(at.caption)
+    assert widget(at.number_input, "Duration (weeks)").value == 10
+
+    at = click(at, "Preview rollover")
+
+    assert_no_exception(at)
+    plan = at.session_state["chalk_rollover_plan"].plan
+    first = next(w for w in plan.rolled_over.weeks if not w.is_break)
+    assert first.date == dt.date(2027, 9, 27)
+    assert plan.rolled_over.course.duration_weeks == 10
+
+
+def test_an_undated_course_can_start_in_a_later_session(project, tmp_path):
+    import datetime as dt
+
+    from chalk.sessions import SessionSpan
+    from tests.test_undated_schedule import _outline_syllabus
+
+    pending = _pending(project, tmp_path, lambda path: _outline_syllabus(path, meetings=10), "outline.docx")
+    at = launch(project, chalk_pending_extraction=pending)
+    assert widget(at.selectbox, "Session").value == SessionSpan(1, 2)  # 10 meetings
+
+    widget(at.selectbox, "Session").set_value(SessionSpan(2, 3))
+    at = at.run()
+    [week1] = at.date_input
+    assert week1.value == dt.date(2026, 9, 28)  # Session 2 of Fall 2026
+    assert tables_first_date(at) == "Sep 28 (9/28)"
+
+
+def tables_first_date(at) -> str:
+    """The Date column of the Review tab's first week row."""
+    [weeks] = [frame for frame in at.dataframe if "Date" in frame.value.columns]
+    return weeks.value["Date"].iloc[0]
+
+
+def test_a_summer_rollover_offers_10_or_12_weeks(saved_project):
+    import datetime as dt
+
+    at = launch(saved_project)
+    widget(at.selectbox, "Target term").set_value("Summer 2027")
+    at = at.run()
+    from chalk.sessions import summer_length
+
+    length = widget(at.selectbox, "Summer length")
+    assert length.options == ["Full summer term (12 weeks)", "10 weeks"]
+    assert widget(at.number_input, "Duration (weeks)").value == 10  # the saved course has 2 weeks
+
+    length.set_value(summer_length(12))
+    at = click(at.run(), "Preview rollover")
+
+    assert_no_exception(at)
+    plan = at.session_state["chalk_rollover_plan"].plan
+    assert plan.rolled_over.course.duration_weeks == 12
+    assert next(w for w in plan.rolled_over.weeks if not w.is_break).date == dt.date(2027, 5, 17)
