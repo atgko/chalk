@@ -13,6 +13,7 @@ from chalk.config import (
     effective_env,
     env_is_configured,
     load_config,
+    model_label,
     model_options,
     provider_settings,
     read_env,
@@ -21,6 +22,9 @@ from chalk.config import (
     write_provider_env,
 )
 from chalk.errors import ChalkError, LLMProviderError
+from chalk.project import RESOURCES_DIR
+
+BUNDLED_CONFIG = RESOURCES_DIR / "config.json"
 
 
 def test_read_env_returns_empty_dict_for_missing_file(tmp_path):
@@ -209,11 +213,30 @@ def test_model_options_come_from_cost_rates():
             "gemini": {"gemini-3.5-flash-lite": {}},
         }
     }
-    assert model_options(config, "OpenAI") == ["gpt-4o", "gpt-4o-mini"]
+    assert model_options(config, "OpenAI") == ["gpt-4o-mini", "gpt-4o"]  # recommended first
     assert model_options(config, "Google Gemini") == ["gemini-3.5-flash-lite"]
     assert model_options(config, "Anthropic Claude") == ["claude-sonnet-5"]
     assert model_options(config, "Local model (Ollama)") == []
     assert model_options({}, "OpenAI") == []
+
+
+def test_model_label_recommends_the_best_value_and_prices_the_rest():
+    config = load_config(BUNDLED_CONFIG)
+
+    assert model_label(config, "OpenAI", "gpt-4o-mini") == (
+        "gpt-4o-mini (Recommended: best value for everyday work)"
+    )
+    assert model_label(config, "OpenAI", "gpt-4o") == (
+        "gpt-4o (Most capable, for long syllabi and heavier work: about 17× the cost)"
+    )
+    assert "about 4× the cost" in model_label(config, "Anthropic Claude", "claude-sonnet-5")
+    assert "Recommended" in model_label(config, "Google Gemini", "gemini-3.5-flash-lite")
+
+
+def test_model_label_is_the_bare_name_without_rates_to_compare():
+    config = {"cost_rates": {"openai": {"gpt-5": {"input_per_1k": 1, "output_per_1k": 1}}}}
+    assert model_label(config, "OpenAI", "gpt-5") == "gpt-5"
+    assert model_label(config, "OpenAI", "unlisted") == "unlisted"
 
 
 @pytest.mark.parametrize(
