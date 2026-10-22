@@ -66,7 +66,7 @@ from chalk.project import (
 )
 from chalk.report import write_evaluation_report
 from chalk.rollover.meeting_days import parse_meeting_days
-from chalk.sessions import SessionSpan, parse_session, session_start
+from chalk.sessions import SessionSpan, is_summer, parse_session, session_start
 
 _RULE = "─" * 64
 
@@ -395,6 +395,9 @@ def _preview_with_week1_fallback(
     week1_date, weeks = args.week1_date, args.weeks
     if args.session is not None and not args.session.is_full_term:
         term_entry = find_term(load_calendars(paths.calendars_json), args.term)
+        if is_summer(args.term):
+            console.error("Summer terms have no sessions: summer courses run --weeks 10 or --weeks 12.")
+            return None
         if term_entry is None and week1_date is None:
             console.error(f"{args.term} isn't in the calendar, so Chalk can't find its sessions. Pass --week1-date.")
             return None

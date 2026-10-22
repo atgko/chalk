@@ -19,7 +19,14 @@ from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
 from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
 from chalk.rollover.season_change import multi_day_breaks
-from chalk.sessions import FULL_TERM, SessionSpan, available_spans, guess_session, session_start
+from chalk.sessions import (
+    FULL_TERM,
+    SessionSpan,
+    available_spans,
+    guess_session,
+    is_summer,
+    session_start,
+)
 from ui import background, common, session, tables
 from ui.session import StoredPlan
 
@@ -108,19 +115,22 @@ def _render_session_choice(
     length and credits."""
     entry = find_term(load_calendars(paths.calendars_json), term)
     spans = available_spans(entry)
-    guess = guess_session(course_data.course.duration_weeks, course_data.course.credits)
+    guess = guess_session(course_data.course.duration_weeks, course_data.course.credits, summer=is_summer(term))
     span = st.selectbox(
-        "Session",
+        "Session" if not is_summer(term) else "Summer length",
         spans,
         index=spans.index(guess) if guess in spans else spans.index(FULL_TERM),
         format_func=lambda option: option.label,
         key=f"session-{term}",
-        help="Some programs split the term into three 5-week sessions. A 1.5-credit course is one session.",
+        help="Summer courses run 10 or 12 weeks from the first day of the term."
+        if is_summer(term)
+        else "Some programs split the term into three 5-week sessions. A 1.5-credit course is one session.",
     )
     if span.is_full_term:
         return span, None
     week1 = session_start(entry, span.first)
-    st.caption(f"Session {span.first} of {term} starts {week1:%A, %B} {week1.day}.")
+    if span.summer_weeks is None:
+        st.caption(f"Session {span.first} of {term} starts {week1:%A, %B} {week1.day}.")
     return span, week1
 
 

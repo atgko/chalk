@@ -55,11 +55,17 @@ def test_an_unknown_session_is_an_error():
         parse_session("4")
 
 
-def test_a_short_summer_term_has_no_session_3():
+def test_a_summer_term_offers_10_or_12_weeks_not_sessions():
     spans = available_spans(SUMMER_2027)
-    assert SessionSpan(1, 2) in spans and FULL_TERM in spans
-    assert SessionSpan(3, 3) not in spans and SessionSpan(2, 3) not in spans
+    assert [(span.label, span.weeks) for span in spans] == [("Full summer term (12 weeks)", 12), ("10 weeks", 10)]
+    assert not any(span.is_full_term for span in spans)  # each one sets the course's length
+    assert all(session_start(SUMMER_2027, span.first) == dt.date(2027, 5, 17) for span in spans)
     assert len(available_spans(FALL_2026)) == 6
+
+
+def test_a_semester_term_drops_a_session_that_runs_past_its_end():
+    short = {**FALL_2026, "end": "2026-11-20"}
+    assert SessionSpan(3, 3) not in available_spans(short) and FULL_TERM in available_spans(short)
 
 
 @pytest.mark.parametrize(
@@ -75,6 +81,11 @@ def test_a_short_summer_term_has_no_session_3():
 )
 def test_guess_session(weeks, credits, expected):
     assert guess_session(weeks, credits) == expected
+
+
+@pytest.mark.parametrize(("weeks", "expected"), [(10, 10), (8, 10), (12, 12), (15, 12)])
+def test_guess_summer_length(weeks, expected):
+    assert guess_session(weeks, 3, summer=True).weeks == expected
 
 
 def test_one_and_a_half_credits_are_read_as_such():

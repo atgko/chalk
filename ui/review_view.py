@@ -18,7 +18,7 @@ from chalk.extractors.undated_schedule import date_undated_schedule
 from chalk.models import CourseData
 from chalk.pipeline import save_reviewed_course
 from chalk.project import ProjectPaths
-from chalk.sessions import FULL_TERM, available_spans, guess_session, session_start
+from chalk.sessions import FULL_TERM, available_spans, guess_session, is_summer, session_start
 from ui import session, tables
 
 
@@ -122,7 +122,7 @@ def _session_week1(course_data: CourseData, calendars: dict, key: str) -> dt.dat
     starts in (chalk/sessions.py); returns that session's first day, or
     None for the full term."""
     entry = find_term(calendars, course_data.course.term)
-    if entry is None:
+    if entry is None or is_summer(entry["term"]):  # summer has no sessions: Week 1 is the term's start
         return None
     spans = available_spans(entry)
     regular_weeks = sum(1 for week in course_data.weeks if not week.is_break)

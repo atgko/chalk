@@ -1164,3 +1164,24 @@ def tables_first_date(at) -> str:
     """The Date column of the Review tab's first week row."""
     [weeks] = [frame for frame in at.dataframe if "Date" in frame.value.columns]
     return weeks.value["Date"].iloc[0]
+
+
+def test_a_summer_rollover_offers_10_or_12_weeks(saved_project):
+    import datetime as dt
+
+    at = launch(saved_project)
+    widget(at.selectbox, "Target term").set_value("Summer 2027")
+    at = at.run()
+    from chalk.sessions import summer_length
+
+    length = widget(at.selectbox, "Summer length")
+    assert length.options == ["Full summer term (12 weeks)", "10 weeks"]
+    assert widget(at.number_input, "Duration (weeks)").value == 10  # the saved course has 2 weeks
+
+    length.set_value(summer_length(12))
+    at = click(at.run(), "Preview rollover")
+
+    assert_no_exception(at)
+    plan = at.session_state["chalk_rollover_plan"].plan
+    assert plan.rolled_over.course.duration_weeks == 12
+    assert next(w for w in plan.rolled_over.weeks if not w.is_break).date == dt.date(2027, 5, 17)

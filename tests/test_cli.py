@@ -457,3 +457,10 @@ def test_rollover_rejects_a_session_that_doesnt_exist(project, capsys):
     with pytest.raises(SystemExit):
         run("rollover", "--term", "Fall 2027", "--session", "4", "--project", str(project))
     assert "isn't a session" in capsys.readouterr().err
+
+
+def test_rollover_into_summer_rejects_a_session(project, tmp_path):
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+    result = run("rollover", "--term", "Summer 2027", "--session", "2", "--project", str(project), "--yes")
+    assert result.code != 0
+    assert "summer courses run --weeks 10 or --weeks 12" in result.err
