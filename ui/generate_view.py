@@ -45,12 +45,16 @@ from ui import background, common, session
 from ui.upload_view import save_upload
 
 _JOB = "generate"
+_TAB = "Generate"
 
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
     _apply_finished_job()
+    error = background.pop_error(_TAB)
+    if error:
+        st.error(error)
     if background.is_running(_JOB):
-        st.info("Generating your draft. It will appear here when it's ready.")
+        background.render_progress(_JOB)
         return
 
     draft = session.get_draft()
@@ -294,7 +298,9 @@ def _rubric_fields() -> dict:
 
 
 def _run(paths: ProjectPaths, course_data: CourseData, request: GenerationRequest) -> None:
-    background.start(_JOB, f"Generating a draft ({_describe(request)})", generate, paths, course_data, request)
+    background.start(
+        _JOB, f"Generating a draft ({_describe(request)})", generate, paths, course_data, request, tab=_TAB
+    )
     st.rerun()
 
 
@@ -304,18 +310,18 @@ def _apply_finished_job() -> None:
     future = background.take_finished(_JOB)
     if future is None:
         return
-    elsewhere = session.active_tab() != "Generate"
+    elsewhere = session.active_tab() != _TAB
     try:
         draft = future.result()
     except ChalkError as exc:
         if elsewhere:
-            session.flash_error(f"Generation failed: {exc.user_message}")
+            background.finished_elsewhere(_TAB, f"Generation failed: {exc.user_message}", failed=True)
             st.rerun()
         st.error(exc.user_message)
         return
     session.set_draft(draft)
     if elsewhere:
-        session.flash(f"Your draft ({_describe(draft.request)}) is ready on the Generate tab.")
+        background.finished_elsewhere(_TAB, f"Your draft ({_describe(draft.request)}) is ready on the Generate tab.")
         st.rerun()
 
 

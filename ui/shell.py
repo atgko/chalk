@@ -61,13 +61,11 @@ def main(argv: list[str] | None = None) -> None:
     message = session.pop_flash()
     if message:
         st.success(message)
-    error = session.pop_flash_error()
-    if error:
-        st.error(error)
-    background.render_status()
+    background.show_toasts()
 
     course_data = _load_course_or_warn(paths)
     session.apply_tab_request()
+    background.clear_mark(session.active_tab())
     upload, review, rollover, generate, drafts, export, metrics, settings = st.tabs(
         TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
     )
@@ -85,6 +83,7 @@ def main(argv: list[str] | None = None) -> None:
         _gated(course_data, metrics_view.render, paths)
     with settings:
         _guarded(settings_view.render, paths)
+    background.render_tab_marks(TAB_NAMES, session.ACTIVE_TAB_KEY)
 
     _render_footer(paths)
 

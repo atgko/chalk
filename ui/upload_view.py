@@ -122,14 +122,18 @@ def _ai_cost_notice(conversion: PdfConversion | None) -> str | None:
 
 
 _JOB = "extract"
+_TAB = "Upload"
 
 
 def render(paths: ProjectPaths) -> None:
     finished = background.take_finished(_JOB)
     if finished is not None:
-        _apply(finished.result(), elsewhere=session.active_tab() != "Upload")
+        _apply(finished.result(), elsewhere=session.active_tab() != _TAB)
+    error = background.pop_error(_TAB)
+    if error:
+        st.error(error)
     if background.is_running(_JOB):
-        st.info("Reading your syllabus. The result will appear here when it's ready.")
+        background.render_progress(_JOB)
         return
 
     table_choice = session.get_table_choice()
@@ -153,7 +157,7 @@ def render(paths: ProjectPaths) -> None:
     if st.button("Extract course", type="primary", disabled=not can_extract):
         label = f"Reading {uploaded.name}"
         upload_path = save_upload(uploaded.name, uploaded.getvalue())
-        background.start(_JOB, label, extract_upload, paths, upload_path, pdf_method=pdf_method)
+        background.start(_JOB, label, extract_upload, paths, upload_path, pdf_method=pdf_method, tab=_TAB)
         st.rerun()
 
     if pending is not None:
@@ -202,7 +206,7 @@ def _apply(outcome: UploadOutcome, *, elsewhere: bool = False) -> None:
         if not elsewhere:
             st.error(outcome.error)
             return
-        session.flash_error(outcome.error)
+        background.finished_elsewhere(_TAB, outcome.error, failed=True)
         st.rerun()
     session.set_table_choice(outcome.table_choice)
     messages = [outcome.notice] if outcome.notice else []
@@ -216,7 +220,9 @@ def _apply(outcome: UploadOutcome, *, elsewhere: bool = False) -> None:
                 session.go_to_tab("Review")
     if elsewhere and (outcome.table_choice or (outcome.pending and not outcome.pending.acknowledged)):
         messages.append("Your syllabus is read. Chalk needs a decision from you on the Upload tab.")
-    if messages:
+    if messages and elsewhere:
+        background.finished_elsewhere(_TAB, " ".join(messages))
+    elif messages:
         session.flash(" ".join(messages))
     st.rerun()
 

@@ -28,12 +28,16 @@ _LATEST_WEEK1 = dt.date(2100, 12, 31)
 
 
 _JOB = "rollover-preview"
+_TAB = "Rollover"
 
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
     _apply_finished_job()
+    error = background.pop_error(_TAB)
+    if error:
+        st.error(error)
     if background.is_running(_JOB):
-        st.info("Computing the new schedule. The preview will appear here when it's ready.")
+        background.render_progress(_JOB)
         return
 
     term, week1_date = _render_term_inputs(paths, course_data)
@@ -127,7 +131,9 @@ def _short_range(entry: dict) -> str:
 
 
 def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> None:
-    background.start(_JOB, f"Computing the rollover to {inputs[0]}", _compute_plan, paths, course_data, inputs)
+    background.start(
+        _JOB, f"Computing the rollover to {inputs[0]}", _compute_plan, paths, course_data, inputs, tab=_TAB
+    )
     st.rerun()
 
 
@@ -154,19 +160,19 @@ def _apply_finished_job() -> None:
     future = background.take_finished(_JOB)
     if future is None:
         return
-    elsewhere = session.active_tab() != "Rollover"
+    elsewhere = session.active_tab() != _TAB
     try:
         stored = future.result()
     except ChalkError as exc:
         if elsewhere:
-            session.flash_error(f"Rollover preview failed: {exc.user_message}")
+            background.finished_elsewhere(_TAB, f"Rollover preview failed: {exc.user_message}", failed=True)
             st.rerun()
         st.error(exc.user_message)
         return
     session.set_rollover_plan(stored)
     session.set_rollover_written([])
     if elsewhere:
-        session.flash(f"The rollover preview for {stored.inputs[0]} is ready on the Rollover tab.")
+        background.finished_elsewhere(_TAB, f"The rollover preview for {stored.inputs[0]} is ready on the Rollover tab.")
         st.rerun()
 
 

@@ -15,6 +15,15 @@ pytestmark = pytest.mark.usefixtures("isolated_env")
 _WAIT_SECONDS = 30
 
 
+def _toasts(at) -> list[str]:
+    return texts(at.get("toast"))
+
+
+def _marks(at) -> dict:
+    """Finished jobs' tab marks (a running job's mark comes from the job)."""
+    return dict(at.session_state[background._MARKS_KEY]) if background._MARKS_KEY in at.session_state else {}
+
+
 def _job(at, name: str):
     return at.session_state[background._JOBS_KEY][name]
 
@@ -58,11 +67,11 @@ def test_generation_keeps_running_across_a_tab_switch(saved_project, monkeypatch
     at = launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"})
     at = click(at, "Generate")
 
-    assert "Generating your draft. It will appear here when it's ready." in texts(at.info)
     assert any(
         t.startswith("Generating a draft (Quiz, Week 1): Waiting for the AI to start writing… (")
         for t in texts(at.info)
     )
+    assert _job(at, "generate").tab == "Generate"
 
     at = _run_on_tab(at, "Drafts")  # the instructor moves on
     assert not at.exception
@@ -73,9 +82,13 @@ def test_generation_keeps_running_across_a_tab_switch(saved_project, monkeypatch
     at = _run_on_tab(at, "Drafts")
 
     assert not at.exception
-    assert "Your draft (Quiz, Week 1) is ready on the Generate tab." in texts(at.success)
+    assert "Your draft (Quiz, Week 1) is ready on the Generate tab." in _toasts(at)
+    assert _marks(at) == {"Generate": "done"}  # a check mark on the Generate tab
     assert at.session_state[session.ACTIVE_TAB_KEY] == "Drafts"  # not pulled back to Generate
     assert "Save" in {b.label for b in at.button}
+
+    at = _run_on_tab(at, "Generate")  # opening the tab clears its mark
+    assert _marks(at) == {}
 
 
 def test_a_generation_that_fails_on_another_tab_is_reported_there(saved_project, monkeypatch):
@@ -87,10 +100,16 @@ def test_a_generation_that_fails_on_another_tab_is_reported_there(saved_project,
     _wait_for(at, "generate")
     at = _run_on_tab(at, "Metrics")
 
-    assert any(
-        e.startswith("Generation failed: Could not reach the LLM provider") for e in texts(at.error)
-    )
+    failure = "Generation failed: Could not reach the LLM provider"
+    assert any(t.startswith(failure) for t in _toasts(at))
+    assert not texts(at.error)  # nothing pushes the Metrics tab's content down
+    assert _marks(at) == {"Generate": "failed"}
     assert "Generate" in {b.label for b in at.button}  # the form is back
+
+    at = _run_on_tab(at, "Generate")  # the failure waits on its own tab
+    assert any(e.startswith(failure) for e in texts(at.error))
+    assert _marks(at) == {}
+    assert not texts(_run_on_tab(at, "Generate").error)  # once
 
 
 def test_a_finished_job_is_applied_once(saved_project, monkeypatch):
@@ -131,7 +150,7 @@ def _finished_extraction(project, tmp_path) -> dict:
     future.set_result(
         extract_upload(project, md_builder.build_minimal_syllabus(tmp_path / "syllabus.md"))
     )
-    return {background._JOBS_KEY: {"extract": background.Job("Reading syllabus.md", future, 0.0)}}
+    return {background._JOBS_KEY: {"extract": background.Job("Reading syllabus.md", future, 0.0, tab="Upload")}}
 
 
 def test_an_extraction_finished_on_the_upload_tab_opens_review(project, tmp_path):
@@ -151,10 +170,10 @@ def test_an_extraction_finished_on_another_tab_leaves_the_instructor_there(proje
 
     assert not at.exception
     assert at.session_state[session.ACTIVE_TAB_KEY] == "Settings"
-    assert any(s.endswith("Check it on the Review tab.") for s in texts(at.success))
+    assert any(s.endswith("Check it on the Review tab.") for s in _toasts(at))
 
 
-def test_the_status_line_shows_a_progress_bar_while_the_reply_streams_in(saved_project, monkeypatch):
+def test_the_progress_line_shows_a_progress_bar_while_the_reply_streams_in(saved_project, monkeypatch):
     release, writing = threading.Event(), threading.Event()
 
     def _complete(prompt, system="", max_tokens=2000, on_text=None):
@@ -172,3 +191,41 @@ def test_the_status_line_shows_a_progress_bar_while_the_reply_streams_in(saved_p
     release.set()
     assert bar.proto.text.startswith("Generating a draft (Quiz, Week 1): The AI is writing… ")
     assert bar.proto.value == round(1000 / (spec_for("quiz").max_tokens // 2 * 4) * 100)
+
+
+# ---- The tab labels ---------------------------------------------------------------
+
+
+_TABS = ("Upload", "Generate", "Drafts")
+
+
+def _rule(css: str, position: int) -> list[str]:
+    selector = f'[data-testid="stTab"]:nth-of-type({position})'
+    return [line for line in css.splitlines() if selector in line]
+
+
+def test_a_running_tab_gets_a_spinner_and_amber_text():
+    css = background.tab_marks_css(_TABS, "tabs", {"Generate": "running"})
+    [spinner, color] = _rule(css.split("@media (prefers-color-scheme")[0], 2)
+    assert spinner.startswith(".st-key-tabs ") and "animation: chalk-spin" in spinner
+    assert "#7A4F00" in color  # amber text, light theme
+    assert "#FFCF66" in css  # and dark
+    assert not _rule(css, 1) and not _rule(css, 3)
+
+
+def test_finished_tabs_get_a_symbol_as_well_as_a_color():
+    css = background.tab_marks_css(_TABS, "tabs", {"Upload": "done", "Drafts": "failed"})
+    assert any('content: "✓"' in line for line in _rule(css, 1))
+    assert any('content: "✕"' in line for line in _rule(css, 3))
+    assert any("#2E6A1C" in line for line in _rule(css, 1))
+
+
+def test_inactive_tabs_are_dimmed():
+    css = background.tab_marks_css(_TABS, "tabs", {}, inactive=("Generate",))
+    assert _rule(css, 2) == ['.st-key-tabs [data-testid="stTab"]:nth-of-type(2) {opacity: 0.45;}']
+
+
+def test_the_tab_styles_are_drawn_after_the_tabs(saved_project):
+    at = launch(saved_project)
+    [style] = [e for e in at.get("html")]
+    assert "chalk-spin" in style.proto.body

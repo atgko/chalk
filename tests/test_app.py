@@ -857,7 +857,7 @@ def test_generation_errors_are_shown_plainly(saved_project, monkeypatch):
         raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)
-    at = click(launch(saved_project), "Generate")
+    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
     assert any("Could not reach the LLM provider" in e.value for e in at.error)
 
 

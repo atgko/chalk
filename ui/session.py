@@ -29,7 +29,6 @@ _ROLLOVER_WRITTEN_KEY = "chalk_rollover_written"
 _DRAFT_KEY = "chalk_draft"
 _REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
-_FLASH_ERROR_KEY = "chalk_flash_error"
 
 
 @dataclass(frozen=True)
@@ -170,13 +169,3 @@ def flash(message: str) -> None:
 
 def pop_flash() -> str | None:
     return st.session_state.pop(_FLASH_KEY, None)
-
-
-def flash_error(message: str) -> None:
-    """An error shown at the top of the next run, on every tab: a
-    background job can fail while the instructor is on another one."""
-    st.session_state[_FLASH_ERROR_KEY] = message
-
-
-def pop_flash_error() -> str | None:
-    return st.session_state.pop(_FLASH_ERROR_KEY, None)
