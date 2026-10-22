@@ -119,9 +119,12 @@ def roll_over_course(
     gracefully rather than fail the whole rollover (PRD section 10's
     offline guarantee).
 
-    `manual_week1_date` is used when `target_term` isn't found in
-    `calendars` (graceful degradation, PRD section 5.3). Raises ValueError
-    if the term isn't found and no manual date was given.
+    `manual_week1_date` is the new Week 1. It's required when
+    `target_term` isn't found in `calendars` (graceful degradation, PRD
+    section 5.3), and otherwise overrides the term's start, e.g. for a
+    course that starts in a later session (chalk/sessions.py); the
+    calendar still supplies the breaks. Raises ValueError if the term
+    isn't found and no manual date was given.
 
     `meeting_days` (weekday numbers, 0 = Monday) narrows the holiday and
     break warnings to days the class actually meets; empty keeps the old
@@ -136,10 +139,10 @@ def roll_over_course(
     new_duration = target_duration_weeks or old_duration
 
     term_data = find_term(calendars, target_term)
-    if term_data is not None:
-        new_term_start = dt.date.fromisoformat(term_data["start"])
-    elif manual_week1_date is not None:
+    if manual_week1_date is not None:
         new_term_start = manual_week1_date
+    elif term_data is not None:
+        new_term_start = dt.date.fromisoformat(term_data["start"])
     else:
         raise ValueError(
             f"Term '{target_term}' is not in the calendar data and no manual "

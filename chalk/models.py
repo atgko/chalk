@@ -26,7 +26,7 @@ class CourseInfo(BaseModel):
     title: str
     number: str
     section: str = ""
-    credits: int | None = None
+    credits: int | float | None = None  # 1.5 for a one-session (5-week) course
     term: str
     term_start: dt.date
     term_end: dt.date

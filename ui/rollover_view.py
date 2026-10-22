@@ -19,6 +19,7 @@ from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
 from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
 from chalk.rollover.season_change import multi_day_breaks
+from chalk.sessions import FULL_TERM, SessionSpan, available_spans, guess_session, session_start
 from ui import background, common, session, tables
 from ui.session import StoredPlan
 
@@ -41,9 +42,12 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         return
 
     term, week1_date = _render_term_inputs(paths, course_data)
-    duration = int(
-        st.number_input("Duration (weeks)", min_value=1, value=course_data.course.duration_weeks, step=1)
-    )
+    default_duration = course_data.course.duration_weeks
+    if term and week1_date is None:  # a calendar term: it has sessions
+        span, week1_date = _render_session_choice(paths, course_data, term)
+        if not span.is_full_term:
+            default_duration = span.weeks
+    duration = int(st.number_input("Duration (weeks)", min_value=1, value=default_duration, step=1))
     use_llm = False
     if duration > tables.regular_week_count(course_data):
         use_llm = st.checkbox(
@@ -93,6 +97,31 @@ def _render_term_inputs(paths: ProjectPaths, course_data: CourseData) -> tuple[s
         "First day of classes", value=None, min_value=_EARLIEST_WEEK1, max_value=_LATEST_WEEK1
     )
     return (term if week1_date else ""), week1_date
+
+
+def _render_session_choice(
+    paths: ProjectPaths, course_data: CourseData, term: str
+) -> tuple[SessionSpan, dt.date | None]:
+    """Which 5-week sessions of `term` the course runs in (chalk/sessions.py),
+    and the Week 1 date that means (None for the full term, which starts
+    on the calendar's first day). Defaults to a guess from the course's
+    length and credits."""
+    entry = find_term(load_calendars(paths.calendars_json), term)
+    spans = available_spans(entry)
+    guess = guess_session(course_data.course.duration_weeks, course_data.course.credits)
+    span = st.selectbox(
+        "Session",
+        spans,
+        index=spans.index(guess) if guess in spans else spans.index(FULL_TERM),
+        format_func=lambda option: option.label,
+        key=f"session-{term}",
+        help="Some programs split the term into three 5-week sessions. A 1.5-credit course is one session.",
+    )
+    if span.is_full_term:
+        return span, None
+    week1 = session_start(entry, span.first)
+    st.caption(f"Session {span.first} of {term} starts {week1:%A, %B} {week1.day}.")
+    return span, week1
 
 
 def _render_schedule_inputs(

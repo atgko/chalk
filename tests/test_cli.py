@@ -441,3 +441,19 @@ def test_generate_level_and_ai_component_flags(project, tmp_path, llm):
     assert result.code == 0, result.err
     assert "COURSE LEVEL: graduate." in llm[-1]
     assert "AI-USE COMPONENT" in llm[-1]
+
+
+def test_rollover_into_sessions_2_and_3(project, tmp_path):
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+
+    result = run("rollover", "--term", "Fall 2027", "--session", "2-3", "--no-llm", "--project", str(project), "--yes")
+
+    assert result.code == 0, result.err
+    assert "Week 1:       Aug 24 (8/24)   → Sep 27 (9/27)" in result.out  # Session 2 of Fall 2027
+    assert "Course length changed from 2 to 10 weeks" in result.out
+
+
+def test_rollover_rejects_a_session_that_doesnt_exist(project, capsys):
+    with pytest.raises(SystemExit):
+        run("rollover", "--term", "Fall 2027", "--session", "4", "--project", str(project))
+    assert "isn't a session" in capsys.readouterr().err
