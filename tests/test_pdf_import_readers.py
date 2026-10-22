@@ -9,7 +9,13 @@ import pytest
 from chalk.errors import ExtractionError, ProtectedFileError
 from chalk.extractors import extract_course
 from chalk.pdf_import import converted_docx_name, is_converted_from_pdf
-from chalk.pdf_import.ai_reader import build_prompt, parse_reply, read_with_ai
+from chalk.pdf_import.ai_reader import (
+    MAX_TOKENS,
+    ask_ai_to_read,
+    blocks_from_reply,
+    build_prompt,
+    parse_reply,
+)
 from chalk.pdf_import.blocks import Paragraph, Table, blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
@@ -177,8 +183,21 @@ def test_ai_reply_in_a_code_fence_with_chatter_is_accepted():
     ],
 )
 def test_malformed_ai_replies_are_a_plain_error(reply):
-    with pytest.raises(ExtractionError, match="didn't come back in the expected form"):
+    with pytest.raises(ExtractionError, match="didn't come back in a form Chalk can use"):
         parse_reply(reply)
+
+
+def test_a_reply_that_used_every_token_is_reported_as_cut_off():
+    completion = {"text": '{"course": {}, "content": [', "input_tokens": 1, "output_tokens": MAX_TOKENS}
+    with pytest.raises(ExtractionError, match="too long for the AI to read in one go"):
+        blocks_from_reply(completion)
+
+
+def test_an_undated_schedule_is_read_with_plain_week_labels():
+    rows = [{"week": 1, "date": "", "topics": ["Business problems"]}, {"week": 2, "topics": ["Knowledge work"]}]
+    blocks = parse_reply(_reply(content=[{"type": "schedule", "rows": rows}]))
+    [schedule] = [block for block in blocks if isinstance(block, Table)]
+    assert [row[0] for row in schedule.rows] == [("Week",), ("Week 1",), ("Week 2",)]
 
 
 def test_an_ai_reply_without_a_schedule_is_a_plain_error():
@@ -186,7 +205,7 @@ def test_an_ai_reply_without_a_schedule_is_a_plain_error():
         parse_reply(_reply(content=[{"type": "paragraph", "text": "No schedule here."}]))
 
 
-def test_read_with_ai_sends_the_local_text_and_returns_usage(monkeypatch):
+def test_ask_ai_to_read_sends_the_local_text_and_returns_usage(monkeypatch):
     calls = []
 
     def fake_complete(prompt, system="", max_tokens=2000, on_text=None):
@@ -196,7 +215,8 @@ def test_read_with_ai_sends_the_local_text_and_returns_usage(monkeypatch):
     monkeypatch.setattr("chalk.pdf_import.ai_reader.complete", fake_complete)
     local = [Paragraph("IS 6640 | Fall 2026"), Table(((("Week 1 (8/24)",), ("Intro",)),))]
 
-    blocks, usage = read_with_ai(local)
+    usage = ask_ai_to_read(local)
+    blocks = blocks_from_reply(usage)
 
     prompt, system, max_tokens = calls[0]
     assert "<syllabus>\nIS 6640 | Fall 2026" in prompt and "| Week 1 (8/24) | Intro |" in prompt

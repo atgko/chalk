@@ -6,10 +6,14 @@ save"."""
 
 from __future__ import annotations
 
+import datetime as dt
+
 import streamlit as st
 
+from chalk.calendar_data import load_calendars
 from chalk.errors import ChalkError
 from chalk.extractors.consistency import grading_weight_warning
+from chalk.extractors.undated_schedule import date_undated_schedule
 from chalk.models import CourseData
 from chalk.pipeline import save_reviewed_course
 from chalk.project import ProjectPaths
@@ -29,6 +33,7 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
 
     st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.")
     details = _render_course_details(course_data)
+    course_data = _render_week1_date(paths, course_data)
     duration = _render_duration(course_data)
     _render_lists(course_data)
 
@@ -87,6 +92,25 @@ def _render_course_details(course_data: CourseData) -> dict:
         details[name] = columns[index % 3].text_input(label, value=value).strip()
     details["title"] = details["title"] or course.title  # never save a blank title
     return details
+
+
+def _render_week1_date(paths: ProjectPaths, course_data: CourseData) -> CourseData:
+    """A schedule with no dates of its own was dated by Chalk: show from
+    when, and let the instructor change Week 1, which re-dates the rest."""
+    if not course_data.course.undated_schedule:
+        return course_data
+    current = next(week.date for week in course_data.weeks if not week.is_break)
+    st.info(
+        "This syllabus's schedule has no dates, so Chalk dated the weeks one week apart from the "
+        "first day of the term, skipping breaks. Check the date of the first class.",
+        icon="📅",
+    )
+    # Keyed to this extraction, so a date entered for one upload doesn't carry over to the next.
+    key = f"undated-week1-{course_data.course.extracted_at.isoformat()}"
+    week1 = st.date_input("Week 1 date", value=current, format="MM/DD/YYYY", key=key)
+    if not isinstance(week1, dt.date) or week1 == current:
+        return course_data
+    return date_undated_schedule(course_data, week1, load_calendars(paths.calendars_json))
 
 
 def _credits_error(credits_text: str) -> str | None:

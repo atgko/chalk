@@ -333,8 +333,11 @@ Click **Fork** on the repository page to get your own copy, then clone it as in 
 
 ### Syllabus extraction
 
-**"No schedule table found. Make sure your syllabus has a table with 'Week' in the first column, then try again."**
-Chalk looks for a table with "Week" in the first column: labels like `Week 1 (8/24)` in Word, or a `| Week | Dates | ... |` header in markdown. If your schedule is in a different format, reformat it as a standard table and re-upload.
+**"No schedule table found. Make sure your syllabus has a table with 'Week' (or a numbered 'Meeting' column) in the first column, then try again."**
+Chalk looks for a table with "Week" in the first column: labels like `Week 1 (8/24)` in Word, or a `| Week | Dates | ... |` header in markdown. A Word or PDF schedule with no dates works too, if its first column is headed Week, Meeting, Session, Module, Class, Lesson, or Unit and numbered 1, 2, 3; the Review tab then asks for the date of the first class. If your schedule is in a different format, reformat it as a standard table and re-upload.
+
+**"This syllabus's schedule has no dates" on the Review tab**
+The schedule numbers its weeks or meetings without dates. Chalk dated them one week apart from the term's first day of classes (the first day the class meets, if the syllabus says), skipping multi-day breaks like Fall Break. Change **Week 1 date** if the course starts later, e.g. in the second session, and the other weeks follow.
 
 **"Multiple possible schedule tables were found. Choose the correct one below."**
 More than one table looks like a schedule. Each option shows its first rows. Pick the real schedule. If you see "That table choice is no longer valid", upload the syllabus again.
@@ -373,13 +376,19 @@ The PDF is pictures of pages. Open the original document and save it as Word, or
 It's password-protected or damaged. Save a copy without the password, or save the original as Word.
 
 **"No schedule table found…" after reading a PDF on this computer**
-The schedule isn't a ruled table Chalk can follow. Try **Read it with AI**, or save the PDF as Word and fix the table there.
+The schedule isn't a ruled table Chalk can follow. The message suggests **Read it with AI** if you haven't tried it on this PDF; otherwise save the PDF as Word and fix the table there.
 
-**"The AI's reading of this PDF didn't come back in the expected form…"**
-The AI's answer wasn't usable (a very long syllabus can get cut off). Try again, or choose **Read it on this computer**.
+**"The AI's reading of this PDF didn't come back in a form Chalk can use."**
+The AI's answer wasn't usable. Trying again often works. The message suggests **Read it on this computer** only if you haven't tried it on this PDF. Either way, the read's cost is counted.
+
+**"This syllabus is too long for the AI to read in one go…"**
+The AI's reply hit its length limit and was cut off. Choose **Read it on this computer**, or save the original as Word and upload that.
+
+**"Chalk couldn't read this PDF either way."**
+Both ways of reading this PDF failed. Open the original document (Word, Google Docs, Pages) and save it as .docx, then upload that. Chalk reads Word files most reliably.
 
 **"The AI couldn't find a week-by-week schedule in this PDF."**
-Check that the syllabus has a dated schedule. If it does, save it as Word and upload that.
+Check that the syllabus has a schedule. If it does, save it as Word and upload that.
 
 **"course.json couldn't be read — it may have been edited by hand."**
 A hand edit broke the file's format. Restore the previous version from `.archive/`, or re-extract the syllabus.

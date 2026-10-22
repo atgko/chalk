@@ -36,6 +36,10 @@ class CourseInfo(BaseModel):
     source_format: Literal["word", "markdown"]
     source_file: str
     extracted_at: dt.datetime
+    # The syllabus's schedule has no dates ("Meeting 1", "Meeting 2"), so
+    # Chalk dated the weeks and the Review tab asks for Week 1's date
+    # (chalk/extractors/undated_schedule.py).
+    undated_schedule: bool = False
 
 
 class Assessment(BaseModel):

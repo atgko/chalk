@@ -31,6 +31,7 @@ from chalk.extractors._docx_schedule import (
     classify_row,
     distinct_cells,
     format_week_label,
+    is_undated_schedule,
     looks_like_schedule_table,
     parse_week_label,
 )
@@ -81,8 +82,9 @@ def _update_schedule(tables: list, new_weeks_by_number: dict, new_break_weeks: l
     week_rows: list[tuple] = []  # (row, its table)
     break_rows: list[tuple] = []  # (row, its table)
     for table in tables:
+        undated = is_undated_schedule(table)
         for row in table.rows[1:]:  # row 0 is a header
-            kind = classify_row(row)
+            kind = classify_row(row, undated=undated)
             if kind == "week":
                 week_rows.append((row, table))
             elif kind == "break":
@@ -131,14 +133,23 @@ def _update_week_rows(tables: list, week_rows: list[tuple], new_weeks_by_number:
 
 
 def _label_paragraph_and_label(row) -> tuple:
-    paragraph = next(p for p in row.cells[0].paragraphs if parse_week_label(p.text))
-    return paragraph, parse_week_label(paragraph.text)
+    """The row's label paragraph and its parsed label; in an undated
+    schedule, the first paragraph holding a bare number ("Meeting 3")."""
+    for undated in (False, True):
+        for paragraph in row.cells[0].paragraphs:
+            label = parse_week_label(paragraph.text, undated=undated)
+            if label is not None:
+                return paragraph, label
+    raise ValueError("A week row always has a label")  # pragma: no cover - classify_row found one
 
 
 def _relabel_week_row(row, new_date) -> None:
     """Swap the date inside the row's "Week N (date)" label, in the label's
-    own style ("8/24" or "Jan. 6") and keeping any text around it."""
+    own style ("8/24" or "Jan. 6") and keeping any text around it. An
+    undated schedule's label ("Meeting 3") has no date, so it stays."""
     paragraph, label = _label_paragraph_and_label(row)
+    if not label.is_dated:
+        return
     old_label_text = paragraph.text[label.start : label.end]
     new_label_text = format_week_label(label.week_number, new_date, like=label)
     if not _replace_in_single_run(paragraph, old_label_text, new_label_text):

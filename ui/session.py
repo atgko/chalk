@@ -30,6 +30,7 @@ _DRAFT_KEY = "chalk_draft"
 _REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
 _SWITCHING_KEY = "chalk_switching_course"
+_PDF_TRIED_KEY = "chalk_pdf_methods_tried"
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,16 @@ def get_pending_extraction() -> PendingExtraction | None:
 
 def set_pending_extraction(pending: PendingExtraction | None) -> None:
     st.session_state[_PENDING_EXTRACTION_KEY] = pending
+
+
+def pdf_methods_tried(filename: str) -> frozenset[str]:
+    """The ways ("local", "ai") this PDF has been read this session."""
+    return frozenset(st.session_state.get(_PDF_TRIED_KEY, {}).get(filename, ()))
+
+
+def record_pdf_method(filename: str, method: str) -> None:
+    tried = st.session_state.get(_PDF_TRIED_KEY, {})
+    st.session_state[_PDF_TRIED_KEY] = {**tried, filename: frozenset({*tried.get(filename, ()), method})}
 
 
 def get_table_choice() -> TableChoice | None:

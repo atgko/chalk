@@ -45,9 +45,7 @@ _PDF_METHOD_LABELS = {
     "local": "Read it on this computer",
     "ai": "Read it with AI",
 }
-_LOCAL_HINT = (
-    " You can also try **Read it with AI**, or save the PDF as Word (.docx) and upload that."
-)
+_WORD_HINT = "save it as Word (.docx) from the original document and upload that"
 
 
 @dataclass(frozen=True)
@@ -81,11 +79,13 @@ def extract_upload(
     *,
     pdf_method: PdfReadMethod = "local",
     pdf_conversion: PdfConversion | None = None,
+    tried: frozenset[str] = frozenset(),
     on_progress: ProgressCallback | None = None,
 ) -> UploadOutcome:
     """Extract an uploaded syllabus, converting a PDF first (unless an
     earlier conversion is passed in). An AI read of a PDF fills the first
-    90% of the progress bar; the rest is quick."""
+    90% of the progress bar; the rest is quick. `tried` is the ways this
+    PDF was already read, so a failure suggests only the others."""
     try:
         reading_with_ai = pdf_conversion is None and is_pdf(upload_path.name) and pdf_method == "ai"
         if pdf_conversion is None and is_pdf(upload_path.name):
@@ -99,20 +99,27 @@ def extract_upload(
     except AmbiguousTableError as exc:
         if exc.candidates:
             return UploadOutcome(table_choice=TableChoice(upload_path, exc.candidates, pdf_conversion))
-        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method))
+        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method, tried))
     except ChalkError as exc:
-        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method))
+        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method, tried))
     return UploadOutcome(
         pending=PendingExtraction(course_data, consistency, acknowledged=consistency.passed),
         notice=_ai_cost_notice(pdf_conversion),
     )
 
 
-def _with_pdf_hint(message: str, upload_path: Path, pdf_method: PdfReadMethod) -> str:
-    """After a PDF read on this computer fails, point at the other options."""
-    if is_pdf(upload_path.name) and pdf_method == "local":
-        return message + _LOCAL_HINT
-    return message
+def _with_pdf_hint(
+    message: str, upload_path: Path, pdf_method: PdfReadMethod, tried: frozenset[str] = frozenset()
+) -> str:
+    """After a PDF read fails, suggest only what hasn't been tried on it
+    (UAT of PR #18: an AI read that failed sent the professor to the
+    local read, which had already failed)."""
+    if not is_pdf(upload_path.name):
+        return message
+    untried = [method for method in PDF_READ_METHODS if method not in tried | {pdf_method}]
+    if untried:
+        return f"{message} Try **{_PDF_METHOD_LABELS[untried[0]]}** instead, or {_WORD_HINT}."
+    return f"{message} Chalk couldn't read this PDF either way. To fix it, {_WORD_HINT}."
 
 
 def _ai_cost_notice(conversion: PdfConversion | None) -> str | None:
@@ -157,7 +164,12 @@ def render(paths: ProjectPaths) -> None:
     if st.button("Extract course", type="primary", disabled=not can_extract):
         label = f"Reading {uploaded.name}"
         upload_path = save_upload(uploaded.name, uploaded.getvalue())
-        background.start(_JOB, label, extract_upload, paths, upload_path, pdf_method=pdf_method, tab=_TAB)
+        tried = session.pdf_methods_tried(uploaded.name)
+        if is_pdf(uploaded.name):
+            session.record_pdf_method(uploaded.name, pdf_method)
+        background.start(
+            _JOB, label, extract_upload, paths, upload_path, pdf_method=pdf_method, tried=tried, tab=_TAB
+        )
         st.rerun()
 
     if pending is not None:

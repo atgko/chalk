@@ -24,11 +24,12 @@ from chalk.course_brief import write_course_brief
 from chalk.errors import ChalkError, ProjectError, TermNotInCalendarError
 from chalk.extractors import extract_course
 from chalk.extractors.consistency import ConsistencyResult
+from chalk.extractors.undated_schedule import date_undated_schedule, default_week1
 from chalk.generation.engine import current_env
 from chalk.llm_client import CompletionResult
 from chalk.models import CourseData
 from chalk.pdf_import import PdfReadMethod, converted_docx_name
-from chalk.pdf_import.ai_reader import read_with_ai
+from chalk.pdf_import.ai_reader import ask_ai_to_read, blocks_from_reply
 from chalk.pdf_import.blocks import blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
@@ -93,6 +94,9 @@ def extract_syllabus(
         course_data, consistency = extract_course(
             syllabus_path, eval_log_path=paths.eval_log, schedule_table_index=schedule_table_index
         )
+        if course_data.course.undated_schedule:
+            calendars = load_calendars(paths.calendars_json)
+            course_data = date_undated_schedule(course_data, default_week1(course_data.course, calendars), calendars)
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,
@@ -158,8 +162,9 @@ def convert_pdf_syllabus(
         if method == "ai":
             report(on_progress, None, "Waiting for the AI to start reading")
             on_text = writing_progress(on_progress, expected_ai_reading_tokens(blocks))
-            blocks, completion = read_with_ai(blocks, on_text=on_text)
-            cost = _log_ai_reading(paths, pdf_path, completion)
+            completion = ask_ai_to_read(blocks, on_text=on_text)
+            cost = _log_ai_reading(paths, pdf_path, completion)  # paid for even if it can't be used
+            blocks = blocks_from_reply(completion)
     except ChalkError as exc:
         metrics.append_event(
             paths.eval_log,

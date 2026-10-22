@@ -59,7 +59,8 @@ Each block in "content" is one of:
 
 Schedule rows, in order:
   {"week": 1, "date": "M/D", "topics": ["..."], "assignments": ["..."], "notes": ""}
-      a teaching week; "date" is the week's date from the syllabus as month/day numbers
+      a teaching week (or numbered class meeting, module, or session); "date" is its date from
+      the syllabus as month/day numbers, or "" if the syllabus gives the schedule no dates
   {"break": "Spring Break", "start": "M/D", "end": "M/D"}
       a break that has no week number of its own
 
@@ -74,6 +75,7 @@ Rules:
 </syllabus>"""
 
 _MONTH_DAY = r"^\d{1,2}/\d{1,2}$"
+_MONTH_DAY_OR_NONE = r"^(\d{1,2}/\d{1,2})?$"
 _FULL_DATE = r"^\d{1,2}/\d{1,2}/\d{4}$"
 _WRAPPING_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```$", re.DOTALL)
 
@@ -93,7 +95,7 @@ class _Course(BaseModel):
 
 class _Week(BaseModel):
     week: int = Field(ge=1)
-    date: str = Field(pattern=_MONTH_DAY)
+    date: str = Field(default="", pattern=_MONTH_DAY_OR_NONE)  # "" in an undated outline
     topics: list[str] = []
     assignments: list[str] = []
     notes: str = ""
@@ -161,32 +163,36 @@ def build_prompt(local_blocks: list[Block]) -> str:
     return _PROMPT.replace("{syllabus_text}", blocks_as_text(local_blocks))
 
 
-def read_with_ai(
-    local_blocks: list[Block], *, on_text: TextCallback | None = None
-) -> tuple[list[Block], CompletionResult]:
-    """Ask the configured LLM to structure the syllabus. Returns the blocks
-    and the completion (for token and cost logging). Raises
-    LLMProviderError if the call fails and ExtractionError if the reply
-    isn't the JSON asked for. `on_text` reports the reply streaming in."""
-    result = complete(build_prompt(local_blocks), system=SYSTEM_PROMPT, max_tokens=MAX_TOKENS, on_text=on_text)
-    return parse_reply(result["text"]), result
+def ask_ai_to_read(local_blocks: list[Block], *, on_text: TextCallback | None = None) -> CompletionResult:
+    """Ask the configured LLM to structure the syllabus. Raises
+    LLMProviderError if the call fails. `on_text` reports the reply
+    streaming in. The caller logs the completion's cost before parsing
+    it (`blocks_from_reply`), so a reply Chalk can't use is still counted."""
+    return complete(build_prompt(local_blocks), system=SYSTEM_PROMPT, max_tokens=MAX_TOKENS, on_text=on_text)
 
 
-def parse_reply(text: str) -> list[Block]:
-    """The AI's JSON reply as blocks. Raises ExtractionError, saying what
-    to try instead, if it isn't the JSON asked for (e.g. cut off)."""
+def blocks_from_reply(completion: CompletionResult) -> list[Block]:
+    """The completion's syllabus as blocks. A reply that used the whole
+    token allowance was cut off, which gets its own message."""
+    return parse_reply(completion["text"], cut_off=completion["output_tokens"] >= MAX_TOKENS)
+
+
+CUT_OFF_MESSAGE = (
+    "This syllabus is too long for the AI to read in one go: its reply was cut off before the end."
+)
+UNUSABLE_MESSAGE = "The AI's reading of this PDF didn't come back in a form Chalk can use."
+
+
+def parse_reply(text: str, *, cut_off: bool = False) -> list[Block]:
+    """The AI's JSON reply as blocks. Raises ExtractionError if it isn't
+    the JSON asked for. What to try next is the Upload tab's to say, since
+    it knows what the instructor has already tried."""
     try:
         syllabus = _Syllabus.model_validate(json.loads(_json_object(text)))
     except (ValueError, ValidationError) as exc:
-        raise ExtractionError(
-            "The AI's reading of this PDF didn't come back in the expected form (a very long "
-            "syllabus can get cut off). Try again, or choose 'Read it on this computer'."
-        ) from exc
+        raise ExtractionError(CUT_OFF_MESSAGE if cut_off else UNUSABLE_MESSAGE) from exc
     if not any(isinstance(block, _ScheduleBlock) for block in syllabus.content):
-        raise ExtractionError(
-            "The AI couldn't find a week-by-week schedule in this PDF. Check that the syllabus "
-            "has one, or save it as Word (.docx) and upload that."
-        )
+        raise ExtractionError("The AI couldn't find a week-by-week schedule in this PDF.")
     return _course_lines(syllabus.course) + [
         block for content in syllabus.content for block in _to_blocks(content)
     ]
@@ -246,7 +252,8 @@ def _schedule_row(row) -> list[list[str]]:
     if isinstance(row, _Break):
         return [[f"{row.break_} ({row.start} - {row.end})"], [], []]
     topics = row.topics + ([f"Note: {row.notes}"] if row.notes.strip() else [])
-    return [[f"Week {row.week} ({row.date})"], topics, row.assignments]
+    label = f"Week {row.week} ({row.date})" if row.date else f"Week {row.week}"
+    return [[label], topics, row.assignments]
 
 
 def _date_text(item: _UniversityDate) -> str:

@@ -1080,3 +1080,30 @@ def test_choosing_another_name_dismisses_the_offer(projects_folder):
 
     assert not any("already a course project" in w.value for w in at.warning)
     assert "Open IS-6640-Fall-2027" not in {b.label for b in at.button}
+
+
+# ---- A schedule with no dates -------------------------------------------------------
+
+
+def test_review_asks_for_week1_of_an_undated_schedule_and_redates_it(project, tmp_path):
+    import datetime as dt
+
+    from tests.test_undated_schedule import _outline_syllabus
+
+    pending = _pending(project, tmp_path, lambda path: _outline_syllabus(path, meetings=3), "outline.docx")
+    at = launch(project, chalk_pending_extraction=pending)
+    assert any("schedule has no dates" in i for i in texts(at.info))
+    [week1] = at.date_input
+    assert week1.value == dt.date(2026, 8, 24)  # Fall 2026's first day, from the calendar
+
+    week1.set_value(dt.date(2026, 8, 31))
+    at = click(at.run(), "Confirm and save")
+
+    assert_no_exception(at)
+    weeks = [w.date for w in load_course(project).weeks if not w.is_break]
+    assert weeks == [dt.date(2026, 8, 31), dt.date(2026, 9, 7), dt.date(2026, 9, 14)]
+
+
+def test_review_doesnt_ask_for_week1_of_a_dated_schedule(project, tmp_path):
+    pending = _pending(project, tmp_path, md_builder.build_minimal_syllabus, "s.md")
+    assert not launch(project, chalk_pending_extraction=pending).date_input

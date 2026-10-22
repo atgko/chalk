@@ -158,8 +158,27 @@ def test_a_failed_local_pdf_read_suggests_the_other_options(tmp_project, tmp_pat
 def test_a_failed_ai_read_does_not_suggest_ai_again(tmp_project, pdf, ai):
     ai["reply"] = "not json"
     outcome = extract_upload(tmp_project, pdf, pdf_method="ai")
-    assert "didn't come back in the expected form" in outcome.error
+    assert "didn't come back in a form Chalk can use" in outcome.error
     assert "Read it with AI" not in outcome.error
+    assert "Read it on this computer" in outcome.error
+
+
+def test_after_both_reads_fail_only_word_is_suggested(tmp_project, pdf, ai):
+    """UAT of PR #18: the AI read's error sent the professor back to the
+    local read, which had already failed on that PDF."""
+    ai["reply"] = "not json"
+    outcome = extract_upload(tmp_project, pdf, pdf_method="ai", tried=frozenset({"local"}))
+    assert "Read it on this computer" not in outcome.error
+    assert "couldn't read this PDF either way" in outcome.error
+    assert "save it as Word (.docx)" in outcome.error
+
+
+def test_an_ai_read_that_cannot_be_used_is_still_counted(tmp_project, pdf, ai):
+    from chalk.metrics import read_events, summarize_events
+
+    ai["reply"] = "not json"
+    extract_upload(tmp_project, pdf, pdf_method="ai")
+    assert summarize_events(read_events(tmp_project.eval_log)).total_cost_usd > 0
 
 
 def test_choosing_a_table_reuses_the_pdf_conversion(tmp_project, pdf, ai):

@@ -6,7 +6,8 @@ similar grid tables are kept as tables (the rest is read as text). A
 schedule usually breaks across pages, so its pieces are stitched back
 together: a repeated header row is dropped, and a row cut off at a page
 break (no week label in its first cell) is merged into the week row above
-it. A schedule split by module titles stays one table per module, which
+it. A row whose first cell is just a number ("10") counts as a week row,
+for an undated "Meeting 1, 2, 3" outline. A schedule split by module titles stays one table per module, which
 the Word schedule reader already handles.
 """
 
@@ -15,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from chalk.extractors._docx_schedule import parse_week_label
+from chalk.extractors._docx_schedule import is_bare_week_number, parse_week_label
 from chalk.pdf_import.blocks import Block, Paragraph, Table
 from chalk.pdf_import.reflow import ends_in_url, is_bullet, join_wrapped
 
@@ -123,7 +124,12 @@ def _add_schedule_piece(blocks: list, schedule: list[Row] | None, rows: list[Row
 
 
 def _is_week_row(row) -> bool:
-    return bool(row) and parse_week_label(" ".join(row[0])) is not None
+    """A schedule row: its first cell is a "Week N (date)" label, or only
+    a number as in an undated "Meeting" outline (UAT of PR #18)."""
+    if not row:
+        return False
+    label = " ".join(row[0])
+    return parse_week_label(label) is not None or is_bare_week_number(label)
 
 
 def _has_week(rows: list[Row]) -> bool:
