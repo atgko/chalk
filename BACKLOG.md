@@ -2,13 +2,14 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-15.
+Last updated: 2026-10-22.
 
 ## Open questions (need someone outside the code)
 
 - **P3: Get the Word (.docx) version of the OSC 6660 syllabus, if it turns up.** It may not be available (Oct 15); the faculty test syllabi (below) can cover module-table layouts instead. We only have the PDF. The module-table support was built against a synthetic look-alike reconstructed from the PDF's text (`chalk/demo_content.py`), so the real table structure (merged title rows, where the focus text sits, soft line breaks) is unverified.
 - **P1: Confirm the "16-week syllabus showed 10 weeks" report.** Most likely cause: the new syllabus was extracted into the demo project but not yet saved, so the Rollover tab still showed the saved 10-week demo course. The app now warns about this. Ask the teammate whether they clicked Confirm and save first.
 - **P1: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). As of Oct 15, the team is collecting more from faculty, who will also try Chalk themselves. The PRD's Section 15 test corpus (before the Nov 8 readiness meeting) lists what's still missing: a markdown syllabus with the DST boundary, the IS 6640 Spring copy with the term-label bug, and a 12- or 16-week course. Run each through extraction and rollover, then `toolkit.py report`, for the December evidence. Keep them in the git-ignored `reference/` folder, since the repo is public.
+- **P2: Confirm the session dates with a program that uses sessions.** The registrar publishes no session dates, so Chalk assumes three 5-week sessions counted in class weeks around Fall/Spring Break (Fall 2026: Aug 24, Sep 28, Nov 9), and 10- or 12-week summer courses (DECISIONS.md, Oct 21). If a program has its own session calendar, `session_start` in `chalk/sessions.py` is the one place to change.
 - **P1: Line up pilot testers (sponsor meeting, Oct 15).** Dave may find 2-3 professors to try Chalk. Also find pilot testers among technical staff. For both groups, find out which parts of the app they actually use, so the next steps focus there. The eval log already records which operations run; a short feedback form or a follow-up conversation would cover the rest.
 
 ## AI providers and student data (sponsor discussion, Oct 5)
@@ -44,11 +45,10 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 - **P1: Write down what the sponsor needs to keep Chalk running.** Security, maintenance, and documentation are all required. Cover who updates the academic calendar and model prices each term, how to update Python and the packages, where to report problems, and what an API key costs per term.
 - **P1: A how-to manual alongside the Best Practices Guide and Catalog of Tools.** A step-by-step guide for instructors, with screenshots. README.md, GETTING-STARTED.md, and DEMO.md are the starting point, but they're written partly for developers.
-- **P2: In-line documentation in the code.** Check that every module and public function has a docstring that says what it does and why, so whoever maintains Chalk next can follow it without us.
 
 ## Extraction
 
-- **P1: Try the AI PDF reader against a real provider.** It's only been tested with canned replies. Run OSC 6660 through it with Claude and OpenAI; check the weeks come through and record the real cost per page (the hint assumes ~800 tokens in / ~1,200 out per page).
+- **P1: Try the AI PDF reader with OpenAI.** IS 6490 (10 pages) read correctly with Claude Sonnet on Oct 22: 2 parts, 51 s, $0.22. Run OSC 6660 through it with OpenAI (gpt-4o-mini, the recommended model) too, and compare the real cost per page with the hint's assumption (~800 tokens in / ~1,200 out per page).
 - **P2: Test the local PDF reader on more real PDFs.** Only OSC 6660 has been tried. Watch for schedules without ruling lines (pdfplumber can't see them as tables; the AI reader is the fallback), two-column page layouts, and Google Docs exports.
 - **P2: Rows cut at a page break are rejoined by a guess.** The first paragraph carried onto the next page is joined to the one above unless that ended a sentence. A complete line like "Project Artifact #2A: Scope Plan" followed by a new item on the next page would be wrongly joined. Keeping the previous page's line positions would make this exact.
 - **P3: Scanned PDFs (OCR).** Out of scope; Chalk explains and suggests saving as Word.
@@ -72,16 +72,9 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 - **P2: Course details edited on Review aren't written back into the syllabus document**, only into `course.json` and the course brief.
 - **P2: Try the launch screen's Browse… buttons on a real Mac.** The folder dialog runs as a separate Python process so that Tk gets its own main thread, which macOS requires. That design is meant for macOS but has only been tried on Windows (PR #5). On a Mac, click each Browse…, check the dialog appears in front of the browser, pick a folder, and check it fills the field. Then cancel one, and check the page stays usable while the dialog is open. If it fails, the typed path still works.
+- **P1: Paste the Canvas page into a real Canvas course.** Export's Canvas HTML is now the whole U of U syllabus template, filled in, with paste steps and a preview (Oct 22). It's been checked in a browser, not in Canvas itself: check that Canvas keeps the inline styles (banner, grey section bars), that the steps match its editor (some versions use a `</>` button instead of View → HTML Editor), and that the "Insert…" placeholders are easy to find.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
 - **P3 Currently, the 'Open Project' button only lets you open a project if you manually enter in the file path. What should happen is that clicking on 'Open Project' assuming Windows OS is that it opens the file browser and you can navigate that way.** 
-- **P3 Drop down bar for already existing projects** This in addition to the above request that will add Quality of Life (QOL) for users because they won't have to manually navigate through file browser to get to the project they need.
-- **P3 Additional Options for Creating a new project** You can create new projects with no problem. However when typing in a project that already exists you are warned that it isn't empty and to pick a new one. Additional objects should be to either open up the project or asks if you want to overwrite
-- **P2: A progress bar instead of a spinner (sponsor meeting, Oct 15).** Show steady progress that reflects how far along the work really is, not a bar that fills on a timer. Extraction and rollover have distinct steps, so the bar can move as each one finishes. Generation is one AI call, so its progress would come from streaming the reply and counting what's arrived against the expected length.
-- **P1: Keep long operations running when you switch tabs (sponsor meeting, Oct 15).** Moving to another tab while something runs (e.g. generation) stops it. Run long operations in the background and keep their result in the session, so the instructor can work on another tab and come back to it.
-
-## Generation
-
-- **P2: Make generated assignments more robust (sponsor meeting, Oct 15).** Let the instructor set the difficulty, from undergraduate to graduate, and include components where students learn to use AI. Fuller assignments also give the grading feature more context to grade against.
 
 ## Engineering
 
@@ -90,6 +83,13 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 ## Done
 
+- 2026-10-22: Sessions: rollover (and Review, for an undated schedule) can start a course in Session 1, 2, or 3 and run one, two, or all three 5-week sessions; summer courses run 10 or 12 weeks; credits can be 1.5 (PR #19).
+- 2026-10-22: UAT fixes: a recommended model in the model dropdown; long PDFs read with AI in parts; undated schedules don't assume a break the syllabus doesn't mention; the Canvas HTML is the whole syllabus page with paste steps and a preview; an "All courses" button returns to the course list; the API key is saved once for every course; tabs that need a course are dimmed (PR #18).
+- 2026-10-22: Long operations (generation, extraction, the rollover preview) keep running when you switch tabs, shown on the tab's label, with a toast when they finish elsewhere (PR #18).
+- 2026-10-22: Progress bars that show real progress: the AI's reply streaming in against its expected length, the parts of a PDF read, and each week rollover drafts. Steps that can't be measured show their name and elapsed time instead (PR #18).
+- 2026-10-22: Generated content takes a course level (lower-division, upper-division, graduate; guessed from the course number), and assignments can include a task where students use AI and reflect on it (PR #18).
+- 2026-10-22: The launch screen lists existing projects with an Open button, and creating a project that already exists offers to open it (PR #18).
+- 2026-10-22: Docstrings on about 50 functions where a maintainer needs the reason explained (PR #18).
 - 2026-10-10: Lint debt cleared: `ruff check .` passes, and CI runs it (on the Linux job). Local "today"/"now" is allowed in the ruff config, since Chalk runs on the instructor's own computer.
 - 2026-10-10: New projects create `outputs/assignments/`, and `toolkit.py status` counts saved assignments.
 - 2026-10-10: Quizzes, discussion prompts, rubrics, and summaries download as Word or PDF in the assignment creator's layout (type header, title, upper-case sections), on Generate and Drafts. Rubric tables become real tables, and the AI-draft banner is left out of Word/PDF.
