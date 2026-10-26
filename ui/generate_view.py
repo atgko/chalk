@@ -27,6 +27,7 @@ from chalk.generation.engine import (
     estimate_cost,
     generate,
     overwrite_warning,
+    require_source_files,
     save_draft,
 )
 from chalk.generation.source_context import read_source_text
@@ -46,6 +47,7 @@ from ui.upload_view import save_upload
 
 _JOB = "generate"
 _TAB = "Generate"
+SOURCES_KEY = "generate-sources"
 
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
@@ -69,6 +71,11 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
     spec = SPECS[st.selectbox("Content type", list(SPECS), format_func=lambda key: SPECS[key].label)]
     request = _request_form(paths, course_data, spec)
 
+    try:
+        require_source_files(course_data, request)
+    except ChalkError as exc:
+        st.info(exc.user_message)
+        return
     try:
         estimate = estimate_cost(paths, course_data, request)
     except ChalkError as exc:
@@ -110,9 +117,9 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
     syllabus_name = Path(course_data.course.source_file).name
     materials = [name for name in list_source_files(paths) if name != syllabus_name]
     if materials:
-        fields["source_files"] = tuple(st.multiselect("Source materials to use", materials))
+        fields["source_files"] = tuple(st.multiselect("Source materials to use", materials, key=SOURCES_KEY))
     else:
-        st.caption("No source materials added yet — generation will use course topics and objectives only.")
+        st.caption("No source materials added yet. Add a reading, handout, or notes below to generate a draft.")
     _render_source_uploader(paths)
     return GenerationRequest(**fields)
 
@@ -267,7 +274,7 @@ def _assignment_fields() -> dict:
         )
 
     st.caption(
-        "Chalk will use the saved course objectives and any source materials you select below. "
+        "Chalk will use the saved course objectives and the source materials you select below. "
         "The result is a faculty-reviewed draft, not an automatic course change."
     )
     return {

@@ -81,3 +81,11 @@ def saved_project(project, tmp_path):
     course_data, _ = extract_syllabus(project, syllabus)
     save_reviewed_course(project, course_data)
     return project
+
+
+@pytest.fixture
+def sourced_project(saved_project):
+    """A saved course with one instructor source file (notes.txt), which
+    generation needs; tests/test_app.py's `launch_with_source` selects it."""
+    (saved_project.source_dir / "notes.txt").write_text("Subnetting notes", encoding="utf-8")
+    return saved_project

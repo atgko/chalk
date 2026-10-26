@@ -13,7 +13,7 @@ import openai
 import pytest
 
 from chalk.errors import LLMProviderError
-from chalk.llm_client import complete
+from chalk.llm_client import complete, track_usage
 
 # ---- Fakes ------------------------------------------------------------
 
@@ -535,3 +535,28 @@ def test_anthropic_streams_and_takes_usage_from_the_final_message(monkeypatch):
     assert received == [5, 10]
     assert calls[0]["max_tokens"] == 900
     assert calls[0]["system"] == "sys"
+
+
+# ---- Usage tracking ---------------------------------------------------------------
+
+
+def test_track_usage_adds_up_every_call_in_the_block(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    patch_openai(monkeypatch, [openai_response(input_tokens=10, output_tokens=5), openai_response(input_tokens=30, output_tokens=7)])
+
+    with track_usage() as usage:
+        complete("first criterion")
+        complete("second criterion")
+
+    assert (usage.calls, usage.input_tokens, usage.output_tokens) == (2, 40, 12)
+
+
+def test_calls_outside_track_usage_are_not_counted(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    patch_openai(monkeypatch, [openai_response()])
+
+    with track_usage() as usage:
+        pass
+    complete("after the block")
+
+    assert usage.calls == 0

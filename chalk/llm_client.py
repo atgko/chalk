@@ -23,6 +23,10 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TypedDict
 
 import anthropic
@@ -81,6 +85,39 @@ class CompletionResult(TypedDict):
     text: str
     input_tokens: int
     output_tokens: int
+
+
+@dataclass
+class UsageTally:
+    """Running totals of the `complete` calls made inside `track_usage`."""
+    calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+_active_tally: ContextVar[UsageTally | None] = ContextVar("_active_tally", default=None)
+
+
+@contextmanager
+def track_usage() -> Iterator[UsageTally]:
+    """Add up the tokens of every successful `complete` call in the block,
+    for operations that make several calls (grading makes one per rubric
+    criterion, plus retries) without each caller passing counts back."""
+    tally = UsageTally()
+    token = _active_tally.set(tally)
+    try:
+        yield tally
+    finally:
+        _active_tally.reset(token)
+
+
+def _record_usage(result: CompletionResult) -> CompletionResult:
+    tally = _active_tally.get()
+    if tally is not None:
+        tally.calls += 1
+        tally.input_tokens += result["input_tokens"]
+        tally.output_tokens += result["output_tokens"]
+    return result
 
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1"
@@ -285,7 +322,7 @@ def complete(
     last_transient_error: Exception | None = None
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            return call(prompt, system, max_tokens, on_text)
+            return _record_usage(call(prompt, system, max_tokens, on_text))
 
         except _AUTH_EXCEPTIONS as exc:
             raise LLMProviderError(_auth_error_message()) from exc

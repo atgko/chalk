@@ -24,7 +24,7 @@ from chalk.calendar_data import find_term, load_calendars
 from chalk.config import apply_provider_env, describe_provider
 from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
-from chalk.errors import ChalkError, TermNotInCalendarError
+from chalk.errors import ChalkError, GenerationError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
 from chalk.extractors.consistency import grading_weight_warning
 from chalk.generation.course_level import COURSE_LEVELS, level_from_course_number
@@ -34,6 +34,7 @@ from chalk.generation.engine import (
     estimate_cost,
     generate,
     overwrite_warning,
+    require_source_files,
     save_draft,
     spec_for,
 )
@@ -319,6 +320,10 @@ def _cmd_generate(args, console: _Console) -> int:
     request = _generation_request(args, course_data)
     if spec_for(request.content_type).per_week and request.week_number is None:
         raise ChalkError("Say which week to generate for, e.g. --week 3.")
+    try:
+        require_source_files(course_data, request)
+    except GenerationError as exc:
+        raise ChalkError(f"{exc.user_message} Add a file to source/ and pass it with --source <file name>.") from None
 
     warning = overwrite_warning(paths, request)
     if warning and not (args.yes or console.confirm(warning)):

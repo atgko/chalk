@@ -6,7 +6,7 @@ from io import BytesIO
 
 import streamlit as st
 
-from chalk.grading.workflow import analyze_by_criterion
+from chalk.grading.eval_log import grade_and_log
 from chalk.llm_client import LLMProviderError
 
 
@@ -88,7 +88,8 @@ def render(paths):
                     )
                     return
 
-                feedback = analyze_by_criterion(
+                feedback = grade_and_log(
+                    paths,
                     submission=submission,
                     rubric=rubric,
                     instructions=instructions,

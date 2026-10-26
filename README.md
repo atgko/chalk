@@ -137,13 +137,13 @@ python toolkit.py extract path/to/syllabus.pdf --project IS-6640-Fall-2027 [--re
 python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--session 2-3] [--weeks 12] [--week1-date 2027-08-23] [--meeting-days TR] [--no-break "Fall Break"] [--no-llm] [--yes]
 python toolkit.py export --project IS-6640-Fall-2027
 python toolkit.py add path/to/chapter-3-summary.pdf --project IS-6640-Fall-2027
-python toolkit.py generate quiz --week 3 --project IS-6640-Fall-2027 [--count 5] [--format mixed] [--source chapter-3-summary.pdf]
-python toolkit.py generate quiz --week 3 --multiple-choice 4 --short-answer 2   # a mixed quiz with a set split
-python toolkit.py generate discussion --week 3 [--count 3] [--level graduate]   # level defaults from the course number
-python toolkit.py generate assignment --assignment "Design Brief" --assignment-goal "Defend a design." [--ai-component]
-python toolkit.py generate summary --week 3
-python toolkit.py generate slides --week 3 [--notes "bullet points or an excerpt"]
-python toolkit.py generate rubric --assignment "Lab 3" --description-file lab3.docx [--points 100]
+python toolkit.py generate quiz --week 3 --source chapter-3-summary.pdf --project IS-6640-Fall-2027 [--count 5] [--format mixed]
+python toolkit.py generate quiz --week 3 --source notes.md --multiple-choice 4 --short-answer 2   # a mixed quiz with a set split
+python toolkit.py generate discussion --week 3 --source notes.md [--count 3] [--level graduate]   # level defaults from the course number
+python toolkit.py generate assignment --assignment "Design Brief" --assignment-goal "Defend a design." --source notes.md [--ai-component]
+python toolkit.py generate summary --week 3 --source notes.md
+python toolkit.py generate slides --week 3 --source notes.md [--notes "bullet points or an excerpt"]
+python toolkit.py generate rubric --assignment "Lab 3" --description-file lab3.docx --source notes.md [--points 100]
 python toolkit.py report --project IS-6640-Fall-2027
 python toolkit.py demo [--reset]
 python toolkit.py status --project IS-6640-Fall-2027
@@ -151,7 +151,7 @@ python toolkit.py status --project IS-6640-Fall-2027
 
 - `extract` asks before saving past a failed term/Week-1 check. `--continue-anyway` skips the question, and the override is still logged. A PDF is read on this computer unless you pass `--read-pdf-with ai`.
 - `rollover` prints the full preview and asks before writing. `--yes` skips the question. If the term isn't in the calendar, it asks for the first day of classes (or pass `--week1-date`). `--session` (`1`, `2`, `3`, `1-2`, `2-3`, or `1-3`) rolls into those 5-week sessions: it sets Week 1 to the session's first day and, unless you pass `--weeks`, the length to 5 or 10 weeks. `--week1-date` overrides it. Summer terms have no sessions; use `--weeks 10` or `--weeks 12`. `--meeting-days` (e.g. `TR`, `MW`, `"Mon,Wed"`) limits holiday warnings to class days; `--no-break` (repeatable) drops a break the class meets through.
-- `generate` shows the estimated cost, asks before replacing an existing draft (`--yes` skips this), then saves the draft and prints tokens used and cost. `--source` can be repeated.
+- `generate` shows the estimated cost, asks before replacing an existing draft (`--yes` skips this), then saves the draft and prints tokens used and cost. It needs at least one `--source` file of your own besides the syllabus (see section 5); `--source` can be repeated.
 - `report` writes `outputs/evaluation-report.md`.
 - Run `python toolkit.py <command> -h` for every option.
 
@@ -159,7 +159,7 @@ The CLI uses the AI provider saved in the app's Settings tab (one for every cour
 
 ## 5. Adding source materials
 
-Source materials are your own summaries, notes, excerpts, and handouts that ground generated content in what you actually teach. Accepted types: PDF, DOCX, MD, TXT.
+Source materials are your own summaries, notes, excerpts, and handouts that ground generated content in what you actually teach. Accepted types: PDF, DOCX, MD, TXT. Every draft needs at least one (the syllabus doesn't count), so the content comes from you rather than the AI's general knowledge.
 
 - **In the app:** on the Generate tab, open **Add source materials**, choose files, and click **Add to project**. They're copied into the project's `source/` folder and appear in the **Source materials to use** list. (Files you copy into `source/` yourself appear there too.)
 - **From the CLI:** `python toolkit.py add path/to/file.pdf --project <folder>` copies the file into `source/` and records it.
