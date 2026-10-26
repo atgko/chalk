@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-22.
+Last updated: 2026-10-26.
 
 ## Open questions (need someone outside the code)
 
@@ -39,6 +39,17 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
   - When a saved model is retired, the new 404 message already says to choose another one in Settings; a startup check could warn sooner.
 - **P2: Read submissions from Canvas's SpeedGrader zip (sponsor meeting, Oct 15).** SpeedGrader can download all of an assignment's submissions as one zip file, which makes a natural input for the grading feature. Canvas puts the student's name and ID in each file name inside the zip, so the guardrails above have to cover file names as well as file contents.
 
+## Grounding, validation, and audit trail (faculty meeting with Chong Oh, Oct 23)
+
+Chalk should make the instructor's work easier and keep a human in the loop, not replace the instructor. What it produces should come from what the instructor uploads, not from what the model happens to know. That keeps the instructor responsible for the content and makes results less dependent on which model is used. The team also needs a record of how each feature was tested and validated, in case deans or the department have concerns about AI use.
+
+- **P1: Make grading consistent.** The Grading Assistant (PR #20) gives different results when the same submission is graded again; consistent, evidence-based results are the "grounding" the meeting asked for. Try different approaches and measure each with the variation metric below. Ideas to start with: a low temperature (`chalk/llm_client.py` doesn't set one today), a quote from the submission as evidence for every criterion, and the default instructions below.
+- **P1: Measure grading variation as a metric.** Testing now focuses on this: show how much the grade for the same submission varies, and that the changes above reduce it. Grade one submission several times, in the background, and record the spread of the total and per-criterion scores, plus the cost, in the eval log so the Metrics tab and `toolkit.py report` can show it. Comparing models is a second step. Grading doesn't write to the eval log yet. Each repeat costs another full grading, so make it something the instructor turns on, or run it on a sample.
+- **P2: Default grading instructions.** Pre-fill "Additional grading instructions" with standing rules such as "be consistent across submissions" and "cite evidence from the submission for every score". The team decides the exact wording, based on the framework below.
+- **P1: Generation needs instructor source material.** Don't generate unless at least one source file (e.g. a reading handout) has been uploaded. Today generation quietly falls back to the week's topics (`chalk/generation/source_context.py`). The team chose to block generation rather than warn (Oct 26). Apply the same rule in the CLI (`--source`).
+- **P2 (research): Choose an educational framework.** Base Chalk on an established framework from education. Use it to structure what Chalk does, how its quizzes, assignments, and content are validated, and how it supports better learning outcomes for students. The group will research this and decide later.
+- **P1: A validation record (paper trail).** For each feature, record how it was built, how it was tested, and how it was validated against the framework, like a certification or audit report. It shows that AI-assisted development followed a sound process (tests first, CI, the eval log, the variation results) and was checked. It depends on the framework above.
+
 ## Handoff and sustainability (sponsor meeting, Oct 15)
 
 The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chalk running after December.
@@ -74,6 +85,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P2: Try the launch screen's Browse… buttons on a real Mac.** The folder dialog runs as a separate Python process so that Tk gets its own main thread, which macOS requires. That design is meant for macOS but has only been tried on Windows (PR #5). On a Mac, click each Browse…, check the dialog appears in front of the browser, pick a folder, and check it fills the field. Then cancel one, and check the page stays usable while the dialog is open. If it fails, the typed path still works.
 - **P1: Paste the Canvas page into a real Canvas course.** Export's Canvas HTML is now the whole U of U syllabus template, filled in, with paste steps and a preview (Oct 22). It's been checked in a browser, not in Canvas itself: check that Canvas keeps the inline styles (banner, grey section bars), that the steps match its editor (some versions use a `</>` button instead of View → HTML Editor), and that the "Insert…" placeholders are easy to find.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
+- **P3: Move the Metrics tab back to just left of Settings (faculty meeting, Oct 23).** The Grading Assistant tab (PR #20) now sits between them (`TAB_NAMES` in `ui/shell.py`).
 - **P3 Currently, the 'Open Project' button only lets you open a project if you manually enter in the file path. What should happen is that clicking on 'Open Project' assuming Windows OS is that it opens the file browser and you can navigate that way.** 
 
 ## Engineering
