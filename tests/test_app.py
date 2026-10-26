@@ -14,6 +14,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
+from chalk.generation.engine import NO_SOURCES_MESSAGE
 from chalk.pipeline import extract_syllabus
 from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
@@ -49,6 +50,14 @@ def launch(paths=None, **state) -> AppTest:
     for key, value in state.items():
         at.session_state[key] = value
     return at.run()
+
+
+def launch_with_source(paths, **state) -> AppTest:
+    """Launch with the `sourced_project` fixture's notes.txt selected on
+    the Generate tab, since generation needs a source file."""
+    from ui.generate_view import SOURCES_KEY
+
+    return launch(paths, **{SOURCES_KEY: ["notes.txt"]}, **state)
 
 
 def widget(elements, label: str):
@@ -272,8 +281,8 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Generate",
         "Drafts",
         "Export",
-        "Metrics",
         "Grading Assistant",
+        "Metrics",
         "Settings",
     ]
     assert "Provider: Not configured" in at.caption[-1].value
@@ -359,7 +368,7 @@ def test_gated_tabs_redirect_until_a_course_exists(project):
     assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 4
     assert "course.json" not in NEEDS_COURSE_MESSAGE  # professors don't know the file
     [style] = at.get("html")
-    for position in (3, 4, 6, 7):  # Rollover, Generate, Export, Metrics are dimmed
+    for position in (3, 4, 6, 8):  # Rollover, Generate, Export, Metrics are dimmed
         assert f'[data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
     assert "nth-of-type(1) {opacity" not in style.proto.body
 
@@ -749,10 +758,22 @@ def test_generate_asks_for_a_provider_when_none_is_configured(saved_project):
     assert "Connect an AI provider in the Settings tab to generate content." in texts(at.info)
 
 
-def test_generate_shows_the_estimate_and_no_materials_nudge(saved_project):
+def test_generate_without_source_materials_asks_for_one(saved_project):
     at = launch(saved_project)
-    assert any(c.startswith("Estimated cost: up to ~$") for c in texts(at.caption))
     assert "No source materials added yet" in " ".join(texts(at.caption))
+    assert NO_SOURCES_MESSAGE in texts(at.info)
+    assert "Generate" not in {b.label for b in at.button}
+
+
+def test_generate_waits_until_a_source_is_selected(sourced_project):
+    at = launch(sourced_project)
+    assert NO_SOURCES_MESSAGE in texts(at.info)
+    assert "Generate" not in {b.label for b in at.button}
+
+    widget(at.multiselect, "Source materials to use").set_value(["notes.txt"])
+    at = at.run()
+
+    assert any(c.startswith("Estimated cost: up to ~$") for c in texts(at.caption))
     assert not widget(at.button, "Generate").disabled
 
 
@@ -762,25 +783,25 @@ def test_generate_lists_source_materials_except_the_syllabus(saved_project):
     assert widget(at.multiselect, "Source materials to use").options == ["ch3.txt"]
 
 
-def test_generate_review_then_save(saved_project, llm):
-    at = launch(saved_project)
+def test_generate_review_then_save(sourced_project, llm):
+    at = launch_with_source(sourced_project)
     widget(at.selectbox, "Week").set_value(2)
     at = click(at.run(), "Generate")
 
     assert_no_exception(at)
     assert any("Draft for review — outputs/quizzes/week-2-quiz.md" in s.value for s in at.subheader)
-    assert not (saved_project.outputs_dir / "quizzes" / "week-2-quiz.md").exists()
+    assert not (sourced_project.outputs_dir / "quizzes" / "week-2-quiz.md").exists()
 
     at = click(at, "Save")
 
     assert_no_exception(at)
-    saved = saved_project.outputs_dir / "quizzes" / "week-2-quiz.md"
+    saved = sourced_project.outputs_dir / "quizzes" / "week-2-quiz.md"
     assert "Draft number 1" in saved.read_text(encoding="utf-8")
     assert any(s.startswith("Saved outputs/quizzes/week-2-quiz.md.") for s in texts(at.success))
 
 
-def test_a_quiz_draft_can_be_exported_as_word_or_pdf(saved_project, llm):
-    at = click(launch(saved_project), "Generate")
+def test_a_quiz_draft_can_be_exported_as_word_or_pdf(sourced_project, llm):
+    at = click(launch_with_source(sourced_project), "Generate")
 
     assert_no_exception(at)
     assert widget(at.selectbox, "File type").options == ["Word (.docx)", "PDF (.pdf)", "Markdown (.md)"]
@@ -794,8 +815,8 @@ def test_slide_drafts_have_no_document_export(saved_project):
     assert_no_exception(at)
     assert draft_titles(at) == ["Week 1 — Slides"]
     assert "File type" not in [s.label for s in at.selectbox]
-def test_mixed_quiz_asks_for_the_split_and_sends_it(saved_project, llm):
-    at = launch(saved_project)
+def test_mixed_quiz_asks_for_the_split_and_sends_it(sourced_project, llm):
+    at = launch_with_source(sourced_project)
     assert "Multiple-choice questions" not in {n.label for n in at.number_input}
     widget(at.number_input, "Multiple choice").set_value(4)
     widget(at.number_input, "Short answer").set_value(1)
@@ -821,8 +842,8 @@ def test_single_format_quiz_asks_for_one_count_named_for_it(saved_project, quiz_
     assert not labels & hidden
 
 
-def test_regenerate_needs_confirmation_and_replaces_the_draft(saved_project, llm):
-    at = click(click(launch(saved_project), "Generate"), "Regenerate")
+def test_regenerate_needs_confirmation_and_replaces_the_draft(sourced_project, llm):
+    at = click(click(launch_with_source(sourced_project), "Generate"), "Regenerate")
     assert any("This makes another paid call" in w for w in texts(at.warning))
     assert len(llm) == 1
 
@@ -836,15 +857,15 @@ def test_regenerate_needs_confirmation_and_replaces_the_draft(saved_project, llm
     assert any("Draft number 2" in m.value for m in at.markdown)
 
 
-def test_discarding_a_draft_writes_nothing(saved_project, llm):
-    at = click(click(launch(saved_project), "Generate"), "Discard")
+def test_discarding_a_draft_writes_nothing(sourced_project, llm):
+    at = click(click(launch_with_source(sourced_project), "Generate"), "Discard")
     assert at.session_state["chalk_draft"] is None
-    assert not list((saved_project.outputs_dir / "quizzes").iterdir())
+    assert not list((sourced_project.outputs_dir / "quizzes").iterdir())
 
 
-def test_overwriting_needs_the_checkbox(saved_project, llm):
-    (saved_project.outputs_dir / "quizzes" / "week-1-quiz.md").write_text("old", encoding="utf-8")
-    at = launch(saved_project)
+def test_overwriting_needs_the_checkbox(sourced_project, llm):
+    (sourced_project.outputs_dir / "quizzes" / "week-1-quiz.md").write_text("old", encoding="utf-8")
+    at = launch_with_source(sourced_project)
 
     assert any("A quiz already exists for Week 1." in w for w in texts(at.warning))
     assert widget(at.button, "Generate").disabled
@@ -862,10 +883,10 @@ def test_drafts_tab_explains_when_nothing_is_saved(saved_project):
     assert "No saved drafts yet. Generate one on the Generate tab and click Save." in texts(at.info)
 
 
-def test_a_saved_draft_appears_on_the_drafts_tab(saved_project, llm):
-    at = click(click(launch(saved_project), "Generate"), "Save")
-    (saved_project.outputs_dir / "quizzes" / ".archive").mkdir()
-    (saved_project.outputs_dir / "quizzes" / ".archive" / "week-1-quiz-20261001-101500.md").write_text(
+def test_a_saved_draft_appears_on_the_drafts_tab(sourced_project, llm):
+    at = click(click(launch_with_source(sourced_project), "Generate"), "Save")
+    (sourced_project.outputs_dir / "quizzes" / ".archive").mkdir()
+    (sourced_project.outputs_dir / "quizzes" / ".archive" / "week-1-quiz-20261001-101500.md").write_text(
         "old", encoding="utf-8"
     )
     at = at.run()
@@ -918,8 +939,8 @@ def test_assignment_drafts_download_as_word_by_default(saved_project):
     assert widget(at.selectbox, "File type").value == "Word (.docx)"
 
 
-def test_rubric_waits_for_assignment_details(saved_project, llm):
-    at = launch(saved_project)
+def test_rubric_waits_for_assignment_details(sourced_project, llm):
+    at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("rubric")
     at = at.run()
     assert "A rubric needs an assignment name and a description of the assignment." in texts(
@@ -935,21 +956,21 @@ def test_rubric_waits_for_assignment_details(saved_project, llm):
     assert "Build two VLANs." in llm[0]
 
 
-def test_slides_draft_is_shown_as_markdown_source(saved_project, llm):
-    at = launch(saved_project)
+def test_slides_draft_is_shown_as_markdown_source(sourced_project, llm):
+    at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("slides")
     at = click(at.run(), "Generate")
     assert any(c.value.startswith("---\ntitle:") for c in at.code)
 
 
-def test_generation_errors_are_shown_plainly(saved_project, monkeypatch):
+def test_generation_errors_are_shown_plainly(sourced_project, monkeypatch):
     from chalk.errors import LLMProviderError
 
     def _down(prompt, system="", max_tokens=2000, on_text=None):
         raise LLMProviderError("Could not reach the LLM provider. Check your connection.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)
-    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
+    at = click(launch_with_source(sourced_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
     assert any("Could not reach the LLM provider" in e.value for e in at.error)
 
 
@@ -1038,8 +1059,8 @@ def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
     assert (demo_root / ".chalk-demo").exists()
 
 
-def test_generate_defaults_the_course_level_from_the_course_number(saved_project, llm):
-    at = launch(saved_project)
+def test_generate_defaults_the_course_level_from_the_course_number(sourced_project, llm):
+    at = launch_with_source(sourced_project)
     level = widget(at.selectbox, "Course level")
     assert level.value == "upper-division"  # IS 4490
 
@@ -1049,8 +1070,8 @@ def test_generate_defaults_the_course_level_from_the_course_number(saved_project
     assert "COURSE LEVEL: graduate." in llm[-1]
 
 
-def test_an_assignment_can_include_an_ai_use_task(saved_project, llm):
-    at = launch(saved_project)
+def test_an_assignment_can_include_an_ai_use_task(sourced_project, llm):
+    at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("assignment")
     at = at.run()
     widget(at.text_input, "Assignment name").input("Design Brief")

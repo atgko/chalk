@@ -7,7 +7,7 @@ import threading
 import pytest
 
 from chalk.generation.engine import spec_for
-from tests.test_app import click, launch, texts
+from tests.test_app import click, launch, launch_with_source, texts
 from ui import background, session
 
 pytestmark = pytest.mark.usefixtures("isolated_env")
@@ -62,9 +62,9 @@ def _blocked_llm(monkeypatch, *, fail: bool = False) -> threading.Event:
     return release
 
 
-def test_generation_keeps_running_across_a_tab_switch(saved_project, monkeypatch):
+def test_generation_keeps_running_across_a_tab_switch(sourced_project, monkeypatch):
     release = _blocked_llm(monkeypatch)
-    at = launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"})
+    at = launch_with_source(sourced_project, **{session.ACTIVE_TAB_KEY: "Generate"})
     at = click(at, "Generate")
 
     assert any(
@@ -91,9 +91,9 @@ def test_generation_keeps_running_across_a_tab_switch(saved_project, monkeypatch
     assert _marks(at) == {}
 
 
-def test_a_generation_that_fails_on_another_tab_is_reported_there(saved_project, monkeypatch):
+def test_a_generation_that_fails_on_another_tab_is_reported_there(sourced_project, monkeypatch):
     release = _blocked_llm(monkeypatch, fail=True)
-    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
+    at = click(launch_with_source(sourced_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
     at = _run_on_tab(at, "Metrics")
 
     release.set()
@@ -112,10 +112,10 @@ def test_a_generation_that_fails_on_another_tab_is_reported_there(saved_project,
     assert not texts(_run_on_tab(at, "Generate").error)  # once
 
 
-def test_a_finished_job_is_applied_once(saved_project, monkeypatch):
+def test_a_finished_job_is_applied_once(sourced_project, monkeypatch):
     release = _blocked_llm(monkeypatch)
     release.set()
-    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
+    at = click(launch_with_source(sourced_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
     _wait_for(at, "generate")
     at = at.run()
     assert "Save" in {b.label for b in at.button}
@@ -173,7 +173,7 @@ def test_an_extraction_finished_on_another_tab_leaves_the_instructor_there(proje
     assert any(s.endswith("Check it on the Review tab.") for s in _toasts(at))
 
 
-def test_the_progress_line_shows_a_progress_bar_while_the_reply_streams_in(saved_project, monkeypatch):
+def test_the_progress_line_shows_a_progress_bar_while_the_reply_streams_in(sourced_project, monkeypatch):
     release, writing = threading.Event(), threading.Event()
 
     def _complete(prompt, system="", max_tokens=2000, on_text=None):
@@ -183,7 +183,7 @@ def test_the_progress_line_shows_a_progress_bar_while_the_reply_streams_in(saved
         return {"text": "## Questions\nQ1. A background draft", "input_tokens": 1000, "output_tokens": 500}
 
     monkeypatch.setattr("chalk.generation.engine.complete", _complete)
-    at = click(launch(saved_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
+    at = click(launch_with_source(sourced_project, **{session.ACTIVE_TAB_KEY: "Generate"}), "Generate")
     assert writing.wait(_WAIT_SECONDS)
     at = _run_on_tab(at, "Generate")
 

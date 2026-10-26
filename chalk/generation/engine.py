@@ -107,6 +107,22 @@ def output_path_for(paths: ProjectPaths, request: GenerationRequest) -> Path:
     return folder / f"{slug}-{suffix}.md"
 
 
+NO_SOURCES_MESSAGE = (
+    "Choose at least one of your own source materials (a reading, handout, or notes) for Chalk "
+    "to base the draft on. The syllabus alone isn't enough: drafts come from what you provide, "
+    "not from the AI's general knowledge."
+)
+
+
+def require_source_files(course_data: CourseData, request: GenerationRequest) -> None:
+    """Every draft rests on at least one instructor source file besides the
+    syllabus, so the instructor, not the model, supplies the content
+    (faculty meeting, Oct 23; BACKLOG.md). Raises GenerationError."""
+    syllabus = Path(course_data.course.source_file).name
+    if not [name for name in request.source_files if name != syllabus]:
+        raise GenerationError(NO_SOURCES_MESSAGE)
+
+
 def build_prompt(paths: ProjectPaths, course_data: CourseData, request: GenerationRequest) -> str:
     spec = spec_for(request.content_type)
     template = load_template(paths.prompts_dir, spec)
@@ -294,6 +310,7 @@ def generate(
     """Run one LLM call and return the draft (not yet saved). Raises
     LLMProviderError / GenerationError / PromptTemplateError with
     plain-English messages. `on_progress` follows chalk/progress.py."""
+    require_source_files(course_data, request)
     spec = spec_for(request.content_type)
     report(on_progress, None, "Preparing the prompt and source materials")
     prompt = build_prompt(paths, course_data, request)

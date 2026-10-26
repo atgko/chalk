@@ -268,6 +268,7 @@ def llm(monkeypatch, project):
     for key in ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
         monkeypatch.delenv(key, raising=False)
     (project / ".env").write_text("LLM_PROVIDER=openai\nLLM_API_KEY=sk\nLLM_MODEL=gpt-4o\n", encoding="utf-8")
+    (project / "source" / "notes.txt").write_text("Subnetting notes", encoding="utf-8")  # generation needs one
     calls = []
 
     def _complete(prompt, system="", max_tokens=2000, on_text=None):
@@ -281,7 +282,7 @@ def llm(monkeypatch, project):
 def test_generate_mixed_quiz_with_a_split_totals_the_counts(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
 
-    result = run("generate", "quiz", "--week", "2", "--multiple-choice", "4", "--short-answer", "2",
+    result = run("generate", "--source", "notes.txt", "quiz", "--week", "2", "--multiple-choice", "4", "--short-answer", "2",
                  "--project", str(project))
 
     assert result.code == 0, result.err
@@ -291,7 +292,7 @@ def test_generate_mixed_quiz_with_a_split_totals_the_counts(project, tmp_path, l
 def test_generate_quiz_split_that_disagrees_with_count_is_an_error(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
 
-    result = run("generate", "quiz", "--week", "2", "--count", "5", "--multiple-choice", "4",
+    result = run("generate", "--source", "notes.txt", "quiz", "--week", "2", "--count", "5", "--multiple-choice", "4",
                  "--short-answer", "2", "--project", str(project))
 
     assert result.code == 1
@@ -302,7 +303,7 @@ def test_generate_quiz_split_that_disagrees_with_count_is_an_error(project, tmp_
 def test_generate_without_a_provider_explains_how_to_configure_one(project, tmp_path, monkeypatch):
     for key in ("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
         monkeypatch.delenv(key, raising=False)
-    result = run("generate", "quiz", "--week", "1", "--project", str(project))
+    result = run("generate", "--source", "notes.txt", "quiz", "--week", "1", "--project", str(project))
     assert result.code == 1
     assert "No LLM provider is configured" in result.err
 
@@ -310,7 +311,7 @@ def test_generate_without_a_provider_explains_how_to_configure_one(project, tmp_
 def test_generate_quiz_writes_a_bannered_draft_and_reports_cost(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
 
-    result = run("generate", "quiz", "--week", "2", "--count", "4", "--format", "short answer",
+    result = run("generate", "--source", "notes.txt", "quiz", "--week", "2", "--count", "4", "--format", "short answer",
                  "--project", str(project))
 
     assert result.code == 0, result.err
@@ -324,9 +325,9 @@ def test_generate_quiz_writes_a_bannered_draft_and_reports_cost(project, tmp_pat
 
 def test_generate_asks_before_overwriting_and_can_be_cancelled(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
-    run("generate", "summary", "--week", "1", "--project", str(project))
+    run("generate", "--source", "notes.txt", "summary", "--week", "1", "--project", str(project))
 
-    result = run("generate", "summary", "--week", "1", "--project", str(project), answers=["n"])
+    result = run("generate", "--source", "notes.txt", "summary", "--week", "1", "--project", str(project), answers=["n"])
 
     assert result.code == 1
     assert "Cancelled — nothing was generated." in result.out
@@ -335,9 +336,9 @@ def test_generate_asks_before_overwriting_and_can_be_cancelled(project, tmp_path
 
 def test_generate_overwrite_with_yes_archives_the_old_draft(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
-    run("generate", "discussion", "--week", "1", "--project", str(project))
+    run("generate", "--source", "notes.txt", "discussion", "--week", "1", "--project", str(project))
 
-    result = run("generate", "discussion", "--week", "1", "--yes", "--project", str(project))
+    result = run("generate", "--source", "notes.txt", "discussion", "--week", "1", "--yes", "--project", str(project))
 
     assert result.code == 0
     assert len(list((project / "outputs" / "discussions" / ".archive").iterdir())) == 1
@@ -345,7 +346,7 @@ def test_generate_overwrite_with_yes_archives_the_old_draft(project, tmp_path, l
 
 def test_generate_per_week_types_need_a_week(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
-    result = run("generate", "quiz", "--project", str(project))
+    result = run("generate", "--source", "notes.txt", "quiz", "--project", str(project))
     assert result.code == 1
     assert "Say which week" in result.err
 
@@ -355,7 +356,7 @@ def test_generate_rubric_from_a_description_file(project, tmp_path, llm):
     description = tmp_path / "lab3.md"
     description.write_text("Configure two VLANs and a trunk.", encoding="utf-8")
 
-    result = run("generate", "rubric", "--assignment", "Lab 3", "--description-file", str(description),
+    result = run("generate", "--source", "notes.txt", "rubric", "--assignment", "Lab 3", "--description-file", str(description),
                  "--points", "40", "--project", str(project))
 
     assert result.code == 0, result.err
@@ -366,7 +367,7 @@ def test_generate_rubric_from_a_description_file(project, tmp_path, llm):
 
 def test_generate_rubric_with_a_missing_description_file(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
-    result = run("generate", "rubric", "--assignment", "Lab", "--description-file", str(tmp_path / "nope.md"),
+    result = run("generate", "--source", "notes.txt", "rubric", "--assignment", "Lab", "--description-file", str(tmp_path / "nope.md"),
                  "--project", str(project))
     assert "Couldn't find" in result.err
 
@@ -378,7 +379,7 @@ def test_generate_grounds_in_selected_sources_and_reports_unknown_cost(project, 
     run("add", str(material), "--project", str(project))
     monkeypatch.setenv("LLM_MODEL", "gpt-unlisted")
 
-    result = run("generate", "slides", "--week", "1", "--notes", "OSI layers", "--source", "ch1.txt",
+    result = run("generate", "--source", "notes.txt", "slides", "--week", "1", "--notes", "OSI layers", "--source", "ch1.txt",
                  "--project", str(project))
 
     assert result.code == 0, result.err
@@ -427,7 +428,7 @@ def test_demo_command_creates_then_reopens_then_resets(tmp_path):
 def test_generate_takes_the_course_level_from_the_course_number(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))  # IS 4490
 
-    assert run("generate", "quiz", "--week", "2", "--project", str(project)).code == 0
+    assert run("generate", "--source", "notes.txt", "quiz", "--week", "2", "--project", str(project)).code == 0
 
     assert "COURSE LEVEL: upper-division undergraduate." in llm[-1]
 
@@ -435,7 +436,7 @@ def test_generate_takes_the_course_level_from_the_course_number(project, tmp_pat
 def test_generate_level_and_ai_component_flags(project, tmp_path, llm):
     _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
 
-    result = run("generate", "assignment", "--assignment", "Design Brief", "--assignment-goal", "Defend a design.",
+    result = run("generate", "--source", "notes.txt", "assignment", "--assignment", "Design Brief", "--assignment-goal", "Defend a design.",
                  "--level", "graduate", "--ai-component", "--project", str(project))
 
     assert result.code == 0, result.err
@@ -464,3 +465,14 @@ def test_rollover_into_summer_rejects_a_session(project, tmp_path):
     result = run("rollover", "--term", "Summer 2027", "--session", "2", "--project", str(project), "--yes")
     assert result.code != 0
     assert "summer courses run --weeks 10 or --weeks 12" in result.err
+
+
+def test_generate_without_a_source_explains_how_to_add_one(project, tmp_path, llm):
+    _extract(project, md_builder.build_minimal_syllabus(tmp_path / "s.md"))
+
+    result = run("generate", "quiz", "--week", "2", "--project", str(project))
+
+    assert result.code == 1
+    assert "Choose at least one of your own source materials" in result.err
+    assert "pass it with --source <file name>" in result.err
+    assert not llm
