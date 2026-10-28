@@ -71,6 +71,19 @@ def test_generation_cost_by_content_type_including_unpriced_calls():
     assert "Models used: custom, gpt-4o." in report
 
 
+def test_generation_cost_by_month():
+    events = [
+        {"event_type": "generation", "timestamp": "2026-09-15T12:00:00+00:00", "content_type": "quiz", "cost_usd": 0.0100},
+        {"event_type": "generation", "timestamp": "2026-09-16T12:00:00+00:00", "content_type": "quiz", "cost_usd": 0.0200},
+        {"event_type": "generation", "timestamp": "2026-11-15T12:00:00+00:00", "content_type": "quiz", "cost_usd": 0.0050},
+    ]
+    report = render_evaluation_report(events, project_name="P", generated_on=ON)
+    assert "## Generation cost by month" in report
+    assert "| 2026-09 | 2 | $0.0300 | $0.0150 |" in report
+    assert "| 2026-10 | 0 | $0.0000 | — |" in report
+    assert "| 2026-11 | 1 | $0.0050 | $0.0050 |" in report
+
+
 def test_write_saves_under_outputs_and_archives(tmp_project):
     metrics.append_event(tmp_project.eval_log, "extraction", {"source_format": "word"})
     first = write_evaluation_report(tmp_project, generated_on=ON)
