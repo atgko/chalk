@@ -11,6 +11,7 @@ from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
+from freezegun import freeze_time
 from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
@@ -1036,16 +1037,34 @@ def test_metrics_summarizes_the_eval_log(saved_project):
 
     assert_no_exception(at)
     values = {m.label: m.value for m in at.metric}
-    assert values["Total AI cost"] == "$0.0123"
+    assert values["AI cost this month"] == "$0.0123"
+    assert "All-time AI cost: $0.0123" in texts(at.caption)
     assert values["Rollovers"] == "1"
     assert values["Extraction errors"] == "1"
     assert "Provider in use: OpenAI gpt-4o" in texts(at.caption)
     assert "Project cost to date: $0.0123" in at.caption[-1].value
 
 
+def test_metrics_compares_this_months_cost_with_last_month(saved_project):
+    log = saved_project.eval_log
+    with freeze_time("2026-09-15T12:00:00+00:00"):
+        metrics.append_event(log, "generation", {"content_type": "quiz", "cost_usd": 0.0100})
+    with freeze_time("2026-10-15T12:00:00+00:00"):
+        metrics.append_event(log, "generation", {"content_type": "quiz", "cost_usd": 0.0250})
+        at = launch(saved_project)
+
+    assert_no_exception(at)
+    [this_month] = [m for m in at.metric if m.label == "AI cost this month"]
+    assert this_month.value == "$0.0250"
+    assert this_month.delta == "+$0.0150 vs last month"
+    assert "All-time AI cost: $0.0350" in texts(at.caption)
+    [monthly] = [d for d in at.dataframe if "Avg cost / generation" in d.value.columns]
+    assert monthly.value["Month"].tolist() == ["2026-10", "2026-09"]
+
+
 def test_metrics_with_an_empty_log(saved_project):
     at = launch(saved_project)
-    assert {"No content generated yet.", "No rollovers yet."} <= set(texts(at.caption))
+    assert {"No content generated yet.", "No AI costs yet.", "No rollovers yet."} <= set(texts(at.caption))
 
 
 def test_ferpa_notice_is_shown_where_files_are_uploaded(saved_project):

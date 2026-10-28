@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
@@ -119,3 +119,59 @@ def summarize_events(events: list[dict[str, Any]]) -> MetricsSummary:
         consistency_failures=sum(1 for e in of_type("consistency_check") if not e.get("passed", True)),
         consistency_overrides=len(of_type("consistency_check_override")),
     )
+
+
+@dataclass(frozen=True)
+class MonthlyCost:
+    """One calendar month of generation spend — the Metrics tab's
+    this-month figure and cost-by-month chart, and the report's monthly table."""
+
+    month: str  # "YYYY-MM"
+    generations: int
+    cost_usd: float
+    cost_by_type: dict[str, float]
+
+    @property
+    def avg_cost_usd(self) -> float:
+        return self.cost_usd / self.generations if self.generations else 0.0
+
+
+def month_key(when: dt.date) -> str:
+    return f"{when.year:04d}-{when.month:02d}"
+
+
+def previous_month_key(when: dt.date) -> str:
+    return month_key(when.replace(day=1) - dt.timedelta(days=1))
+
+
+def monthly_costs(events: list[dict[str, Any]], *, tz: dt.tzinfo | None = None) -> list[MonthlyCost]:
+    """Generation cost per calendar month, oldest first, with quiet months
+    in between included at $0 so the chart has no gaps.
+
+    Months are in this computer's time zone (or `tz`), not the log's UTC,
+    so a generation late on the 31st counts toward the month the user saw.
+    """
+    by_month: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for event in events:
+        if event.get("event_type") == "generation" and event.get("timestamp"):
+            local = dt.datetime.fromisoformat(event["timestamp"]).astimezone(tz)
+            by_month[month_key(local)].append(event)
+    if not by_month:
+        return []
+    return [_month_cost(month, by_month.get(month, [])) for month in _months_between(min(by_month), max(by_month))]
+
+
+def _months_between(first: str, last: str) -> list[str]:
+    year, month = map(int, first.split("-"))
+    months = []
+    while (key := f"{year:04d}-{month:02d}") <= last:
+        months.append(key)
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return months
+
+
+def _month_cost(month: str, generations: list[dict[str, Any]]) -> MonthlyCost:
+    cost_by_type: dict[str, float] = defaultdict(float)
+    for event in generations:
+        cost_by_type[event.get("content_type", "unknown")] += event.get("cost_usd") or 0.0  # None = no known rate
+    return MonthlyCost(month, len(generations), sum(cost_by_type.values()), dict(cost_by_type))
