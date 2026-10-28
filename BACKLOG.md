@@ -93,6 +93,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 ## Done
 
+- 2026-10-28: A "Jump to…" dropdown at the end of the course line opens any tab, or Generate with a content type already selected, as soon as you pick it. Typing filters the list, and labels carry the words people use ("Export for Canvas", "Generate slides (PowerPoint)"). It replaces the workflow search bar from PR #10, which was taken out in #15 (PR #23).
 - 2026-10-26: Every grading is logged in the eval log (model, AI calls, tokens, cost; never the submission, rubric, or file name) as content type "grading", so its cost shows on the Metrics tab, in the footer, and in `toolkit.py report` (PR #22).
 - 2026-10-26: Generation needs at least one instructor source file besides the syllabus, in the app and the CLI (`--source`); the Generate button appears once one is selected (PR #22).
 - 2026-10-26: The Metrics tab sits just left of Settings again (PR #22).
@@ -111,7 +112,6 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - 2026-10-09: A mixed quiz asks how many questions are multiple choice and how many short answer (Generate tab; `--multiple-choice`/`--short-answer` in the CLI), and the prompt asks for exactly that split. Existing projects' quiz templates carry it through `{format}`.
 - 2026-10-09: Browse… buttons next to "Project folder" and "Create it inside" open the system folder dialog and fill in the field (hidden if this Python has no Tk). The page keeps running while the dialog is open, with a Cancel button, and only one dialog can be open at a time.
 - 2026-10-09: The launch screen no longer fades while you type: Open and Create read their fields on click (or Enter), show a "Creating…/Opening…" spinner, and confirm on the next screen. An empty field gets a plain message instead of a greyed-out button.
-- 2026-10-10: Basic workflow search bar - typing in plain-language for something related to a tab in Chalk will pull up suggested tabs based on what was typed.
 - 2026-10-09: Points-based grading tables ("Labs — 250 pts", or a "Points" column) are read in Word and markdown syllabi. Points become fractions of the table's Total row (or of the rows' sum when there's none). Markdown grading tables no longer list their Total row as an assessment.
 - 2026-10-09: GitHub Actions runs the tests on every pull request (Windows, macOS, and Linux on Python 3.11), and a PR template asks for a test plan. Team workflow is in CONTRIBUTING.md.
 - 2026-10-09: A University Dates deadline that names a break (e.g. "Last day before Fall Break") keeps its single date instead of taking the break's dates.
