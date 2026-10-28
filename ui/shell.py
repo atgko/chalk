@@ -40,6 +40,7 @@ from ui import (
     settings_view,
     setup_view,
     upload_view,
+    workflow_search,
 )
 from ui.common import render_header, render_needs_course
 
@@ -111,7 +112,8 @@ def _render_course_line(paths: ProjectPaths) -> None:
     """A way back to the projects list, then the open course. The button
     leads the line, bordered, where people look for "back": as a plain
     text "Switch course" at the far right it went unnoticed (UAT round 2).
-    Leaving waits for a running job, whose result belongs to this course."""
+    Leaving waits for a running job, whose result belongs to this course.
+    The "Jump to…" dropdown ends the line."""
     busy = background.any_running()
     with st.container(horizontal=True, vertical_alignment="center", gap="small"):
         st.button(
@@ -123,6 +125,7 @@ def _render_course_line(paths: ProjectPaths) -> None:
             help="Wait for the current AI work to finish first." if busy else "Open or create another course.",
         )
         st.caption(f"Course project: {paths.root.name}")
+        workflow_search.render()
 
 
 def _resolve_project(argv: list[str]) -> ProjectPaths | None:
