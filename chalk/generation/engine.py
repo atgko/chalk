@@ -19,6 +19,7 @@ from chalk import costs, metrics
 from chalk.archiving import archive_before_write
 from chalk.config import load_config
 from chalk.errors import GenerationError
+from chalk.generation.course_level import AI_COMPONENT_GUIDANCE, level_guidance
 from chalk.generation.prompts import fill_template, load_template
 from chalk.generation.slides import normalize_slides
 from chalk.generation.source_context import build_source_context
@@ -32,6 +33,7 @@ from chalk.generation.specs import (
 )
 from chalk.llm_client import complete
 from chalk.models import CourseData, Week
+from chalk.progress import ProgressCallback, report, writing_progress
 from chalk.project import ProjectPaths
 
 SYSTEM_PROMPT = (
@@ -67,6 +69,9 @@ class GenerationRequest:
     total_points: int = DEFAULT_RUBRIC_POINTS
     slide_notes: str = ""
     source_files: tuple[str, ...] = ()
+    # chalk/generation/course_level.py. None leaves the level to the model.
+    course_level: str | None = None
+    include_ai_component: bool = False  # assignments only
 
 
 @dataclass(frozen=True)
@@ -102,6 +107,22 @@ def output_path_for(paths: ProjectPaths, request: GenerationRequest) -> Path:
     return folder / f"{slug}-{suffix}.md"
 
 
+NO_SOURCES_MESSAGE = (
+    "Choose at least one of your own source materials (a reading, handout, or notes) for Chalk "
+    "to base the draft on. The syllabus alone isn't enough: drafts come from what you provide, "
+    "not from the AI's general knowledge."
+)
+
+
+def require_source_files(course_data: CourseData, request: GenerationRequest) -> None:
+    """Every draft rests on at least one instructor source file besides the
+    syllabus, so the instructor, not the model, supplies the content
+    (faculty meeting, Oct 23; BACKLOG.md). Raises GenerationError."""
+    syllabus = Path(course_data.course.source_file).name
+    if not [name for name in request.source_files if name != syllabus]:
+        raise GenerationError(NO_SOURCES_MESSAGE)
+
+
 def build_prompt(paths: ProjectPaths, course_data: CourseData, request: GenerationRequest) -> str:
     spec = spec_for(request.content_type)
     template = load_template(paths.prompts_dir, spec)
@@ -112,7 +133,23 @@ def build_prompt(paths: ProjectPaths, course_data: CourseData, request: Generati
         "source_material_context": build_source_context(paths, list(request.source_files)),
         **_type_variables(spec, course_data, request),
     }
-    return fill_template(template, variables)
+    optional = _optional_guidance(spec, request)
+    prompt = fill_template(template, variables | optional)
+    # A template from before these variables existed: add the guidance at the end.
+    unplaced = [text for name, text in optional.items() if text and f"{{{name}}}" not in template]
+    if not unplaced:
+        return prompt
+    return "\n\n".join([prompt.rstrip(), *unplaced]) + "\n"
+
+
+def _optional_guidance(spec: ContentSpec, request: GenerationRequest) -> dict[str, str]:
+    """Course level and the assignment's AI-use component: optional
+    template variables, empty when not asked for."""
+    include_ai = spec.key == "assignment" and request.include_ai_component
+    return {
+        "course_level_guidance": level_guidance(request.course_level),
+        "ai_component_guidance": AI_COMPONENT_GUIDANCE if include_ai else "",
+    }
 
 
 def _type_variables(spec: ContentSpec, course_data: CourseData, request: GenerationRequest) -> dict[str, str]:
@@ -263,14 +300,27 @@ def estimate_cost(paths: ProjectPaths, course_data: CourseData, request: Generat
 
 
 def generate(
-    paths: ProjectPaths, course_data: CourseData, request: GenerationRequest, *, today: dt.date | None = None
+    paths: ProjectPaths,
+    course_data: CourseData,
+    request: GenerationRequest,
+    *,
+    today: dt.date | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> GeneratedDraft:
     """Run one LLM call and return the draft (not yet saved). Raises
     LLMProviderError / GenerationError / PromptTemplateError with
-    plain-English messages."""
+    plain-English messages. `on_progress` follows chalk/progress.py."""
+    require_source_files(course_data, request)
     spec = spec_for(request.content_type)
+    report(on_progress, None, "Preparing the prompt and source materials")
     prompt = build_prompt(paths, course_data, request)
-    result = complete(prompt, system=SYSTEM_PROMPT, max_tokens=spec.max_tokens)
+    report(on_progress, None, "Waiting for the AI to start writing")
+    result = complete(
+        prompt,
+        system=SYSTEM_PROMPT,
+        max_tokens=spec.max_tokens,
+        on_text=writing_progress(on_progress, expected_output_tokens(paths, spec)),
+    )
 
     env = current_env()
     model = env["LLM_MODEL"] or "unknown model"
@@ -318,6 +368,14 @@ def generate(
         output_tokens=result["output_tokens"],
         cost_usd=cost,
     )
+
+
+def expected_output_tokens(paths: ProjectPaths, spec: ContentSpec) -> int:
+    """How long a reply of this type usually is in this project, for the
+    progress bar. With no history yet, half the type's token limit: the
+    limit is a ceiling, and replies rarely come near it."""
+    typical = metrics.typical_output_tokens(paths.eval_log, spec.key)
+    return typical if typical is not None else spec.max_tokens // 2
 
 
 def save_draft(paths: ProjectPaths, draft: GeneratedDraft) -> Path:

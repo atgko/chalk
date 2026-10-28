@@ -1,4 +1,4 @@
-"""App shell: project resolution, first-run setup, the seven tabs, tab
+"""App shell: project resolution, first-run setup, the eight tabs, tab
 gating, and the provider/cost footer (PRD section 7, DECISIONS.md).
 
 Every tab renders inside `_guarded`, so no traceback ever reaches the
@@ -13,17 +13,25 @@ import sys
 from collections.abc import Callable
 
 import streamlit as st
-from dotenv import load_dotenv
 
 from chalk import branding
-from chalk.config import describe_provider, env_is_configured, read_env
+from chalk.config import (
+    adopt_project_provider,
+    apply_provider_env,
+    describe_provider,
+    effective_env,
+    env_is_configured,
+)
 from chalk.errors import ChalkError
 from chalk.metrics import read_events, summarize_events
 from chalk.models import CourseData
 from chalk.project import ProjectPaths, load_course, open_project
 from ui import (
+    background,
+    drafts_view,
     export_view,
     generate_view,
+    grading_view,
     metrics_view,
     project_picker,
     review_view,
@@ -34,9 +42,11 @@ from ui import (
     upload_view,
     workflow_search,
 )
-from ui.common import NEEDS_COURSE_MESSAGE, render_header
+from ui.common import render_header, render_needs_course
 
-TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Export", "Metrics", "Settings")
+TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export", "Grading Assistant", "Metrics", "Settings")
+# Tabs that work from a saved course: dimmed until there is one.
+NEEDS_COURSE_TABS = ("Rollover", "Generate", "Export", "Metrics")
 
 logger = logging.getLogger(__name__)
 
@@ -49,43 +59,79 @@ def main(argv: list[str] | None = None) -> None:
         project_picker.render()
         return
 
-    if paths.env.exists():
-        load_dotenv(paths.env, override=True)
+    adopt_project_provider(paths.env)
+    apply_provider_env(paths.env)
     if not env_is_configured(paths.env) and not session.setup_skipped():
         setup_view.render(paths)
         return
 
     render_header(branding.PROJECT_NAME)
-    st.caption(f"Course project: {paths.root.name}")
+    _render_course_line(paths)
     message = session.pop_flash()
     if message:
         st.success(message)
+    background.show_toasts()
 
     course_data = _load_course_or_warn(paths)
     workflow_search.render(course_ready=course_data is not None)
     session.apply_tab_request()
-    upload, review, rollover, generate, export, metrics, settings = st.tabs(
+    background.clear_mark(session.active_tab())
+    upload, review, rollover, generate, drafts, export, grading, metrics, settings = st.tabs(
         TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
     )
     with upload:
         _guarded(upload_view.render, paths)
     with review:
         _guarded(review_view.render, paths, course_data)
-    for tab, view in ((rollover, rollover_view), (generate, generate_view), (export, export_view)):
+    for tab, name, view in (
+        (rollover, "Rollover", rollover_view),
+        (generate, "Generate", generate_view),
+        (export, "Export", export_view),
+    ):
         with tab:
             _warn_if_unsaved_extraction(course_data)
-            _gated(course_data, view.render, paths, course_data)
+            _gated(name, course_data, view.render, paths, course_data)
+    with drafts:
+        _guarded(drafts_view.render, paths)
     with metrics:
-        _gated(course_data, metrics_view.render, paths)
+        _gated("Metrics", course_data, metrics_view.render, paths)
+    with grading:
+        _guarded(grading_view.render, paths)
     with settings:
         _guarded(settings_view.render, paths)
+    background.render_tab_marks(
+        TAB_NAMES, session.ACTIVE_TAB_KEY, inactive=NEEDS_COURSE_TABS if course_data is None else ()
+    )
 
     _render_footer(paths)
+
+
+ALL_COURSES = "All courses"
+
+
+def _render_course_line(paths: ProjectPaths) -> None:
+    """A way back to the projects list, then the open course. The button
+    leads the line, bordered, where people look for "back": as a plain
+    text "Switch course" at the far right it went unnoticed (UAT round 2).
+    Leaving waits for a running job, whose result belongs to this course."""
+    busy = background.any_running()
+    with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        st.button(
+            ALL_COURSES,
+            key="switch-course",
+            icon=":material/arrow_back:",
+            on_click=session.leave_project,
+            disabled=busy,
+            help="Wait for the current AI work to finish first." if busy else "Open or create another course.",
+        )
+        st.caption(f"Course project: {paths.root.name}")
 
 
 def _resolve_project(argv: list[str]) -> ProjectPaths | None:
     paths = session.get_project()
     if paths is None:
+        if session.is_switching_course():
+            return None
         root = project_picker.project_from_argv(argv)
         if root is None:
             return None
@@ -105,8 +151,8 @@ def _load_course_or_warn(paths: ProjectPaths) -> CourseData | None:
         return load_course(paths)
     except ValueError:
         st.error(
-            "course.json couldn't be read — it may have been edited by hand. "
-            "Fix it, or upload and extract the syllabus again (the old file will be archived)."
+            "Chalk couldn't read this course's saved details (course.json) — the file may have been "
+            "edited by hand. Upload the syllabus again to replace it (the old file will be archived)."
         )
         return None
 
@@ -126,9 +172,9 @@ def _warn_if_unsaved_extraction(course_data: CourseData | None) -> None:
     )
 
 
-def _gated(course_data: CourseData | None, render: Callable, *args) -> None:
+def _gated(tab: str, course_data: CourseData | None, render: Callable, *args) -> None:
     if course_data is None:
-        st.info(NEEDS_COURSE_MESSAGE)
+        render_needs_course(tab)
         return
     _guarded(render, *args)
 
@@ -149,4 +195,4 @@ def _guarded(render: Callable, *args) -> None:
 def _render_footer(paths: ProjectPaths) -> None:
     cost = summarize_events(read_events(paths.eval_log)).total_cost_usd
     st.divider()
-    st.caption(f"Provider: {describe_provider(read_env(paths.env))} · Project cost to date: ${cost:.4f}")
+    st.caption(f"Provider: {describe_provider(effective_env(paths.env))} · Project cost to date: ${cost:.4f}")

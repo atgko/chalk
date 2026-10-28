@@ -84,7 +84,7 @@ def _is6640_ten_week_course(source_format: str = "word") -> CourseData:
             instructor="Dave Norwood",
             source_format=source_format,
             source_file="source/syllabus.docx",
-            extracted_at=dt.datetime(2026, 9, 17, tzinfo=dt.timezone.utc),
+            extracted_at=dt.datetime(2026, 9, 17, tzinfo=dt.UTC),
         ),
         weeks=weeks,
     )
@@ -367,3 +367,34 @@ def test_weeks_added_by_expansion_have_no_old_date_in_the_preview():
     assert changes_by_week[11].old_date is None
     assert changes_by_week[12].old_date is None
     assert changes_by_week[12].new_date == dt.date(2027, 11, 8)
+
+
+def test_drafting_topics_for_added_weeks_reports_each_week(monkeypatch):
+    monkeypatch.setattr(
+        "chalk.rollover.preview.complete",
+        lambda prompt, max_tokens=100: {"text": "Wrap-up", "input_tokens": 20, "output_tokens": 10},
+    )
+    reports = []
+
+    roll_over_course(
+        _is6640_ten_week_course(),
+        target_term="Fall 2027",
+        calendars=CALENDARS,
+        target_duration_weeks=12,
+        on_progress=lambda fraction, step: reports.append((fraction, step)),
+    )
+
+    assert reports == [(0.0, "Drafting topics for Week 11"), (0.5, "Drafting topics for Week 12")]
+
+
+def test_a_rollover_without_ai_topics_reports_nothing():
+    reports = []
+    roll_over_course(
+        _is6640_ten_week_course(),
+        target_term="Fall 2027",
+        calendars=CALENDARS,
+        target_duration_weeks=12,
+        llm_generate_topics=False,
+        on_progress=lambda fraction, step: reports.append((fraction, step)),
+    )
+    assert reports == []

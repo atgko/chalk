@@ -11,6 +11,7 @@ Everything runs on your own computer. Your files never leave it, except for the 
 ## Contents
 
 1. [What this tool does](#1-what-this-tool-does)
+   - [What works without an API key (free)](#1a-what-works-without-an-api-key-free)
 2. [Quick start](#2-quick-start)
 3. [How to use the app](#3-how-to-use-the-app)
 4. [Command-line reference](#4-command-line-reference)
@@ -29,14 +30,41 @@ Everything runs on your own computer. Your files never leave it, except for the 
 
 | Feature | What you get | Needs an AI provider? |
 |---|---|---|
-| **Syllabus extraction** | Reads your syllabus into `course.json`: course details, learning objectives, grading weights, and the week-by-week schedule. Checks that the term label matches the Week 1 date. | No |
+| **Syllabus extraction** | Reads your syllabus into `course.json`: course details, learning objectives, grading weights, and the week-by-week schedule. Checks that the term label matches the Week 1 date. | No (a PDF can optionally be read with AI) |
 | **Semester rollover** | Shifts every date to a new term, inserts that term's breaks, and shows a full preview with flags before anything is written. | No* |
-| **Canvas HTML** | A schedule table you paste into Canvas's HTML editor. | No |
+| **Canvas HTML** | Your Canvas syllabus page, filled in: the course banner, instructor details, objectives, grading, the schedule, and the standard help and accessibility sections. Paste it into the syllabus page's HTML editor in place of the template. | No |
 | **Course brief** | A one-page overview of the course, rebuilt automatically after every extraction and rollover. | No |
 | **Content drafts** | Quizzes, discussion prompts, rubrics, module summaries, slide outlines. | Yes |
 | **Metrics** | Cost, rollover history, consistency-check catches, extraction errors, plus a downloadable evaluation report. | No |
 
 \*Only if you lengthen a course during rollover and ask the AI to draft topics for the new weeks. Without a provider, those weeks are added as clearly marked placeholders.
+
+### 1a. What works without an API key (free)
+
+Most of Chalk never calls an AI model, so it costs nothing and nothing leaves your computer. You can use all of this without entering an API key: on the welcome screen, click **Skip for now**.
+
+| Free: no API key, no cost, works offline | Tab |
+|---|---|
+| Reading a Word (.docx) or markdown (.md) syllabus | Upload |
+| Reading a PDF syllabus with **Read it on this computer** (the default) | Upload |
+| Checking that the term label matches the Week 1 date | Upload |
+| Reviewing and correcting course details, grading weights, and every week, including dating a schedule that has no dates | Review |
+| Rolling a course over to a new term: new dates, the new term's breaks, holiday warnings, a full preview, and the updated Word or markdown syllabus | Rollover |
+| Lengthening or shortening a course at rollover (added weeks get placeholder topics to fill in) | Rollover |
+| Canvas HTML and the course brief | Export |
+| Reading, downloading (Word, PDF, markdown), and deleting drafts you've already saved | Drafts |
+| Costs, rollover history, error counts, and the evaluation report | Metrics |
+| Opening, creating, and switching between courses | Launch screen, **All courses** (top left, above the tabs) |
+
+These need an AI provider, and each one says so before it runs:
+
+| Uses the AI provider (costs a few cents, sends course text to the provider) | Tab |
+|---|---|
+| Generating or regenerating a quiz, discussion prompts, an assignment, a rubric, a summary, or slides. The estimated maximum cost is shown before you click **Generate**. | Generate |
+| **Read it with AI** for a PDF whose layout the free reader can't follow. The cost per page is shown next to the option. | Upload |
+| "Draft topics for the added weeks with AI" when you lengthen a course. Untick it to add placeholder weeks for free. | Rollover |
+
+Every AI call's cost is added to the footer's "Project cost to date" and the Metrics tab. To use the AI features without paying per call, run a model on your own computer or a university server with Ollama (section 8c). It's free to use, but needs a powerful machine, is slower, and usually writes weaker drafts than OpenAI or Anthropic models.
 
 ## 2. Quick start
 
@@ -60,7 +88,7 @@ git clone https://github.com/atgko/chalk.git
 The first start sets everything up, which takes a couple of minutes and needs internet. After that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
 
 - **Want to look around first?** Double-click **`Start Chalk Demo`** instead, or click **Open the demo course** on the launch screen. It opens a sample course with a syllabus already loaded. See [DEMO.md](DEMO.md) for a guided walkthrough.
-- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, paste its folder path under **Open a course project**.
+- **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, pick it under **Your projects** (most recently used first) and click **Open**. For a project kept somewhere else, paste or browse to its folder under **Open a course project**.
 - **AI provider:** connect one on the welcome screen, or click **Skip for now**. Extraction, rollover, and export work without one, and you can connect later in the **Settings** tab.
 
 ### 2d. Manual setup (optional)
@@ -78,21 +106,23 @@ streamlit run app.py -- --project "path/to/project"   # open a project directly
 
 ## 3. How to use the app
 
-The app has seven tabs. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
+The app has eight tabs. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
 
 **Upload.** Choose your `.docx`, `.md`, or `.pdf` syllabus and click **Extract course**. For a PDF, first pick how Chalk should read it (see *PDF syllabi* in section 6). If the term label doesn't match the Week 1 date (for example, "Spring 2026" with an August Week 1), you'll see a warning. Fix the syllabus and re-upload, or click **Continue anyway**. The override is recorded in the metrics log. If the document has more than one table that looks like a schedule, you'll be asked to pick the right one.
 
-**Review.** Check what was extracted: course details, learning objectives, grading weights, and every week. `Duration (weeks)` is editable. Change it here to lengthen or shorten the course at the next rollover. Click **Confirm and save** to write `course.json` and the course brief. Nothing is saved until you do.
+**Review.** Check what was extracted: course details, learning objectives, grading weights, and every week. If the schedule has no dates (e.g. "Meeting 1" to "Meeting 10"), pick the **Session** the course starts in, or type the **Week 1 date**, and the other weeks follow, one week apart, skipping breaks. Credits can be a decimal, like 1.5. `Duration (weeks)` is editable. Change it here to lengthen or shorten the course at the next rollover. Click **Confirm and save** to write `course.json` and the course brief. Nothing is saved until you do.
 
-**Rollover.** Pick the target term. It defaults to the same season next year. For a term that isn't in the calendar data, choose **Another term** and enter the first day of classes. Under **Class meets on**, pick the days the class meets in the new term (pre-filled from the syllabus's meeting pattern). Holiday and break warnings then appear only when one lands on a class day. Each of the term's breaks has a toggle: switch one off if the class meets through it (some graduate programs do), and it's left out of the schedule. Click **Preview rollover** to see every week's old and new date, plus flags for anything to check by hand: a week landing on a holiday or break, a changed course length, or (markdown syllabi) due dates near the daylight-saving change. Click **Confirm rollover** to write the files. Previous versions are archived, never overwritten.
+**Rollover.** Pick the target term. It defaults to the same season next year. For a term that isn't in the calendar data, choose **Another term** and enter the first day of classes. **Session** is for programs that split the term into three 5-week sessions: pick **Session 1**, **2**, or **3** (5 weeks, e.g. a 1.5-credit course), **Sessions 1–2** or **2–3** (10 weeks), or **Full term**. Week 1 moves to that session's first day and the duration to 5 or 10 weeks; you can still change the duration. Sessions are counted as five class weeks each from the term's first day, not counting multi-day breaks like Fall Break (Fall 2026: Aug 24, Sep 28, Nov 9). Summer has no sessions: it's a compressed term, so the choice there is **Summer length**, either the **Full summer term (12 weeks)** or **10 weeks**, both starting on the term's first day. It defaults to one session for a 1.5-credit or 5-week course, Sessions 1–2 for a 10-week course, and the full term otherwise. Under **Class meets on**, pick the days the class meets in the new term (pre-filled from the syllabus's meeting pattern). Holiday and break warnings then appear only when one lands on a class day. Each of the term's breaks has a toggle: switch one off if the class meets through it (some graduate programs do), and it's left out of the schedule. Click **Preview rollover** to see every week's old and new date, plus flags for anything to check by hand: a week landing on a holiday or break, a changed course length, or (markdown syllabi) due dates near the daylight-saving change. Click **Confirm rollover** to write the files. Previous versions are archived, never overwritten.
 
-**Generate.** Choose a content type and week (or, for a rubric, the assignment name and description), then any source materials to ground the draft in. The estimated maximum cost is shown before you click **Generate**. The draft appears for review. **Save** writes it to `outputs/`, **Regenerate** makes a new call (after asking), and **Discard** throws it away. If a draft already exists for that week, you'll be asked before it's replaced (the old one is archived).
+**Generate.** Choose a content type and week (or, for a rubric, the assignment name and description), then any source materials to ground the draft in. **Course level** sets how demanding the draft is: lower-division undergraduate, upper-division undergraduate, or graduate. It starts from the course number (1000–2000 level, 3000–5000 level, 6000 and up), and you can change it. For an assignment, tick **Include a task where students use AI as part of their learning** to add one task where students use an AI tool, document how they used it, and reflect on its limits. The estimated maximum cost is shown before you click **Generate**. The draft appears for review. **Save** writes it to `outputs/`, **Regenerate** makes a new call (after asking), and **Discard** throws it away. If a draft already exists for that week, you'll be asked before it's replaced (the old one is archived). Under **Export**, download any draft except slides as Word or PDF, laid out like the assignment creator's documents (a header naming the document type, a title, and tables for rubrics), or as the markdown itself. Word and PDF leave out the AI-draft banner, since they're meant for students; the saved markdown keeps it.
+
+**Drafts.** Every draft you've saved from Generate, grouped by type and in week order. Open one to read it and download it as Word, PDF, or markdown, as on Generate (slides as markdown only). **Show** narrows the list to one type. Each draft says when it was saved and how many earlier versions are in its folder's `.archive/`. To delete a draft, tick the confirm box and click **Delete**. The file moves to `.archive/` too, so it can still be recovered.
 
 **Export.** Download any output file, or everything as a zip. The Canvas HTML is shown in a box with a copy button. **Regenerate Canvas HTML and course brief** rebuilds both from the current `course.json`.
 
 **Metrics.** Total AI cost, rollovers, consistency-check catches, extraction errors, generations by type, and rollover history. **Download evaluation report** produces a markdown summary for reporting.
 
-**Settings.** Change your AI provider, model, or API key. Every change is tested with a short call before it's saved.
+**Settings.** Change your AI provider, model, or API key. Every change is tested with a short call before it's saved. You enter your key once: it's saved in this computer's password store (Windows Credential Manager, or the Keychain on a Mac) and every course uses it.
 
 The footer always shows the active provider and the project's AI cost to date.
 
@@ -104,31 +134,32 @@ Everything the app does is also available from a terminal, which is useful for s
 python toolkit.py init --name "IS-6640-Fall-2027" [--dir <parent folder>]
 python toolkit.py extract path/to/syllabus.docx --project IS-6640-Fall-2027 [--continue-anyway]
 python toolkit.py extract path/to/syllabus.pdf --project IS-6640-Fall-2027 [--read-pdf-with local|ai]
-python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--weeks 12] [--week1-date 2027-08-23] [--meeting-days TR] [--no-break "Fall Break"] [--no-llm] [--yes]
+python toolkit.py rollover --term "Fall 2027" --project IS-6640-Fall-2027 [--session 2-3] [--weeks 12] [--week1-date 2027-08-23] [--meeting-days TR] [--no-break "Fall Break"] [--no-llm] [--yes]
 python toolkit.py export --project IS-6640-Fall-2027
 python toolkit.py add path/to/chapter-3-summary.pdf --project IS-6640-Fall-2027
-python toolkit.py generate quiz --week 3 --project IS-6640-Fall-2027 [--count 5] [--format mixed] [--source chapter-3-summary.pdf]
-python toolkit.py generate quiz --week 3 --multiple-choice 4 --short-answer 2   # a mixed quiz with a set split
-python toolkit.py generate discussion --week 3 [--count 3]
-python toolkit.py generate summary --week 3
-python toolkit.py generate slides --week 3 [--notes "bullet points or an excerpt"]
-python toolkit.py generate rubric --assignment "Lab 3" --description-file lab3.docx [--points 100]
+python toolkit.py generate quiz --week 3 --source chapter-3-summary.pdf --project IS-6640-Fall-2027 [--count 5] [--format mixed]
+python toolkit.py generate quiz --week 3 --source notes.md --multiple-choice 4 --short-answer 2   # a mixed quiz with a set split
+python toolkit.py generate discussion --week 3 --source notes.md [--count 3] [--level graduate]   # level defaults from the course number
+python toolkit.py generate assignment --assignment "Design Brief" --assignment-goal "Defend a design." --source notes.md [--ai-component]
+python toolkit.py generate summary --week 3 --source notes.md
+python toolkit.py generate slides --week 3 --source notes.md [--notes "bullet points or an excerpt"]
+python toolkit.py generate rubric --assignment "Lab 3" --description-file lab3.docx --source notes.md [--points 100]
 python toolkit.py report --project IS-6640-Fall-2027
 python toolkit.py demo [--reset]
 python toolkit.py status --project IS-6640-Fall-2027
 ```
 
 - `extract` asks before saving past a failed term/Week-1 check. `--continue-anyway` skips the question, and the override is still logged. A PDF is read on this computer unless you pass `--read-pdf-with ai`.
-- `rollover` prints the full preview and asks before writing. `--yes` skips the question. If the term isn't in the calendar, it asks for the first day of classes (or pass `--week1-date`). `--meeting-days` (e.g. `TR`, `MW`, `"Mon,Wed"`) limits holiday warnings to class days; `--no-break` (repeatable) drops a break the class meets through.
-- `generate` shows the estimated cost, asks before replacing an existing draft (`--yes` skips this), then saves the draft and prints tokens used and cost. `--source` can be repeated.
+- `rollover` prints the full preview and asks before writing. `--yes` skips the question. If the term isn't in the calendar, it asks for the first day of classes (or pass `--week1-date`). `--session` (`1`, `2`, `3`, `1-2`, `2-3`, or `1-3`) rolls into those 5-week sessions: it sets Week 1 to the session's first day and, unless you pass `--weeks`, the length to 5 or 10 weeks. `--week1-date` overrides it. Summer terms have no sessions; use `--weeks 10` or `--weeks 12`. `--meeting-days` (e.g. `TR`, `MW`, `"Mon,Wed"`) limits holiday warnings to class days; `--no-break` (repeatable) drops a break the class meets through.
+- `generate` shows the estimated cost, asks before replacing an existing draft (`--yes` skips this), then saves the draft and prints tokens used and cost. It needs at least one `--source` file of your own besides the syllabus (see section 5); `--source` can be repeated.
 - `report` writes `outputs/evaluation-report.md`.
 - Run `python toolkit.py <command> -h` for every option.
 
-The CLI reads the project's `.env` for AI provider settings. Copy `.env.example` into the project folder as `.env` and fill it in (see section 8), or set it up once in the app's Settings tab.
+The CLI uses the AI provider saved in the app's Settings tab (one for every course). A project's own `.env` overrides it (see section 8), and so does any `LLM_*` variable already set in your shell.
 
 ## 5. Adding source materials
 
-Source materials are your own summaries, notes, excerpts, and handouts that ground generated content in what you actually teach. Accepted types: PDF, DOCX, MD, TXT.
+Source materials are your own summaries, notes, excerpts, and handouts that ground generated content in what you actually teach. Accepted types: PDF, DOCX, MD, TXT. Every draft needs at least one (the syllabus doesn't count), so the content comes from you rather than the AI's general knowledge.
 
 - **In the app:** on the Generate tab, open **Add source materials**, choose files, and click **Add to project**. They're copied into the project's `source/` folder and appear in the **Source materials to use** list. (Files you copy into `source/` yourself appear there too.)
 - **From the CLI:** `python toolkit.py add path/to/file.pdf --project <folder>` copies the file into `source/` and records it.
@@ -150,10 +181,10 @@ IS-6640-Fall-2027/
   outputs/
     syllabus.docx        Rolled-over Word syllabus (Word input)
     syllabus.md          Rolled-over markdown syllabus (markdown input)
-    canvas.html          Schedule table for Canvas's HTML editor
+    canvas.html          Canvas syllabus page, for its HTML editor
     course-brief.md      One-page course overview
     evaluation-report.md Metrics summary (from `report` or the Metrics tab)
-    quizzes/  discussions/  rubrics/  summaries/  slides/
+    quizzes/  discussions/  assignments/  rubrics/  summaries/  slides/
     .archive/            Every previous version, timestamped
   prompts/               Editable prompt templates
   data/calendars.json    Academic calendar data
@@ -206,7 +237,7 @@ Calendar data lives in `data/calendars.json` inside each project. The toolkit's 
 
 ## 8. Choosing and configuring your AI provider
 
-The app's first-run screen and Settings tab write these values for you. To set them by hand, put them in the project's `.env` file (start from `.env.example`). Switching providers is only ever a `.env` change.
+The app's first-run screen and Settings tab save these values for you, once for every course, in this computer's password store. To give one course different settings by hand, put all four in that project's `.env` file (start from `.env.example`); a complete `.env` overrides the saved provider for that course.
 
 ### 8a. OpenAI (default)
 
@@ -303,6 +334,8 @@ Words in `{curly braces}` are filled in automatically. Each template must keep i
 | summary | `{week_number}`, `{topics}` |
 | slides | `{week_number}`, `{topics}`, `{slide_notes}` |
 
+Two placeholders are optional: `{course_level_guidance}` (every template) and `{ai_component_guidance}` (the assignment template) mark where the course-level and AI-use instructions go. Templates from before they existed still work: Chalk adds those instructions at the end of the prompt instead.
+
 Other braces, such as Pandoc's `{.columns}`, are left alone. If a project's template file is deleted, the toolkit's default (in `resources/prompts/`) is used.
 
 ## 10. Forking and customizing the repo
@@ -328,8 +361,11 @@ Click **Fork** on the repository page to get your own copy, then clone it as in 
 
 ### Syllabus extraction
 
-**"No schedule table found. Make sure your syllabus has a table with 'Week' in the first column, then try again."**
-Chalk looks for a table with "Week" in the first column: labels like `Week 1 (8/24)` in Word, or a `| Week | Dates | ... |` header in markdown. If your schedule is in a different format, reformat it as a standard table and re-upload.
+**"No schedule table found. Make sure your syllabus has a table with 'Week' (or a numbered 'Meeting' column) in the first column, then try again."**
+Chalk looks for a table with "Week" in the first column: labels like `Week 1 (8/24)` in Word, or a `| Week | Dates | ... |` header in markdown. A Word or PDF schedule with no dates works too, if its first column is headed Week, Meeting, Session, Module, Class, Lesson, or Unit and numbered 1, 2, 3; the Review tab then asks for the date of the first class. If your schedule is in a different format, reformat it as a standard table and re-upload.
+
+**"This syllabus's schedule has no dates" on the Review tab**
+The schedule numbers its weeks or meetings without dates. Chalk dated them one week apart from the term's first day of classes (the first day the class meets, if the syllabus says), skipping multi-day breaks like Fall Break. Change **Week 1 date** if the course starts later, e.g. in the second session, and the other weeks follow.
 
 **"Multiple possible schedule tables were found. Choose the correct one below."**
 More than one table looks like a schedule. Each option shows its first rows. Pick the real schedule. If you see "That table choice is no longer valid", upload the syllabus again.
@@ -368,13 +404,19 @@ The PDF is pictures of pages. Open the original document and save it as Word, or
 It's password-protected or damaged. Save a copy without the password, or save the original as Word.
 
 **"No schedule table found…" after reading a PDF on this computer**
-The schedule isn't a ruled table Chalk can follow. Try **Read it with AI**, or save the PDF as Word and fix the table there.
+The schedule isn't a ruled table Chalk can follow. The message suggests **Read it with AI** if you haven't tried it on this PDF; otherwise save the PDF as Word and fix the table there.
 
-**"The AI's reading of this PDF didn't come back in the expected form…"**
-The AI's answer wasn't usable (a very long syllabus can get cut off). Try again, or choose **Read it on this computer**.
+**"The AI's reading of this PDF didn't come back in a form Chalk can use."**
+The AI's answer wasn't usable. Trying again often works. The message suggests **Read it on this computer** only if you haven't tried it on this PDF. Either way, the read's cost is counted.
+
+**"This syllabus is too long for the AI to read in one go…"**
+The AI's reply hit its length limit and was cut off. Choose **Read it on this computer**, or save the original as Word and upload that.
+
+**"Chalk couldn't read this PDF either way."**
+Both ways of reading this PDF failed. Open the original document (Word, Google Docs, Pages) and save it as .docx, then upload that. Chalk reads Word files most reliably.
 
 **"The AI couldn't find a week-by-week schedule in this PDF."**
-Check that the syllabus has a dated schedule. If it does, save it as Word and upload that.
+Check that the syllabus has a schedule. If it does, save it as Word and upload that.
 
 **"course.json couldn't be read — it may have been edited by hand."**
 A hand edit broke the file's format. Restore the previous version from `.archive/`, or re-extract the syllabus.
@@ -465,6 +507,9 @@ Convert the file to one of those types first.
 **"'…' isn't a Chalk course project (no config.json)."**
 Point at the project folder itself (the one containing `course.json` and `config.json`), or create a new project.
 
+**"There's already a course project named … in …"**
+You tried to create a project that already exists. Click **Open …** to open it, or choose another name. Chalk never overwrites a project: to start over, rename or delete that folder first.
+
 **"A folder named '…' already exists here and isn't empty. Pick another name."** / **"'…' isn't a usable project name."**
 Choose a new name without slashes, like `IS-6640-Fall-2027`.
 
@@ -478,7 +523,7 @@ A bug. Your files were not changed. The terminal window running the app has the 
 
 - **Everything stays local.** Projects, syllabi, outputs, and the metrics log live in folders on your computer. There is no Chalk server, account, or telemetry, and Streamlit's own anonymous usage statistics are switched off (`.streamlit/config.toml`).
 - **What goes to the AI provider:** only when you click Generate (or run `generate`), and only the filled-in prompt. That prompt contains the course title, learning objectives, the chosen week's topics, your options, and the text of the source materials you selected. With the Ollama option, nothing leaves the university network. Nothing is sent during extraction, rollover, or export, with two exceptions you choose: reading a PDF syllabus with **Read it with AI** sends the syllabus's full text, and lengthening a course during rollover with "Draft topics for the added weeks with AI" ticked sends the recent weeks' topics. Reading a PDF on this computer (the default) sends nothing.
-- **Your API key** is stored only in the project's `.env` file. The repo's `.gitignore` and each project's `.gitignore` keep it out of git. Never share or commit it.
+- **Your API key** is stored in your operating system's password store (Windows Credential Manager or the macOS Keychain), encrypted under your login, not in a file. If the store isn't available, or you set a key by hand, it goes in the project's `.env` instead, which the repo's and each project's `.gitignore` keep out of git. Never share or commit it. To remove the saved key, delete the **Chalk** entry in Windows Credential Manager (Windows credentials) or Keychain Access.
 - **FERPA: course materials only.** Never upload student work, grades, rosters, emails, or anything that identifies a student. Chalk is designed for syllabi and instructor-authored materials, the app says so wherever files are uploaded, and every prompt template instructs the model not to request or invent student information.
 - **The metrics log** (`eval-log.json`) records counts, token usage, costs, file names, and timestamps, never the content of your syllabus or generated drafts.
 - **Grading:** Chalk drafts rubrics only. It never grades or evaluates student work (CTE policy).

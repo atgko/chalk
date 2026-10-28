@@ -77,7 +77,7 @@ def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> 
         instructor=front_matter["instructor"],
         source_format="markdown",
         source_file=str(md_path),
-        extracted_at=dt.datetime.now(dt.timezone.utc),
+        extracted_at=dt.datetime.now(dt.UTC),
     )
 
     return CourseData(

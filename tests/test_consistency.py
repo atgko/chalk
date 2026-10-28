@@ -21,7 +21,7 @@ def _course_data(term: str, week1_date: dt.date) -> CourseData:
             instructor="Dave Norwood",
             source_format="word",
             source_file="source/syllabus.docx",
-            extracted_at=dt.datetime(2026, 9, 17, tzinfo=dt.timezone.utc),
+            extracted_at=dt.datetime(2026, 9, 17, tzinfo=dt.UTC),
         ),
         weeks=[
             Week(

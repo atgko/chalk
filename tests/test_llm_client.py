@@ -13,7 +13,7 @@ import openai
 import pytest
 
 from chalk.errors import LLMProviderError
-from chalk.llm_client import complete
+from chalk.llm_client import complete, track_usage
 
 # ---- Fakes ------------------------------------------------------------
 
@@ -437,3 +437,126 @@ def test_transient_error_raises_after_exhausting_retries(monkeypatch):
         complete("prompt")
 
     assert "temporarily unavailable" in exc_info.value.user_message
+
+
+# ---- Streaming (progress bar) ---------------------------------------------------
+
+
+def openai_chunks(*texts, input_tokens=10, output_tokens=5, usage=True):
+    """A streamed OpenAI reply: one chunk per text, then (with
+    include_usage) a final chunk with no choices that carries the usage."""
+    chunks = [
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text))], usage=None)
+        for text in texts
+    ]
+    if usage:
+        tokens = SimpleNamespace(prompt_tokens=input_tokens, completion_tokens=output_tokens)
+        chunks.append(SimpleNamespace(choices=[], usage=tokens))
+    return chunks
+
+
+class FakeAnthropicStream:
+    def __init__(self, texts, final_message):
+        self.text_stream = iter(texts)
+        self._final = final_message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        return self._final
+
+
+def patch_anthropic_stream(monkeypatch, texts, final_message):
+    calls: list[dict] = []
+
+    def stream(**kwargs):
+        calls.append(kwargs)
+        return FakeAnthropicStream(texts, final_message)
+
+    client = SimpleNamespace(messages=SimpleNamespace(stream=stream))
+    monkeypatch.setattr(anthropic, "Anthropic", lambda **kwargs: client)
+    return calls
+
+
+def test_openai_streams_and_reports_the_text_received(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    instances = patch_openai(monkeypatch, [openai_chunks("Quiz ", "draft", input_tokens=120, output_tokens=40)])
+    received = []
+
+    result = complete("Write a quiz.", on_text=received.append)
+
+    assert result == {"text": "Quiz draft", "input_tokens": 120, "output_tokens": 40}
+    assert received == [5, 10]
+    call = instances[0].chat.completions.calls[0]
+    assert call["stream"] is True
+    assert call["stream_options"] == {"include_usage": True}
+
+
+def test_a_stream_without_usage_is_reported_not_guessed(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    patch_openai(monkeypatch, [openai_chunks("Quiz", usage=False)])
+
+    with pytest.raises(LLMProviderError, match="before it said how many tokens"):
+        complete("Write a quiz.", on_text=lambda chars: None)
+
+
+def test_gemini_does_not_stream_even_when_asked_for_progress(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    instances = patch_openai(monkeypatch, [openai_response(text="draft")])
+    received = []
+
+    result = complete("Write a quiz.", on_text=received.append)
+
+    assert result["text"] == "draft"
+    assert received == []
+    assert "stream" not in instances[0].chat.completions.calls[0]
+
+
+def test_no_progress_callback_means_no_stream(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    instances = patch_openai(monkeypatch, [openai_response()])
+    complete("Write a quiz.")
+    assert "stream" not in instances[0].chat.completions.calls[0]
+
+
+def test_anthropic_streams_and_takes_usage_from_the_final_message(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    final = anthropic_response(text="Quiz draft", input_tokens=200, output_tokens=60)
+    calls = patch_anthropic_stream(monkeypatch, ["Quiz ", "draft"], final)
+    received = []
+
+    result = complete("Write a quiz.", system="sys", max_tokens=900, on_text=received.append)
+
+    assert result == {"text": "Quiz draft", "input_tokens": 200, "output_tokens": 60}
+    assert received == [5, 10]
+    assert calls[0]["max_tokens"] == 900
+    assert calls[0]["system"] == "sys"
+
+
+# ---- Usage tracking ---------------------------------------------------------------
+
+
+def test_track_usage_adds_up_every_call_in_the_block(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    patch_openai(monkeypatch, [openai_response(input_tokens=10, output_tokens=5), openai_response(input_tokens=30, output_tokens=7)])
+
+    with track_usage() as usage:
+        complete("first criterion")
+        complete("second criterion")
+
+    assert (usage.calls, usage.input_tokens, usage.output_tokens) == (2, 40, 12)
+
+
+def test_calls_outside_track_usage_are_not_counted(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    patch_openai(monkeypatch, [openai_response()])
+
+    with track_usage() as usage:
+        pass
+    complete("after the block")
+
+    assert usage.calls == 0

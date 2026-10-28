@@ -20,10 +20,15 @@ _FORMAT_BY_SUFFIX = {".docx": "word", ".md": "markdown", ".pdf": "pdf"}
 
 
 def render_evaluation_report(events: list[dict[str, Any]], *, project_name: str, generated_on: dt.date) -> str:
+    """The evaluation report (PRD section 6.7, the December evidence) as
+    markdown: files processed, consistency catches, rollovers, and AI cost
+    by content type. Built from metadata only."""
     sections = [
-        f"# Evaluation report — {project_name}\n\n"
-        f"Generated {generated_on.isoformat()} from eval-log.json ({len(events)} events). "
-        "Metadata only — no course or student content is logged.",
+        (
+            f"# Evaluation report — {project_name}\n\n"
+            f"Generated {generated_on.isoformat()} from eval-log.json ({len(events)} events). "
+            "Metadata only — no course or student content is logged."
+        ),
         _files_section(events),
         _consistency_section(events),
         _rollover_section(events),
@@ -33,6 +38,7 @@ def render_evaluation_report(events: list[dict[str, Any]], *, project_name: str,
 
 
 def write_evaluation_report(paths: ProjectPaths, *, generated_on: dt.date | None = None) -> Path:
+    """Write the report to outputs/evaluation-report.md and return its path."""
     output_path = paths.outputs_dir / "evaluation-report.md"
     text = render_evaluation_report(
         read_events(paths.eval_log), project_name=paths.root.name, generated_on=generated_on or dt.date.today()

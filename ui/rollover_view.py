@@ -1,5 +1,8 @@
 """Rollover tab (PRD section 7.2 / F-02): pick a target term, preview
-every date change and flag, and only then confirm and write files."""
+every date change and flag, and only then confirm and write files.
+
+The preview runs in the background, since drafting topics for added weeks
+calls the AI and shouldn't stop if the instructor switches tabs."""
 
 from __future__ import annotations
 
@@ -12,10 +15,19 @@ from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, preview_rollover
+from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
 from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
 from chalk.rollover.season_change import multi_day_breaks
-from ui import common, session, tables
+from chalk.sessions import (
+    FULL_TERM,
+    SessionSpan,
+    available_spans,
+    guess_session,
+    is_summer,
+    session_start,
+)
+from ui import background, common, session, tables
 from ui.session import StoredPlan
 
 OTHER_TERM = "Another term (not in the calendar)"
@@ -23,11 +35,26 @@ _EARLIEST_WEEK1 = dt.date(2000, 1, 1)
 _LATEST_WEEK1 = dt.date(2100, 12, 31)
 
 
+_JOB = "rollover-preview"
+_TAB = "Rollover"
+
+
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
+    _apply_finished_job()
+    error = background.pop_error(_TAB)
+    if error:
+        st.error(error)
+    if background.is_running(_JOB):
+        background.render_progress(_JOB)
+        return
+
     term, week1_date = _render_term_inputs(paths, course_data)
-    duration = int(
-        st.number_input("Duration (weeks)", min_value=1, value=course_data.course.duration_weeks, step=1)
-    )
+    default_duration = course_data.course.duration_weeks
+    if term and week1_date is None:  # a calendar term: it has sessions
+        span, week1_date = _render_session_choice(paths, course_data, term)
+        if not span.is_full_term:
+            default_duration = span.weeks
+    duration = int(st.number_input("Duration (weeks)", min_value=1, value=default_duration, step=1))
     use_llm = False
     if duration > tables.regular_week_count(course_data):
         use_llm = st.checkbox(
@@ -79,6 +106,34 @@ def _render_term_inputs(paths: ProjectPaths, course_data: CourseData) -> tuple[s
     return (term if week1_date else ""), week1_date
 
 
+def _render_session_choice(
+    paths: ProjectPaths, course_data: CourseData, term: str
+) -> tuple[SessionSpan, dt.date | None]:
+    """Which 5-week sessions of `term` the course runs in (chalk/sessions.py),
+    and the Week 1 date that means (None for the full term, which starts
+    on the calendar's first day). Defaults to a guess from the course's
+    length and credits."""
+    entry = find_term(load_calendars(paths.calendars_json), term)
+    spans = available_spans(entry)
+    guess = guess_session(course_data.course.duration_weeks, course_data.course.credits, summer=is_summer(term))
+    span = st.selectbox(
+        "Session" if not is_summer(term) else "Summer length",
+        spans,
+        index=spans.index(guess) if guess in spans else spans.index(FULL_TERM),
+        format_func=lambda option: option.label,
+        key=f"session-{term}",
+        help="Summer courses run 10 or 12 weeks from the first day of the term."
+        if is_summer(term)
+        else "Some programs split the term into three 5-week sessions. A 1.5-credit course is one session.",
+    )
+    if span.is_full_term:
+        return span, None
+    week1 = session_start(entry, span.first)
+    if span.summer_weeks is None:
+        st.caption(f"Session {span.first} of {term} starts {week1:%A, %B} {week1.day}.")
+    return span, week1
+
+
 def _render_schedule_inputs(
     paths: ProjectPaths, course_data: CourseData, term: str
 ) -> tuple[tuple[int, ...], frozenset[str]]:
@@ -115,24 +170,49 @@ def _short_range(entry: dict) -> str:
 
 
 def _preview(paths: ProjectPaths, course_data: CourseData, inputs: tuple) -> None:
+    background.start(
+        _JOB, f"Computing the rollover to {inputs[0]}", _compute_plan, paths, course_data, inputs, tab=_TAB
+    )
+    st.rerun()
+
+
+def _compute_plan(
+    paths: ProjectPaths, course_data: CourseData, inputs: tuple, *, on_progress: ProgressCallback
+) -> StoredPlan:
+    """Runs on the background thread, so no Streamlit calls here."""
     term, week1_date, duration, use_llm, meeting_days, breaks_not_observed = inputs[:6]
+    plan = preview_rollover(
+        paths,
+        course_data,
+        term,
+        target_duration_weeks=duration,
+        manual_week1_date=week1_date,
+        llm_generate_topics=use_llm,
+        meeting_days=meeting_days,
+        breaks_not_observed=breaks_not_observed,
+        on_progress=on_progress,
+    )
+    return StoredPlan(inputs, plan)
+
+
+def _apply_finished_job() -> None:
+    future = background.take_finished(_JOB)
+    if future is None:
+        return
+    elsewhere = session.active_tab() != _TAB
     try:
-        with st.spinner("Computing the new schedule…"):
-            plan = preview_rollover(
-                paths,
-                course_data,
-                term,
-                target_duration_weeks=duration,
-                manual_week1_date=week1_date,
-                llm_generate_topics=use_llm,
-                meeting_days=meeting_days,
-                breaks_not_observed=breaks_not_observed,
-            )
+        stored = future.result()
     except ChalkError as exc:
+        if elsewhere:
+            background.finished_elsewhere(_TAB, f"Rollover preview failed: {exc.user_message}", failed=True)
+            st.rerun()
         st.error(exc.user_message)
         return
-    session.set_rollover_plan(StoredPlan(inputs, plan))
+    session.set_rollover_plan(stored)
     session.set_rollover_written([])
+    if elsewhere:
+        background.finished_elsewhere(_TAB, f"The rollover preview for {stored.inputs[0]} is ready on the Rollover tab.")
+        st.rerun()
 
 
 def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:

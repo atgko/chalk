@@ -31,8 +31,8 @@ _SEASON_YEAR_RE = re.compile(
     r"\b(fall|spring|summer)\s+(?:semester\s+|term\s+)?(\d{4})\b", re.IGNORECASE
 )
 _COURSE_NUMBER_RE = re.compile(r"\b(?!(?:FALL|SPRING|SUMMER)\b)([A-Z]{2,5})[ -]?(\d{4})\b")
-_FIRST_INTEGER_RE = re.compile(r"\d+")
-_CREDITS_RE = re.compile(r"\b(\d{1,2})\s+credit(?:\s+hours?)?\b", re.IGNORECASE)
+_FIRST_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
+_CREDITS_RE = re.compile(r"\b(\d{1,2}(?:\.\d{1,2})?)\s+credit(?:\s+hours?)?\b", re.IGNORECASE)
 _MEETING_RE = re.compile(
     r"\b(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?s?\b.*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
     re.IGNORECASE,
@@ -229,8 +229,12 @@ def _normalize_term(term: str) -> str:
     return f"{match.group(1).capitalize()} {match.group(2)}"
 
 
-def _parse_credits(raw: str | None) -> int | None:
+def _parse_credits(raw: str | None) -> int | float | None:
+    """ "3" -> 3, "1.5 credit hours" -> 1.5 (a one-session course)."""
     if raw is None:
         return None
-    match = _FIRST_INTEGER_RE.search(raw)
-    return int(match.group(0)) if match else None
+    match = _FIRST_NUMBER_RE.search(raw)
+    if not match:
+        return None
+    value = float(match.group(0))
+    return int(value) if value.is_integer() else value

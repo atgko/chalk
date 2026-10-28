@@ -5,6 +5,8 @@ Week {week_number} covers: {topics}
 Learning objectives for this course:
 {learning_objectives}
 
+{course_level_guidance}
+
 Write {prompt_count} discussion prompts that together span three levels:
 - Recall: students restate or explain a key idea from the week
 - Application: students apply a concept to a realistic scenario

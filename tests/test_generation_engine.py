@@ -3,6 +3,7 @@ assembly, the AI-draft banner, output paths, cost + metrics logging,
 save-with-archive, and the overwrite warning."""
 
 import datetime as dt
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +14,7 @@ from chalk.generation.engine import (
     GenerationRequest,
     build_prompt,
     estimate_cost,
+    expected_output_tokens,
     generate,
     output_path_for,
     overwrite_warning,
@@ -22,6 +24,13 @@ from chalk.generation.engine import (
 from tests.sample_course import build_sample_course_data
 
 TODAY = dt.date(2026, 9, 24)
+NOTES = ("notes.txt",)
+
+
+@pytest.fixture(autouse=True)
+def notes(tmp_project):
+    """The instructor source file that generate() requires."""
+    (tmp_project.source_dir / NOTES[0]).write_text("Subnetting notes", encoding="utf-8")
 
 
 @pytest.fixture
@@ -31,14 +40,16 @@ def llm(monkeypatch):
 
     class _Llm:
         reply = "## Questions\nQ1. What is a subnet?\n\n## Answer Key\nA1. A network slice."
-        calls: list = []
+        def __init__(self):
+            self.calls: list = []
 
-        def __call__(self, prompt, system="", max_tokens=2000):
+        def __call__(self, prompt, system="", max_tokens=2000, on_text=None):
             self.calls.append((prompt, system, max_tokens))
+            if on_text is not None:
+                on_text(len(self.reply))
             return {"text": self.reply, "input_tokens": 1200, "output_tokens": 400}
 
     fake = _Llm()
-    fake.calls = []
     monkeypatch.setattr("chalk.generation.engine.complete", fake)
     for key, value in {"LLM_PROVIDER": "openai", "LLM_API_KEY": "sk", "LLM_MODEL": "gpt-4o"}.items():
         monkeypatch.setenv(key, value)
@@ -210,20 +221,20 @@ def test_overwrite_warning_for_a_rubric_names_the_assignment(tmp_project):
 
 
 def test_generate_returns_a_bannered_draft_without_writing_it(tmp_project, course, llm):
-    draft = generate(tmp_project, course, GenerationRequest("quiz", week_number=3), today=TODAY)
+    draft = generate(tmp_project, course, GenerationRequest("quiz", week_number=3, source_files=NOTES), today=TODAY)
 
     assert draft.text.startswith(
         "> **AI-generated draft** — review and edit before use. Generated 2026-09-24 using gpt-4o.\n\n## Questions"
     )
     assert draft.output_path == tmp_project.outputs_dir / "quizzes" / "week-3-quiz.md"
     assert not draft.output_path.exists()
-    prompt, system, max_tokens = llm.calls[0]
+    _prompt, system, max_tokens = llm.calls[0]
     assert system == SYSTEM_PROMPT
     assert max_tokens == spec_for("quiz").max_tokens
 
 
 def test_generate_logs_tokens_and_cost_but_never_content(tmp_project, course, llm):
-    draft = generate(tmp_project, course, GenerationRequest("quiz", week_number=3, source_files=()), today=TODAY)
+    draft = generate(tmp_project, course, GenerationRequest("quiz", week_number=3, source_files=NOTES), today=TODAY)
 
     event = metrics.read_events_by_type(tmp_project.eval_log, "generation")[-1]
     assert event["content_type"] == "quiz"
@@ -237,26 +248,26 @@ def test_generate_logs_tokens_and_cost_but_never_content(tmp_project, course, ll
 
 def test_generate_with_an_unpriced_model_logs_unknown_cost(tmp_project, course, llm, monkeypatch):
     monkeypatch.setenv("LLM_MODEL", "gpt-unlisted")
-    draft = generate(tmp_project, course, GenerationRequest("summary", week_number=1), today=TODAY)
+    draft = generate(tmp_project, course, GenerationRequest("summary", week_number=1, source_files=NOTES), today=TODAY)
     assert draft.cost_usd is None
     assert metrics.read_events_by_type(tmp_project.eval_log, "generation")[-1]["cost_usd"] is None
 
 
 def test_rubric_events_have_no_week_number(tmp_project, course, llm):
-    generate(tmp_project, course, GenerationRequest("rubric", assignment_name="Lab", assignment_description="x"))
+    generate(tmp_project, course, GenerationRequest("rubric", assignment_name="Lab", assignment_description="x", source_files=NOTES))
     assert metrics.read_events_by_type(tmp_project.eval_log, "generation")[-1]["week_number"] is None
 
 
 def test_generate_strips_a_wrapping_code_fence(tmp_project, course, llm):
     llm.reply = "```markdown\n## Key concepts\n- one\n```"
-    draft = generate(tmp_project, course, GenerationRequest("summary", week_number=1), today=TODAY)
+    draft = generate(tmp_project, course, GenerationRequest("summary", week_number=1, source_files=NOTES), today=TODAY)
     assert "```" not in draft.text
     assert draft.text.endswith("## Key concepts\n- one\n")
 
 
 def test_generated_slides_follow_the_pipeline_conventions(tmp_project, course, llm):
     llm.reply = "# Networking\n- intro\n## Layers\n- OSI"
-    draft = generate(tmp_project, course, GenerationRequest("slides", week_number=1), today=TODAY)
+    draft = generate(tmp_project, course, GenerationRequest("slides", week_number=1, source_files=NOTES), today=TODAY)
 
     assert draft.text.startswith('---\ntitle: "Week 1: Topic 1A; Topic 1B"\nauthor: "Dave Norwood"\n---\n')
     assert "<!-- AI-generated draft — review and edit before use. Generated 2026-09-24 using gpt-4o. -->" in draft.text
@@ -265,17 +276,17 @@ def test_generated_slides_follow_the_pipeline_conventions(tmp_project, course, l
 
 
 def test_llm_failure_propagates_and_logs_nothing(tmp_project, course, monkeypatch):
-    def _down(prompt, system="", max_tokens=2000):
+    def _down(prompt, system="", max_tokens=2000, on_text=None):
         raise LLMProviderError("Could not reach the LLM provider.")
 
     monkeypatch.setattr("chalk.generation.engine.complete", _down)
     with pytest.raises(LLMProviderError):
-        generate(tmp_project, course, GenerationRequest("quiz", week_number=1))
+        generate(tmp_project, course, GenerationRequest("quiz", week_number=1, source_files=NOTES))
     assert metrics.read_events_by_type(tmp_project.eval_log, "generation") == []
 
 
 def test_save_draft_writes_and_archives_the_previous_version(tmp_project, course, llm):
-    request_ = GenerationRequest("quiz", week_number=3)
+    request_ = GenerationRequest("quiz", week_number=3, source_files=NOTES)
     first = generate(tmp_project, course, request_, today=TODAY)
     save_draft(tmp_project, first)
     llm.reply = "## Questions\nQ1. Second version"
@@ -291,7 +302,7 @@ def test_save_draft_writes_and_archives_the_previous_version(tmp_project, course
 
 def test_unknown_model_name_in_the_banner_when_env_is_missing(tmp_project, course, llm, monkeypatch):
     monkeypatch.delenv("LLM_MODEL")
-    draft = generate(tmp_project, course, GenerationRequest("summary", week_number=1), today=TODAY)
+    draft = generate(tmp_project, course, GenerationRequest("summary", week_number=1, source_files=NOTES), today=TODAY)
     assert "using unknown model." in draft.text
 
 
@@ -299,8 +310,53 @@ def test_unknown_model_name_in_the_banner_when_env_is_missing(tmp_project, cours
 
 
 def test_estimate_is_an_upper_bound_from_prompt_length_and_max_tokens(tmp_project, course, llm):
-    request_ = GenerationRequest("quiz", week_number=3)
+    request_ = GenerationRequest("quiz", week_number=3, source_files=NOTES)
     prompt_tokens = len(SYSTEM_PROMPT + build_prompt(tmp_project, course, request_)) // 4
     expected = prompt_tokens / 1000 * 0.0025 + 2000 / 1000 * 0.010
     assert estimate_cost(tmp_project, course, request_) == pytest.approx(expected)
     assert llm.calls == []  # estimating never calls the LLM
+
+
+# ---- Progress ----------------------------------------------------------------------------
+
+
+def test_generate_reports_its_steps_then_the_reply_streaming_in(tmp_project, course, llm):
+    reports = []
+    request = GenerationRequest("quiz", week_number=3, source_files=NOTES)
+    expected_chars = expected_output_tokens(tmp_project, spec_for("quiz")) * 4  # before this one is logged
+
+    generate(tmp_project, course, request, today=TODAY, on_progress=lambda f, s: reports.append((f, s)))
+
+    steps = [step for _, step in reports]
+    assert steps[:2] == ["Preparing the prompt and source materials", "Waiting for the AI to start writing"]
+    fraction, step = reports[-1]
+    assert step == "The AI is writing"
+    assert fraction == pytest.approx(len(llm.reply) / expected_chars)
+
+
+def test_expected_reply_length_comes_from_this_projects_past_generations(tmp_project, course, llm):
+    spec = spec_for("quiz")
+    assert expected_output_tokens(tmp_project, spec) == spec.max_tokens // 2  # no history yet
+
+    generate(tmp_project, course, GenerationRequest("quiz", week_number=3, source_files=NOTES), today=TODAY)
+
+    assert expected_output_tokens(tmp_project, spec) == 400  # the fake reply's output tokens
+
+
+# ---- Source materials required ---------------------------------------------------------
+
+
+def test_generate_needs_an_instructor_source_file(tmp_project, course, llm):
+    with pytest.raises(GenerationError, match="Choose at least one of your own source materials"):
+        generate(tmp_project, course, GenerationRequest("quiz", week_number=3))
+    assert llm.calls == []
+    assert metrics.read_events_by_type(tmp_project.eval_log, "generation") == []
+
+
+def test_the_syllabus_alone_is_not_a_source(tmp_project, course, llm):
+    syllabus = Path(course.course.source_file).name
+    (tmp_project.source_dir / syllabus).write_text("syllabus", encoding="utf-8")
+
+    with pytest.raises(GenerationError, match="The syllabus alone isn't enough"):
+        generate(tmp_project, course, GenerationRequest("quiz", week_number=3, source_files=(syllabus,)))
+    assert llm.calls == []

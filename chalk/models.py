@@ -26,7 +26,7 @@ class CourseInfo(BaseModel):
     title: str
     number: str
     section: str = ""
-    credits: int | None = None
+    credits: int | float | None = None  # 1.5 for a one-session (5-week) course
     term: str
     term_start: dt.date
     term_end: dt.date
@@ -36,9 +36,14 @@ class CourseInfo(BaseModel):
     source_format: Literal["word", "markdown"]
     source_file: str
     extracted_at: dt.datetime
+    # The syllabus's schedule has no dates ("Meeting 1", "Meeting 2"), so
+    # Chalk dated the weeks and the Review tab asks for Week 1's date
+    # (chalk/extractors/undated_schedule.py).
+    undated_schedule: bool = False
 
 
 class Assessment(BaseModel):
+    """One graded component and its share of the final grade (0-1)."""
     name: str
     weight: float = Field(ge=0, le=1)
 
@@ -62,7 +67,7 @@ class Week(BaseModel):
     notes: str | None = None
 
     @model_validator(mode="after")
-    def _require_fields_for_week_kind(self) -> "Week":
+    def _require_fields_for_week_kind(self) -> Week:
         if self.is_break:
             if self.date_start is None or self.date_end is None:
                 raise ValueError("A break week must have date_start and date_end.")
@@ -73,13 +78,14 @@ class Week(BaseModel):
 
 
 class UniversityDate(BaseModel):
+    """A row of the syllabus's University Dates table: one date, or a span."""
     event: str
     date: dt.date | None = None
     date_start: dt.date | None = None
     date_end: dt.date | None = None
 
     @model_validator(mode="after")
-    def _require_date_or_range(self) -> "UniversityDate":
+    def _require_date_or_range(self) -> UniversityDate:
         has_single_date = self.date is not None
         has_date_range = self.date_start is not None and self.date_end is not None
         if not (has_single_date or has_date_range):
@@ -91,6 +97,7 @@ class UniversityDate(BaseModel):
 
 
 class SourceMaterialRef(BaseModel):
+    """A file added to the project's source/ folder, and when."""
     filename: str
     added_at: dt.datetime
 

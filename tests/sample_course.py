@@ -48,7 +48,7 @@ def build_sample_course_data(source_format: str = "word") -> CourseData:
             instructor="Dave Norwood",
             source_format=source_format,
             source_file="source/IS-6640-syllabus-fall-2026.docx",
-            extracted_at=dt.datetime(2026, 9, 17, 10, 0, tzinfo=dt.timezone.utc),
+            extracted_at=dt.datetime(2026, 9, 17, 10, 0, tzinfo=dt.UTC),
         ),
         learning_objectives=[
             "Understand the fundamentals of IT network infrastructure",

@@ -18,10 +18,13 @@ from dataclasses import dataclass
 
 from chalk.models import CourseData, Week
 
+# Months a course in that season can start: the term's start, or a later
+# session's (chalk/sessions.py; Fall Session 3 starts in November). Still
+# catches the named case, a Spring label over Fall dates (August).
 _SEASON_START_MONTHS = {
-    "fall": {8, 9},
-    "spring": {1, 2},
-    "summer": {5, 6},
+    "fall": {8, 9, 10, 11},
+    "spring": {1, 2, 3, 4},
+    "summer": {5, 6, 7},
 }
 
 _SEASON_RE = re.compile(r"\b(fall|spring|summer)\b", re.IGNORECASE)
@@ -44,6 +47,8 @@ _MONTH_NAMES = {
 
 @dataclass(frozen=True)
 class ConsistencyResult:
+    """The term-label check's outcome. `detail` explains a mismatch in
+    plain English for the Upload tab and the CLI."""
     passed: bool
     term: str
     week1_date: dt.date | None

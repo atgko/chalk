@@ -19,21 +19,22 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
-from dotenv import load_dotenv
-
 from chalk import branding
-from chalk.config import describe_provider
+from chalk.calendar_data import find_term, load_calendars
+from chalk.config import apply_provider_env, describe_provider
 from chalk.costs import format_cost
 from chalk.demo import TRY_THESE_DIR, open_demo_project
-from chalk.errors import ChalkError, TermNotInCalendarError
+from chalk.errors import ChalkError, GenerationError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
 from chalk.extractors.consistency import grading_weight_warning
+from chalk.generation.course_level import COURSE_LEVELS, level_from_course_number
 from chalk.generation.engine import (
     GenerationRequest,
     current_env,
     estimate_cost,
     generate,
     overwrite_warning,
+    require_source_files,
     save_draft,
     spec_for,
 )
@@ -66,6 +67,7 @@ from chalk.project import (
 )
 from chalk.report import write_evaluation_report
 from chalk.rollover.meeting_days import parse_meeting_days
+from chalk.sessions import SessionSpan, is_summer, parse_session, session_start
 
 _RULE = "─" * 64
 
@@ -95,6 +97,8 @@ def main(
     out: TextIO | None = None,
     err: TextIO | None = None,
 ) -> int:
+    """Run `toolkit.py` with `argv` and return the exit code. Input and
+    output are parameters so tests can drive it without a terminal."""
     console = _Console(out or sys.stdout, err or sys.stderr, input_fn)
     args = build_parser().parse_args(argv)
     try:
@@ -148,7 +152,17 @@ def build_parser() -> argparse.ArgumentParser:
     rollover = commands.add_parser("rollover", parents=[project_arg], help="Roll the course to a new term.")
     rollover.add_argument("--term", required=True, help='Target term, e.g. "Fall 2027".')
     rollover.add_argument("--weeks", type=int, help="New course length in weeks (default: unchanged).")
-    rollover.add_argument("--week1-date", type=_parse_date, help="First day of classes (YYYY-MM-DD), for terms not in the calendar.")
+    rollover.add_argument(
+        "--week1-date",
+        type=_parse_date,
+        help="First day of classes (YYYY-MM-DD): required for terms not in the calendar, overrides --session.",
+    )
+    rollover.add_argument(
+        "--session",
+        type=_parse_session,
+        help="Which 5-week sessions the course runs in: 1, 2, 3, 1-2, 2-3, or 1-3 (default: the full term). "
+        "Sets Week 1 and, unless --weeks is given, the length.",
+    )
     rollover.add_argument("--no-llm", action="store_true", help="Don't ask the LLM to draft topics for added weeks.")
     rollover.add_argument(
         "--meeting-days",
@@ -186,6 +200,14 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--description-file", type=Path, help="Rubric: read the description from a file.")
     generate.add_argument("--points", type=int, default=DEFAULT_RUBRIC_POINTS, help="Rubric: total points.")
     generate.add_argument("--notes", help="Slides: bullet points or a reading excerpt.")
+    generate.add_argument(
+        "--level",
+        choices=COURSE_LEVELS,
+        help="Course level (default: from the course number, e.g. 6000 and up is graduate).",
+    )
+    generate.add_argument(
+        "--ai-component", action="store_true", help="Assignment: include a task where students use AI to learn."
+    )
     generate.add_argument("--source", action="append", help="A file in source/ to ground the draft in (repeatable).")
     generate.add_argument("--yes", action="store_true", help="Overwrite an existing draft without asking.")
     generate.set_defaults(handler=_cmd_generate)
@@ -256,21 +278,19 @@ def _cmd_extract(args, console: _Console) -> int:
 
 
 def _require_provider(paths: ProjectPaths) -> None:
-    """Load the project's .env and fail with setup instructions if no LLM
-    provider is configured."""
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
+    """Load the project's provider (its .env, or the one saved for every
+    course) and fail with setup instructions if there is none."""
+    apply_provider_env(paths.env, override=False)
     if describe_provider(current_env()) == "Not configured":
         raise ChalkError(
-            "No LLM provider is configured. Copy .env.example to this project's .env and fill it in, "
-            "or set one up in the app's Settings tab."
+            "No LLM provider is configured. Set one up in the app's Settings tab (it's saved for "
+            "every course), or copy .env.example to this project's .env and fill it in."
         )
 
 
 def _cmd_rollover(args, console: _Console) -> int:
     paths = open_project(args.project)
-    if paths.env.exists():
-        load_dotenv(paths.env, override=False)
+    apply_provider_env(paths.env, override=False)
     course_data = require_course(paths)
     plan = _preview_with_week1_fallback(paths, course_data, args, console)
     if plan is None:
@@ -297,9 +317,13 @@ def _cmd_generate(args, console: _Console) -> int:
     paths = open_project(args.project)
     _require_provider(paths)
     course_data = require_course(paths)
-    request = _generation_request(args)
+    request = _generation_request(args, course_data)
     if spec_for(request.content_type).per_week and request.week_number is None:
         raise ChalkError("Say which week to generate for, e.g. --week 3.")
+    try:
+        require_source_files(course_data, request)
+    except GenerationError as exc:
+        raise ChalkError(f"{exc.user_message} Add a file to source/ and pass it with --source <file name>.") from None
 
     warning = overwrite_warning(paths, request)
     if warning and not (args.yes or console.confirm(warning)):
@@ -325,7 +349,7 @@ def _split_total(args) -> int | None:
     return args.multiple_choice + args.short_answer
 
 
-def _generation_request(args) -> GenerationRequest:
+def _generation_request(args, course_data: CourseData) -> GenerationRequest:
     description = args.description or ""
     if args.description_file is not None:
         if not args.description_file.is_file():
@@ -347,6 +371,8 @@ def _generation_request(args) -> GenerationRequest:
         total_points=args.points,
         slide_notes=args.notes or "",
         source_files=tuple(args.source or ()),
+        course_level=args.level or level_from_course_number(course_data.course.number),
+        include_ai_component=args.ai_component,
     )
 
 
@@ -371,14 +397,25 @@ def _cmd_status(args, console: _Console) -> int:
 def _preview_with_week1_fallback(
     paths: ProjectPaths, course_data: CourseData, args, console: _Console
 ) -> RolloverPlan | None:
+    week1_date, weeks = args.week1_date, args.weeks
+    if args.session is not None and not args.session.is_full_term:
+        term_entry = find_term(load_calendars(paths.calendars_json), args.term)
+        if is_summer(args.term):
+            console.error("Summer terms have no sessions: summer courses run --weeks 10 or --weeks 12.")
+            return None
+        if term_entry is None and week1_date is None:
+            console.error(f"{args.term} isn't in the calendar, so Chalk can't find its sessions. Pass --week1-date.")
+            return None
+        week1_date = week1_date or session_start(term_entry, args.session.first)
+        weeks = weeks or args.session.weeks
     kwargs = {
-        "target_duration_weeks": args.weeks,
+        "target_duration_weeks": weeks,
         "llm_generate_topics": not args.no_llm,
         "meeting_days": args.meeting_days,
         "breaks_not_observed": frozenset(args.no_break),
     }
     try:
-        return preview_rollover(paths, course_data, args.term, manual_week1_date=args.week1_date, **kwargs)
+        return preview_rollover(paths, course_data, args.term, manual_week1_date=week1_date, **kwargs)
     except TermNotInCalendarError as exc:
         if args.yes:
             raise
@@ -449,6 +486,8 @@ def _format_course_summary(course_data: CourseData) -> str:
 
 
 def format_status(status: ProjectStatus, paths: ProjectPaths) -> str:
+    """The `status` command's summary: the course, source files, outputs,
+    cost to date, and the evaluation counts."""
     if status.course is None:
         course_line = "No course.json yet — run `extract` on your syllabus."
     else:
@@ -475,6 +514,13 @@ def _relative(path: Path, paths: ProjectPaths) -> str:
         return path.relative_to(paths.root).as_posix()
     except ValueError:  # pragma: no cover - every workflow writes inside the project
         return str(path)
+
+
+def _parse_session(text: str) -> SessionSpan:
+    try:
+        return parse_session(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def _parse_date(text: str) -> dt.date:

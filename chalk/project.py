@@ -26,13 +26,16 @@ from chalk.models import CourseData, SourceMaterialRef
 RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 
 SOURCE_SUFFIXES = (".pdf", ".docx", ".md", ".txt")
-OUTPUT_SUBDIRS = ("quizzes", "discussions", "rubrics", "summaries", "slides")
+# One per generated content type (chalk/generation/specs.py; a test checks they match).
+OUTPUT_SUBDIRS = ("quizzes", "discussions", "assignments", "rubrics", "summaries", "slides")
 
 _PROJECT_GITIGNORE = ".env\n"
 
 
 @dataclass(frozen=True)
 class ProjectPaths:
+    """Where everything lives in a course project folder (PRD section 5.1),
+    so no other module builds these paths itself."""
     root: Path
 
     @property
@@ -86,6 +89,7 @@ class ProjectPaths:
 
 @dataclass(frozen=True)
 class ProjectStatus:
+    """A project's state for `toolkit.py status`."""
     name: str
     course: CourseData | None
     source_files: list[str]
@@ -137,6 +141,22 @@ def open_project(root) -> ProjectPaths:
     return paths
 
 
+def list_projects(parent_dir) -> list[ProjectPaths]:
+    """The course projects directly inside `parent_dir`, most recently
+    used first (by their latest course.json, eval log, or config.json
+    change), for the launch screen. Empty if the folder doesn't exist."""
+    parent = Path(parent_dir)
+    if not parent.is_dir():
+        return []
+    projects = [ProjectPaths(child) for child in parent.iterdir() if (child / "config.json").is_file()]
+    return sorted(projects, key=_last_used, reverse=True)
+
+
+def _last_used(paths: ProjectPaths) -> float:
+    files = (paths.course_json, paths.eval_log, paths.config_json)
+    return max(path.stat().st_mtime for path in files if path.exists())
+
+
 # ---- course.json -----------------------------------------------------------
 
 
@@ -148,6 +168,7 @@ def load_course(paths: ProjectPaths) -> CourseData | None:
 
 
 def require_course(paths: ProjectPaths) -> CourseData:
+    """The saved course, or a ProjectError saying to extract a syllabus."""
     course_data = load_course(paths)
     if course_data is None:
         raise ProjectError("Upload and extract a syllabus first — this project has no course.json yet.")
@@ -185,7 +206,7 @@ def add_source(paths: ProjectPaths, file_path, *, now: dt.datetime | None = None
 
     course_data = load_course(paths)
     if course_data is not None:
-        ref = SourceMaterialRef(filename=destination.name, added_at=now or dt.datetime.now(dt.timezone.utc))
+        ref = SourceMaterialRef(filename=destination.name, added_at=now or dt.datetime.now(dt.UTC))
         kept = [m for m in course_data.source_materials if m.filename != destination.name]
         save_course(paths, course_data.model_copy(update={"source_materials": [*kept, ref]}))
 

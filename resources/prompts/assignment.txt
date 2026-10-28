@@ -22,6 +22,8 @@ ASSIGNMENT MODE:
 COURSE LEARNING OBJECTIVES:
 {learning_objectives}
 
+{course_level_guidance}
+
 REFERENCE COURSE MATERIALS:
 {source_material_context}
 
@@ -77,6 +79,8 @@ A value of "(none specified)" means the instructor did NOT provide that requirem
 
 MODE:
 {assignment_mode_instructions}
+
+{ai_component_guidance}
 
 FINAL COMMAND:
 Create the assignment now from the instructor's instructions above. Use the selected course materials only as supporting reference context. Do not ask the instructor a follow-up question. Do not offer to create an example. Return the finished student-facing assignment.

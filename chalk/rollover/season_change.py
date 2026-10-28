@@ -33,6 +33,8 @@ def season_of(term: str) -> str | None:
 
 
 def is_season_change(source_term: str, target_term: str) -> bool:
+    """True for e.g. Fall → Spring. False if either term names no season,
+    since then there's no way to tell (the breaks are only moved)."""
     source, target = season_of(source_term), season_of(target_term)
     return source is not None and target is not None and source != target
 
@@ -62,6 +64,8 @@ def holiday_names(calendars: dict) -> frozenset[str]:
 
 
 def is_holiday_name(label: str, known_holidays: frozenset[str]) -> bool:
+    """Whether a University Dates row is a holiday the calendar knows by
+    name (`known_holidays` holds `holiday_key`s), e.g. "Labor Day (no class)"."""
     key = holiday_key(label)
     return bool(key) and key in known_holidays
 
@@ -94,10 +98,13 @@ def _labels_match(first: str, second: str) -> bool:
 
 
 def normalize_label(label: str) -> str:
+    """Lower case, letters and spaces only, so names compare equal despite
+    punctuation or digits ("Labor Day!" and "labor day")."""
     return re.sub(r"[^a-z ]", "", label.lower()).strip()
 
 
 def format_break_label(name: str, start: dt.date, end: dt.date) -> str:
+    """A rebuilt break row's label, e.g. "Spring Break (3/14 - 3/21)"."""
     return f"{name} ({start.month}/{start.day} - {end.month}/{end.day})"
 
 
@@ -129,6 +136,8 @@ def rebuild_break_weeks(target_breaks: list[dict], regular_weeks: list[Week]) ->
 def replacement_flag(
     source_term: str, target_term: str, removed: list[str], added: list[str]
 ) -> str:
+    """The flag explaining a season-change rollover: which syllabus breaks
+    were removed and which target-term breaks replaced them."""
     added_text = ", ".join(added) if added else "none (no breaks fall within the course dates)"
     return (
         f"This is a {season_of(source_term)} → {season_of(target_term)} rollover, so breaks come "
@@ -137,6 +146,8 @@ def replacement_flag(
 
 
 def stale_break_flag(source_term: str, target_term: str, break_names: list[str]) -> str:
+    """Flag for a season change into a term missing from the calendar data:
+    the old season's breaks can't be replaced, so the instructor must."""
     return (
         f"{', '.join(break_names)} came from a {season_of(source_term)} syllabus, and {target_term} "
         "isn't in the calendar data — rename or remove the break rows by hand."
@@ -144,6 +155,8 @@ def stale_break_flag(source_term: str, target_term: str, break_names: list[str])
 
 
 def unmatched_university_date_flag(event: str, target_term: str) -> str:
+    """Flag for a University Dates row with no counterpart on the target
+    term's calendar (so its date couldn't be updated)."""
     return (
         f"'{event}' isn't on the {target_term} calendar — check or remove it in the "
         "University Dates table."
@@ -151,6 +164,8 @@ def unmatched_university_date_flag(event: str, target_term: str) -> str:
 
 
 def missing_holiday_flag(holidays: list[dict], target_term: str) -> str:
+    """Flag for target-term holidays that no existing row took over, when
+    the syllabus lists holidays at all."""
     names = ", ".join(f"{entry['label']} ({_month_day(entry['date'])})" for entry in holidays)
     return f"{target_term} also has {names} — add a row to the University Dates table if you list holidays."
 

@@ -30,6 +30,9 @@ def flag_weeks_colliding_with_target_breaks(
     year: int,
     meeting_days: tuple[int, ...],
 ) -> None:
+    """Flag each week whose class days fall in a target-term break or
+    holiday (its start date when `meeting_days` is empty), adding to that
+    week's entry in `changes`."""
     changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
     for week in weeks:
         if week.is_break or week.date is None:
@@ -81,12 +84,15 @@ def _format_break_range(entry: dict) -> str:
 
 
 def duration_change_flags(old_duration: int, new_duration: int) -> list[str]:
+    """The reminder shown when a rollover changes the course length."""
     if old_duration == new_duration:
         return []
     return [
-        f"Course length changed from {old_duration} to {new_duration} weeks. "
-        "Review quiz, exam, and lab numbering in the assignments below — "
-        "the tool never renumbers them automatically."
+        (
+            f"Course length changed from {old_duration} to {new_duration} weeks. "
+            "Review quiz, exam, and lab numbering in the assignments below — "
+            "the tool never renumbers them automatically."
+        )
     ]
 
 
@@ -96,6 +102,8 @@ def schedule_choice_flags(
     breaks_not_observed: frozenset[str],
     dropped_breaks: list[str],
 ) -> list[str]:
+    """Flags restating the instructor's schedule choices: breaks the class
+    meets through, and meeting days that differ from the syllabus."""
     flags = []
     if breaks_not_observed:
         removed = f" Removed from the schedule: {', '.join(dropped_breaks)}." if dropped_breaks else ""

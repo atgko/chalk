@@ -12,6 +12,7 @@ from chalk.project import (
     ProjectPaths,
     add_source,
     init_project,
+    list_projects,
     list_source_files,
     load_course,
     open_project,
@@ -30,6 +31,13 @@ def test_init_creates_the_prd_directory_layout(tmp_project):
         assert (root / relative).is_dir()
     for subdir in OUTPUT_SUBDIRS:
         assert (root / "outputs" / subdir).is_dir()
+
+
+def test_every_content_type_has_an_output_folder():
+    from chalk.generation.specs import SPECS
+
+    assert {spec.output_subdir for spec in SPECS.values()} <= set(OUTPUT_SUBDIRS)
+    assert "assignments" in OUTPUT_SUBDIRS
 
 
 def test_init_copies_bundled_config_and_calendars(tmp_project):
@@ -144,7 +152,7 @@ def test_add_updates_course_json_source_materials_when_a_course_exists(tmp_proje
     save_course(tmp_project, build_sample_course_data())
     material = tmp_path / "reading.pdf"
     material.write_bytes(b"%PDF-1.4")
-    added_at = dt.datetime(2026, 9, 24, 12, 0, tzinfo=dt.timezone.utc)
+    added_at = dt.datetime(2026, 9, 24, 12, 0, tzinfo=dt.UTC)
 
     add_source(tmp_project, material, now=added_at)
     add_source(tmp_project, material, now=added_at)  # re-adding doesn't duplicate
@@ -218,6 +226,7 @@ def test_status_summarizes_events_and_outputs(tmp_project):
     assert status.course.course.number == "IS 6640"
     assert status.output_counts["top-level"] == 1
     assert status.output_counts["quizzes"] == 1
+    assert status.output_counts["assignments"] == 0
     assert status.total_cost_usd == pytest.approx(0.015)
     assert status.rollover_count == 1
     assert status.extraction_error_count == 1
@@ -231,10 +240,10 @@ def test_status_tolerates_a_missing_outputs_dir(tmp_path):
 
 # ---- export helpers ---------------------------------------------------------------
 
-import io  # noqa: E402
-import zipfile  # noqa: E402
+import io
+import zipfile
 
-from chalk.project import list_output_files, zip_outputs  # noqa: E402
+from chalk.project import list_output_files, zip_outputs
 
 
 def test_list_output_files_skips_archived_versions(tmp_project):
@@ -259,3 +268,24 @@ def test_zip_outputs_contains_every_current_output(tmp_project):
     with zipfile.ZipFile(io.BytesIO(zip_outputs(tmp_project))) as archive:
         assert sorted(archive.namelist()) == ["canvas.html", "quizzes/week-1-quiz.md"]
         assert archive.read("canvas.html") == b"<table>"
+
+
+# ---- list_projects (launch screen) -----------------------------------------------
+
+
+def test_list_projects_puts_the_most_recently_used_first(tmp_path):
+    import os
+
+    older = init_project(tmp_path, "IS-6640-Spring-2027")
+    newer = init_project(tmp_path, "IS-4490-Fall-2027")
+    (tmp_path / "notes").mkdir()  # not a project
+    (tmp_path / "readme.txt").write_text("hi", encoding="utf-8")
+    os.utime(newer.config_json, (1_000, 1_000))
+    os.utime(older.config_json, (2_000, 2_000))
+    save_course(newer, build_sample_course_data())  # used just now
+
+    assert [p.root.name for p in list_projects(tmp_path)] == ["IS-4490-Fall-2027", "IS-6640-Spring-2027"]
+
+
+def test_list_projects_of_a_missing_folder_is_empty(tmp_path):
+    assert list_projects(tmp_path / "nowhere") == []

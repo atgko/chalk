@@ -11,7 +11,10 @@ import datetime as dt
 from chalk.extractors.markdown_extractor import extract_course_data
 from chalk.metrics import read_events_by_type
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
-from tests.fixtures.md_builder import build_minimal_syllabus, build_syllabus_without_optional_sections
+from tests.fixtures.md_builder import (
+    build_minimal_syllabus,
+    build_syllabus_without_optional_sections,
+)
 
 
 def _rolled_over_copy(

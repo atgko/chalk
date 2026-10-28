@@ -8,5 +8,6 @@ pypdf>=6.19,<7            # Pure-Python PDF text extraction for source materials
 pdfplumber>=0.11.10,<0.12 # PDF syllabi: text with positions and ruled tables (MIT; pure Python via pdfminer.six)
 pydantic>=2.13,<3         # course.json schema as typed models with validation
 python-dotenv>=1.2,<2     # loads .env (LLM_PROVIDER/LLM_API_KEY/LLM_BASE_URL/LLM_MODEL)
+keyring>=25.7,<26        # saves the AI provider once for every course in the OS password store
 pandas>=3.0,<4            # Metrics tab chart data (also a Streamlit dependency)
 reportlab>=4.0,<6         # assignment PDFs (assignment creator)

@@ -45,6 +45,7 @@ class Line:
 
 
 def is_bullet(text: str) -> bool:
+    """Whether a line starts with a bullet marker and has text after it."""
     stripped = text.strip()
     match = _BULLET_RE.match(stripped)
     return bool(match) and len(stripped) > match.end()
@@ -73,6 +74,8 @@ def join_wrapped(previous: str, following: str) -> str:
 
 
 def ends_in_url(text: str) -> bool:
+    """Whether the last word is a web address. A line ending in one is
+    joined to the next without a space, since a URL wraps mid-address."""
     token = text.rsplit(" ", 1)[-1]
     return "://" in token or token.startswith("www.")
 

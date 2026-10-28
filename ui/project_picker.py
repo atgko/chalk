@@ -1,5 +1,5 @@
-"""Launch screen: choose or create the one course project this app
-instance works on (DECISIONS.md — no in-app project switcher).
+"""Launch screen: choose or create the course project to work on. The
+app comes back here when the instructor clicks All courses.
 
 Skipped entirely when the app is started with
 `streamlit run app.py -- --project <folder>`.
@@ -15,7 +15,7 @@ import streamlit as st
 from chalk import branding
 from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
-from chalk.project import init_project, open_project
+from chalk.project import ProjectPaths, init_project, list_projects, open_project
 from ui import folder_picker, session
 from ui.common import render_header
 
@@ -28,6 +28,8 @@ _DIALOG_KEY = "chalk_folder_dialog"
 # renders on the next run: (field key, folder).
 _CHOSEN_KEY = "chalk_folder_chosen"
 _BROWSE_FAILED_KEY = "chalk_folder_dialog_failed"
+# A Create that named an existing project: its folder, offered to open instead.
+_EXISTING_KEY = "chalk_create_existing"
 _DIALOG_POLL_SECONDS = 0.5
 
 
@@ -50,24 +52,28 @@ def render() -> None:
 
     # Forms read the fields on click: typing doesn't rerun (and grey out)
     # the page, and Enter in a field submits.
-    with open_col, st.form("open-project", border=False):
+    with open_col:
         st.subheader("Open a course project")
-        folder = _folder_field(
-            "Project folder",
-            _FOLDER_KEY,
-            "Choose the course project folder",
-            placeholder=str(DEFAULT_PARENT / "IS-6640-Fall-2027"),
-        )
-        if st.form_submit_button("Open project"):
-            _open(folder.strip())
+        _your_projects()
+        with st.form("open-project", border=False):
+            folder = _folder_field(
+                "Project folder",
+                _FOLDER_KEY,
+                "Choose the course project folder",
+                placeholder=str(DEFAULT_PARENT / "IS-6640-Fall-2027"),
+            )
+            if st.form_submit_button("Open project"):
+                _open(folder.strip())
 
-    with create_col, st.form("create-project", border=False):
-        st.subheader("Create a new one")
-        st.session_state.setdefault(_PARENT_KEY, str(DEFAULT_PARENT))
-        parent = _folder_field("Create it inside", _PARENT_KEY, "Choose where to create the project")
-        name = st.text_input("Project name", placeholder="IS-6640-Fall-2027")
-        if st.form_submit_button("Create project", type="primary"):
-            _create(parent.strip(), name.strip())
+    with create_col:
+        with st.form("create-project", border=False):
+            st.subheader("Create a new one")
+            st.session_state.setdefault(_PARENT_KEY, str(DEFAULT_PARENT))
+            parent = _folder_field("Create it inside", _PARENT_KEY, "Choose where to create the project")
+            name = st.text_input("Project name", placeholder="IS-6640-Fall-2027")
+            if st.form_submit_button("Create project", type="primary"):
+                _create(parent.strip(), name.strip())
+        _offer_existing_project()
 
     _watch_dialog()
     if st.session_state.pop(_BROWSE_FAILED_KEY, False):
@@ -88,6 +94,19 @@ def render() -> None:
             "Rebuilding the demo course…",
             "Reset the demo course.",
         )
+
+
+def _your_projects() -> None:
+    """The projects in the default projects/ folder, most recently used
+    first, so the usual case needs no typing or browsing."""
+    projects = list_projects(DEFAULT_PARENT)
+    if not projects:
+        return
+    with st.form("open-your-project", border=False):
+        choice = st.selectbox("Your projects", projects, format_func=lambda paths: paths.root.name)
+        if st.form_submit_button("Open"):
+            _open(str(choice.root))
+    st.caption("Or open a project folder from somewhere else:")
 
 
 def _folder_field(label: str, key: str, dialog_title: str, **text_input_args) -> str:
@@ -171,7 +190,33 @@ def _create(parent: str, name: str) -> None:
     if not name:
         st.warning("Enter a project name, then click Create project.")
         return
+    existing = ProjectPaths(Path(parent) / name)
+    if existing.config_json.is_file():
+        st.session_state[_EXISTING_KEY] = str(existing.root)
+        return
+    st.session_state.pop(_EXISTING_KEY, None)
     _enter(lambda: init_project(parent, name), f"Creating {name}…", f"Created project {name} in {parent}.")
+
+
+def _offer_existing_project() -> None:
+    """After Create named an existing project: open it, or pick another
+    name. There's deliberately no overwrite, which would delete a course's
+    files and their archived versions in one click."""
+    existing = st.session_state.get(_EXISTING_KEY)
+    if existing is None:
+        return
+    folder = Path(existing)
+    st.warning(
+        f"There's already a course project named {folder.name} in {folder.parent}. Open it, or "
+        "choose another name. To start over, rename or delete that folder first."
+    )
+    open_col, other_col = st.columns(2)
+    if open_col.button(f"Open {folder.name}", type="primary"):
+        del st.session_state[_EXISTING_KEY]
+        _open(existing)
+    if other_col.button("Choose another name"):
+        del st.session_state[_EXISTING_KEY]
+        st.rerun()
 
 
 def _enter(get_paths, working: str, done: str) -> None:

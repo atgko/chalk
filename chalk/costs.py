@@ -18,6 +18,8 @@ CHARS_PER_TOKEN = 4
 
 
 def rate_for(config: dict[str, Any], env: dict[str, str]) -> dict[str, float] | None:
+    """The configured model's cost rate from config.json. A local model is
+    free; None means the model has no rate, and its cost shows as unknown."""
     rates = config.get("cost_rates", {})
     choice = choice_for_env(env)
     if choice == "Local model (Ollama)":
@@ -26,6 +28,7 @@ def rate_for(config: dict[str, Any], env: dict[str, str]) -> dict[str, float] | 
 
 
 def cost_usd(rate: dict[str, float] | None, input_tokens: int, output_tokens: int) -> float | None:
+    """What a call cost in dollars, or None without a rate (`rate_for`)."""
     if rate is None:
         return None
     return input_tokens / 1000 * rate["input_per_1k"] + output_tokens / 1000 * rate["output_per_1k"]

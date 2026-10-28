@@ -19,9 +19,12 @@ def render(paths: ProjectPaths) -> None:
     st.write(
         f"{branding.PROJECT_NAME} reads your syllabus, rolls it forward to a new term, and drafts "
         "quizzes, discussion prompts, and rubrics from it. Connect an AI model provider to "
-        "get started — your key is saved only in this project's .env file."
+        "get started. You only do this once: your key is saved securely in this computer's password "
+        "store and used by all your courses."
     )
-    if provider_form.render(paths, submit_label="Test connection and continue", key="setup"):
+    saved = provider_form.render(paths, submit_label="Test connection and continue", key="setup")
+    if saved:
+        session.flash(saved)
         st.rerun()
 
     st.divider()

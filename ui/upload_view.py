@@ -6,6 +6,9 @@ consistency check (PRD section 6.1).
 A PDF syllabus is read into a Word file first, the way the instructor
 chooses: on this computer (free, private) or with AI (handles unusual
 layouts, costs a few cents). Either way they can download that Word file.
+
+Extraction runs in the background, so switching tabs doesn't stop an AI
+read of a PDF partway through (ui/background.py).
 """
 
 from __future__ import annotations
@@ -29,17 +32,20 @@ from chalk.pipeline import (
     estimate_ai_reading_cost_per_page,
     extract_syllabus,
 )
+from chalk.progress import ProgressCallback, report, within
 from chalk.project import ProjectPaths
-from ui import common, session
+from ui import background, common, session
 from ui.session import PendingExtraction, TableChoice
+
+# Share of the bar for an AI read of a PDF; extraction after it is quick.
+_AI_READ_SHARE = 0.9
+_FINISHING = 0.95
 
 _PDF_METHOD_LABELS = {
     "local": "Read it on this computer",
     "ai": "Read it with AI",
 }
-_LOCAL_HINT = (
-    " You can also try **Read it with AI**, or save the PDF as Word (.docx) and upload that."
-)
+_WORD_HINT = "save it as Word (.docx) from the original document and upload that"
 
 
 @dataclass(frozen=True)
@@ -73,32 +79,47 @@ def extract_upload(
     *,
     pdf_method: PdfReadMethod = "local",
     pdf_conversion: PdfConversion | None = None,
+    tried: frozenset[str] = frozenset(),
+    on_progress: ProgressCallback | None = None,
 ) -> UploadOutcome:
     """Extract an uploaded syllabus, converting a PDF first (unless an
-    earlier conversion is passed in)."""
+    earlier conversion is passed in). An AI read of a PDF fills the first
+    90% of the progress bar; the rest is quick. `tried` is the ways this
+    PDF was already read, so a failure suggests only the others."""
     try:
+        reading_with_ai = pdf_conversion is None and is_pdf(upload_path.name) and pdf_method == "ai"
         if pdf_conversion is None and is_pdf(upload_path.name):
-            pdf_conversion = convert_pdf_syllabus(paths, upload_path, method=pdf_method)
+            pdf_conversion = convert_pdf_syllabus(
+                paths, upload_path, method=pdf_method, on_progress=within(on_progress, 0.0, _AI_READ_SHARE)
+            )
+        report(on_progress, _FINISHING if reading_with_ai else None, "Finding the course details and schedule")
         course_data, consistency = extract_syllabus(
             paths, upload_path, schedule_table_index=table_index, pdf_conversion=pdf_conversion
         )
     except AmbiguousTableError as exc:
         if exc.candidates:
             return UploadOutcome(table_choice=TableChoice(upload_path, exc.candidates, pdf_conversion))
-        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method))
+        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method, tried))
     except ChalkError as exc:
-        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method))
+        return UploadOutcome(error=_with_pdf_hint(exc.user_message, upload_path, pdf_method, tried))
     return UploadOutcome(
         pending=PendingExtraction(course_data, consistency, acknowledged=consistency.passed),
         notice=_ai_cost_notice(pdf_conversion),
     )
 
 
-def _with_pdf_hint(message: str, upload_path: Path, pdf_method: PdfReadMethod) -> str:
-    """After a PDF read on this computer fails, point at the other options."""
-    if is_pdf(upload_path.name) and pdf_method == "local":
-        return message + _LOCAL_HINT
-    return message
+def _with_pdf_hint(
+    message: str, upload_path: Path, pdf_method: PdfReadMethod, tried: frozenset[str] = frozenset()
+) -> str:
+    """After a PDF read fails, suggest only what hasn't been tried on it
+    (UAT of PR #18: an AI read that failed sent the professor to the
+    local read, which had already failed)."""
+    if not is_pdf(upload_path.name):
+        return message
+    untried = [method for method in PDF_READ_METHODS if method not in tried | {pdf_method}]
+    if untried:
+        return f"{message} Try **{_PDF_METHOD_LABELS[untried[0]]}** instead, or {_WORD_HINT}."
+    return f"{message} Chalk couldn't read this PDF either way. To fix it, {_WORD_HINT}."
 
 
 def _ai_cost_notice(conversion: PdfConversion | None) -> str | None:
@@ -107,7 +128,25 @@ def _ai_cost_notice(conversion: PdfConversion | None) -> str | None:
     return f"Read {conversion.pdf_name} with AI. Cost: {format_cost(conversion.cost_usd)}."
 
 
+_JOB = "extract"
+_TAB = "Upload"
+# The last failed read's message, shown until the next read starts or one
+# succeeds, so a failure never lingers after a read that worked (UAT round 2).
+_ERROR_KEY = "chalk_upload_error"
+
+
 def render(paths: ProjectPaths) -> None:
+    finished = background.take_finished(_JOB)
+    if finished is not None:
+        _apply(finished.result(), elsewhere=session.active_tab() != _TAB)
+    background.pop_error(_TAB)  # a failure's message is kept in _ERROR_KEY instead
+    if background.is_running(_JOB):
+        background.render_progress(_JOB)
+        return
+    error = st.session_state.get(_ERROR_KEY)
+    if error:
+        st.error(error)
+
     table_choice = session.get_table_choice()
     if table_choice is not None:
         _render_table_picker(paths, table_choice)
@@ -127,10 +166,16 @@ def render(paths: ProjectPaths) -> None:
         can_extract = pdf_method == "local" or env_is_configured(paths.env)
 
     if st.button("Extract course", type="primary", disabled=not can_extract):
-        spinner = "Reading the PDF — this can take a minute…" if is_pdf(uploaded.name) else "Reading the syllabus…"
-        with st.spinner(spinner):
-            outcome = extract_upload(paths, save_upload(uploaded.name, uploaded.getvalue()), pdf_method=pdf_method)
-        _apply(outcome)
+        label = f"Reading {uploaded.name}"
+        upload_path = save_upload(uploaded.name, uploaded.getvalue())
+        tried = session.pdf_methods_tried(uploaded.name)
+        if is_pdf(uploaded.name):
+            session.record_pdf_method(uploaded.name, pdf_method)
+        st.session_state.pop(_ERROR_KEY, None)
+        background.start(
+            _JOB, label, extract_upload, paths, upload_path, pdf_method=pdf_method, tried=tried, tab=_TAB
+        )
+        st.rerun()
 
     if pending is not None:
         st.success(
@@ -171,18 +216,31 @@ def _render_converted_download(paths: ProjectPaths, pending: PendingExtraction) 
         common.download_button(source, paths, key_prefix="converted-pdf")
 
 
-def _apply(outcome: UploadOutcome) -> None:
+def _apply(outcome: UploadOutcome, *, elsewhere: bool = False) -> None:
+    """Act on an extraction. `elsewhere` means the instructor moved to
+    another tab while it ran: leave them there and say what happened."""
     if outcome.error:
-        st.error(outcome.error)
-        return
+        st.session_state[_ERROR_KEY] = outcome.error
+        if elsewhere:
+            background.finished_elsewhere(_TAB, outcome.error, failed=True)
+        st.rerun()
+    st.session_state.pop(_ERROR_KEY, None)
     session.set_table_choice(outcome.table_choice)
+    messages = [outcome.notice] if outcome.notice else []
     if outcome.pending is not None:
         session.set_pending_extraction(outcome.pending)
         session.set_rollover_plan(None)
         if outcome.pending.acknowledged:  # otherwise the term warning stays on Upload
-            session.go_to_tab("Review")
-    if outcome.notice:
-        session.flash(outcome.notice)
+            if elsewhere:
+                messages.append(f"Extracted {outcome.pending.course_data.course.title}. Check it on the Review tab.")
+            else:
+                session.go_to_tab("Review")
+    if elsewhere and (outcome.table_choice or (outcome.pending and not outcome.pending.acknowledged)):
+        messages.append("Your syllabus is read. Chalk needs a decision from you on the Upload tab.")
+    if messages and elsewhere:
+        background.finished_elsewhere(_TAB, " ".join(messages))
+    elif messages:
+        session.flash(" ".join(messages))
     st.rerun()
 
 
@@ -195,6 +253,7 @@ def _render_table_picker(paths: ProjectPaths, choice: TableChoice) -> None:
     )
     use_col, cancel_col = st.columns(2)
     if use_col.button("Use this table", type="primary"):
+        st.session_state.pop(_ERROR_KEY, None)
         _apply(extract_upload(paths, choice.upload_path, index, pdf_conversion=choice.pdf_conversion))
     if cancel_col.button("Cancel", key="cancel-table-choice"):
         session.set_table_choice(None)

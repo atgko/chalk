@@ -32,9 +32,10 @@ from chalk.extractors._dates import (
     roll_dates_past_new_year,
     year_from_term,
 )
-from chalk.extractors._docx_schedule import extract_weeks, find_schedule_tables
+from chalk.extractors._docx_schedule import extract_weeks, find_schedule_tables, is_undated_schedule
 from chalk.extractors._front_matter import extract_front_matter
 from chalk.extractors._grading import header_column, headerless_points, parse_rows
+from chalk.extractors.undated_schedule import provisional_week1
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
 _OBJECTIVES_HEADINGS = {"learning objectives", "course outcome and objectives"}
@@ -67,7 +68,10 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
     year = _year_from_term_or_raise(front_matter["term"])
 
     schedule_tables = find_schedule_tables(document, schedule_table_index)
-    weeks = roll_dates_past_new_year(extract_weeks(schedule_tables, year))
+    undated = any(is_undated_schedule(table) for table in schedule_tables)
+    weeks = roll_dates_past_new_year(
+        extract_weeks(schedule_tables, year, undated_week1=provisional_week1(front_matter["term"], year))
+    )
 
     course_info = CourseInfo(
         title=front_matter["title"],
@@ -83,6 +87,7 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
         source_format="word",
         source_file=str(docx_path),
         extracted_at=dt.datetime.now(dt.UTC),
+        undated_schedule=undated,
     )
 
     return CourseData(

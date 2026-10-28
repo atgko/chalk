@@ -6,13 +6,19 @@ save"."""
 
 from __future__ import annotations
 
+import datetime as dt
+import re
+
 import streamlit as st
 
+from chalk.calendar_data import find_term, load_calendars
 from chalk.errors import ChalkError
 from chalk.extractors.consistency import grading_weight_warning
+from chalk.extractors.undated_schedule import date_undated_schedule, syllabus_lists_breaks
 from chalk.models import CourseData
 from chalk.pipeline import save_reviewed_course
 from chalk.project import ProjectPaths
+from chalk.sessions import FULL_TERM, available_spans, guess_session, is_summer, session_start
 from ui import session, tables
 
 
@@ -27,8 +33,9 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
         st.info("Upload and extract a syllabus first.")
         return
 
-    st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.json.")
+    st.caption("Newly extracted — not saved yet." if pending else "Showing the saved course.")
     details = _render_course_details(course_data)
+    course_data = _render_week1_date(paths, course_data)
     duration = _render_duration(course_data)
     _render_lists(course_data)
 
@@ -46,7 +53,7 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
         if credits_error:
             st.error(credits_error)
             return
-        details["credits"] = int(details["credits"]) if details["credits"] else None
+        details["credits"] = _credits_value(details["credits"])
         updated = course_data.model_copy(
             update={"course": course_data.course.model_copy(update={**details, "duration_weeks": duration})}
         )
@@ -57,7 +64,7 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
             return
         session.set_pending_extraction(None)
         session.set_rollover_plan(None)
-        session.flash("Saved course.json and regenerated the course brief.")
+        session.flash("Saved the course and updated the course brief.")
         st.rerun()
 
 
@@ -83,16 +90,93 @@ def _render_course_details(course_data: CourseData) -> dict:
     details = {}
     columns = st.columns(3)
     for index, (name, label) in enumerate(_DETAIL_FIELDS):
-        value = "" if current[name] is None else str(current[name])
+        value = "" if current[name] is None else (f"{current[name]:g}" if name == "credits" else str(current[name]))
         details[name] = columns[index % 3].text_input(label, value=value).strip()
     details["title"] = details["title"] or course.title  # never save a blank title
     return details
 
 
+def _render_week1_date(paths: ProjectPaths, course_data: CourseData) -> CourseData:
+    """A schedule with no dates of its own was dated by Chalk: say so, and
+    let the instructor change Week 1 and whether the class takes the
+    term's breaks, which re-dates the weeks."""
+    if not course_data.course.undated_schedule:
+        return course_data
+    current = next(week.date for week in course_data.weeks if not week.is_break)
+    st.info(
+        "This syllabus's schedule has no dates, so Chalk gave each week a date, one week apart, "
+        "starting from the Week 1 date below. Check that it's the date of the first class.",
+        icon="📅",
+    )
+    calendars = load_calendars(paths.calendars_json)
+    # Keyed to this extraction, so a choice made for one upload doesn't carry over to the next.
+    key = course_data.course.extracted_at.isoformat()
+    suggested = _session_week1(course_data, calendars, key) or current
+    week1 = st.date_input("Week 1 date", value=suggested, format="MM/DD/YYYY", key=f"undated-week1-{key}-{suggested}")
+    if not isinstance(week1, dt.date):
+        week1 = current
+    skip_breaks = _render_break_choice(course_data, week1, calendars, key)
+    return date_undated_schedule(course_data, week1, calendars, skip_breaks=skip_breaks)
+
+
+def _session_week1(course_data: CourseData, calendars: dict, key: str) -> dt.date | None:
+    """For a term in the calendar, ask which 5-week session the course
+    starts in (chalk/sessions.py); returns that session's first day, or
+    None for the full term."""
+    entry = find_term(calendars, course_data.course.term)
+    if entry is None or is_summer(entry["term"]):  # summer has no sessions: Week 1 is the term's start
+        return None
+    spans = available_spans(entry)
+    regular_weeks = sum(1 for week in course_data.weeks if not week.is_break)
+    guess = guess_session(regular_weeks, course_data.course.credits)
+    span = st.selectbox(
+        "Session",
+        spans,
+        index=spans.index(guess) if guess in spans else spans.index(FULL_TERM),
+        format_func=lambda option: option.label,
+        key=f"undated-session-{key}",
+        help="Some programs split the term into three 5-week sessions. Pick the one this course "
+        "starts in to set Week 1; a 1.5-credit course is one session.",
+    )
+    return None if span.first == 1 else session_start(entry, span.first)
+
+
+def _render_break_choice(course_data: CourseData, week1: dt.date, calendars: dict, key: str) -> bool:
+    """Whether the class takes the term's breaks that fall in its weeks
+    (none: nothing to ask). Ticked when the syllabus mentions a break."""
+    with_breaks = date_undated_schedule(course_data, week1, calendars, skip_breaks=True)
+    breaks = [week.label for week in with_breaks.weeks if week.is_break]
+    if not breaks:
+        return False
+    mentioned = syllabus_lists_breaks(course_data)
+    return st.checkbox(
+        f"No class during {' or '.join(breaks)}",
+        value=mentioned,
+        key=f"undated-breaks-{key}",
+        help="Ticked, the weeks after the break move a week later and the break shows in the "
+        "schedule. "
+        + (
+            "The syllabus mentions a break, so Chalk assumed the class takes it."
+            if mentioned
+            else "The syllabus doesn't mention this break, so Chalk assumed the class meets through it."
+        ),
+    )
+
+
+_CREDITS_TEXT_RE = re.compile(r"^\d{1,2}(\.\d{1,2})?$")
+
+
 def _credits_error(credits_text: str) -> str | None:
-    if credits_text and not credits_text.isdigit():
-        return f"Credits must be a whole number (got '{credits_text}'). Leave it blank if unknown."
+    if credits_text and not _CREDITS_TEXT_RE.match(credits_text):
+        return f"Credits must be a number like 3 or 1.5 (got '{credits_text}'). Leave it blank if unknown."
     return None
+
+
+def _credits_value(credits_text: str) -> int | float | None:
+    if not credits_text:
+        return None
+    value = float(credits_text)
+    return int(value) if value.is_integer() else value
 
 
 def _render_duration(course_data: CourseData) -> int:

@@ -15,6 +15,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 from typing import Any, Literal
 
 EventType = Literal[
@@ -40,7 +41,7 @@ def append_event(log_path: Path, event_type: EventType, payload: dict[str, Any])
     log_path.parent.mkdir(parents=True, exist_ok=True)
     event = {
         "event_type": event_type,
-        "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "timestamp": dt.datetime.now(dt.UTC).isoformat(),
         **payload,
     }
     with log_path.open("a", encoding="utf-8") as f:
@@ -52,17 +53,36 @@ def read_events(log_path: Path) -> list[dict[str, Any]]:
 
     Returns an empty list if the log doesn't exist yet — a fresh project
     has no eval-log.json until its first event, and that's not an error.
+    A last line with no newline that doesn't parse is skipped: a
+    background job (ui/background.py) may be partway through writing it.
     """
     if not log_path.exists():
         return []
 
     events: list[dict[str, Any]] = []
     with log_path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+        for raw in f:
+            line = raw.strip()
+            if not line:
+                continue
+            try:
                 events.append(json.loads(line))
+            except json.JSONDecodeError:
+                if raw.endswith("\n"):
+                    raise
     return events
+
+
+def typical_output_tokens(log_path: Path, content_type: str, *, recent: int = 10) -> int | None:
+    """The median reply length (output tokens) of this project's last
+    `recent` generations of `content_type`, or None if there are none yet.
+    The progress bar measures a streaming reply against it."""
+    lengths = [
+        event["output_tokens"]
+        for event in read_events_by_type(log_path, "generation")
+        if event.get("content_type") == content_type and event.get("output_tokens")
+    ][-recent:]
+    return int(median(lengths)) if lengths else None
 
 
 def read_events_by_type(log_path: Path, event_type: EventType) -> list[dict[str, Any]]:
@@ -85,6 +105,8 @@ class MetricsSummary:
 
 
 def summarize_events(events: list[dict[str, Any]]) -> MetricsSummary:
+    """Totals over the eval log for the Metrics tab, the footer, and
+    `toolkit.py status`."""
     def of_type(event_type: str) -> list[dict[str, Any]]:
         return [e for e in events if e.get("event_type") == event_type]
 

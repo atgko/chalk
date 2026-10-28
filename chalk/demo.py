@@ -42,6 +42,9 @@ def demo_project_name() -> str:
 
 
 def open_demo_project(parent_dir, *, reset: bool = False) -> ProjectPaths:
+    """Open the demo course in `parent_dir`, building it the first time
+    (or again with `reset`, keeping the saved AI key). A folder with the
+    demo's name that isn't the demo is never touched."""
     root = Path(parent_dir) / demo_project_name()
     if root.exists() and any(root.iterdir()):
         if not (root / DEMO_MARKER).exists():
