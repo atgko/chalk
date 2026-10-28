@@ -1,51 +1,29 @@
-from ui.workflow_search import search_workflows
-
-
-def test_empty_search_returns_popular_starting_points():
-    assert [workflow.key for workflow in search_workflows("")] == [
-        "upload-syllabus",
-        "review-course",
-        "rollover-course",
-        "generate-quiz",
-    ]
-
-
-def test_quiz_search_returns_the_quiz_generation_workflow():
-    matches = search_workflows("Quiz")
-    assert matches[0].key == "generate-quiz"
-    assert matches[0].label == "Quiz generation"
-    assert matches[0].tab == "Generate"
-    assert matches[0].generation_type == "quiz"
-
-
-def test_search_uses_plain_language_synonyms_and_all_words():
-    assert [workflow.key for workflow in search_workflows("new semester dates")] == [
-        "rollover-course"
-    ]
-    assert [workflow.key for workflow in search_workflows("PowerPoint outline")] == [
-        "generate-slides"
-    ]
-    assert search_workflows("quiz canvas") == []
+from chalk.generation.specs import SPECS
+from ui.shell import TAB_NAMES
+from ui.workflow_search import WORKFLOWS
 
 
 def test_every_workflow_opens_a_real_tab():
-    from ui.shell import TAB_NAMES
-    from ui.workflow_search import WORKFLOWS
-
     assert {workflow.tab for workflow in WORKFLOWS} <= set(TAB_NAMES)
 
 
-def test_grading_search_finds_the_grading_assistant():
-    matches = search_workflows("grade a submission")
-    assert [workflow.key for workflow in matches] == ["grade-submission"]
-    assert matches[0].tab == "Grading Assistant"
+def test_every_tab_has_a_workflow():
+    assert {workflow.tab for workflow in WORKFLOWS} == set(TAB_NAMES)
 
 
-def test_drafts_search_finds_saved_generated_files():
-    assert [workflow.key for workflow in search_workflows("saved drafts")] == ["view-drafts"]
+def test_every_generation_type_is_a_real_content_type():
+    types = [w.generation_type for w in WORKFLOWS if w.generation_type is not None]
+    assert sorted(types) == sorted(SPECS)
 
 
-def test_session_search_finds_the_rollover():
-    assert [workflow.key for workflow in search_workflows("5-week session")] == [
-        "rollover-course"
-    ]
+def test_workflow_keys_are_unique():
+    keys = [workflow.key for workflow in WORKFLOWS]
+    assert len(keys) == len(set(keys))
+
+
+def test_labels_carry_the_words_people_type():
+    # The dropdown only filters on what it shows, so the words people use
+    # for a tab they can't name have to be in the label.
+    labels = " ".join(workflow.label for workflow in WORKFLOWS)
+    for word in ("Canvas", "PowerPoint", "sessions", "drafts", "Grade"):
+        assert word in labels
