@@ -1005,7 +1005,10 @@ def test_export_lists_outputs_and_shows_canvas_html(saved_project):
     steps = [m.value for m in at.markdown if "Update Syllabus" in m.value]
     assert steps and "**View**, then **HTML Editor**" in steps[0]
     [preview] = [e for e in at.expander if e.label == "Preview: how it will look in Canvas"]
-    assert "Detailed Syllabus" in preview.children[0].proto.body
+    preview_body = "".join(child.proto.body for child in preview.children.values() if hasattr(child.proto, "body"))
+    assert "Detailed Syllabus" in preview_body
+    assert ".kl_emta #kl_banner h2" in preview_body  # the preview stands in for the DesignPLUS theme
+    assert any("don't copy from the preview" in c for c in texts(at.caption))
 
 
 def test_export_with_no_outputs_yet(saved_project):

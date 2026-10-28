@@ -12,15 +12,21 @@ class _TagCollector(HTMLParser):
     def __init__(self):
         super().__init__()
         self.tags: list[str] = []
+        self.ids: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         self.tags.append(tag)
+        self.ids += [value for name, value in attrs if name == "id"]
+
+
+def _parse(html: str) -> _TagCollector:
+    parser = _TagCollector()
+    parser.feed(html)
+    return parser
 
 
 def _tags(html: str) -> list[str]:
-    parser = _TagCollector()
-    parser.feed(html)
-    return parser.tags
+    return _parse(html).tags
 
 
 def test_starts_with_header_comment_sourced_from_branding_constant(monkeypatch):
@@ -88,27 +94,68 @@ def test_fills_in_the_canvas_syllabus_template_in_order():
     sections = ["Instructor", "Detailed Syllabus", "Technical Issues", "Americans with Disabilities Act"]
     positions = [html.index(f">{name}</h3>") for name in sections]
     assert positions == sorted(positions)
-    assert ">IS 6640 Networking and Servers</h2>" in html  # the number isn't repeated
-    assert "background-color: #be0000" in html  # the template's red banner
+    assert '<span id="kl_banner_right">IS 6640 Networking and Servers</span>' in html  # number not repeated
+
+
+def test_uses_the_designplus_template_structure_so_the_theme_styles_it():
+    html = render_canvas_html(build_sample_course_data())
+    body = html.split("\n", 1)[1]  # after the header comment
+
+    assert body.startswith('<div id="kl_wrapper_3" class="kl_emta kl_wrapper">')
+    assert '<div id="kl_banner">' in html
+    blocks = [f'<div id="kl_custom_block_{i}">' for i in range(4)]
+    assert [html.index(block) for block in blocks] == sorted(html.index(block) for block in blocks)
+    assert html.rstrip().endswith('<hr style="width: 98%; margin: 40px 1% 30px; border: 1px solid #990000;" />')
+    # The theme draws the red banner and grey section bars, not inline styles.
+    assert "background-color" not in html
+
+
+def test_element_ids_are_unique():
+    ids = _parse(render_canvas_html(build_sample_course_data())).ids
+    assert len(ids) == len(set(ids))
+
+
+def test_paragraphs_are_indented_like_the_template():
+    html = render_canvas_html(build_sample_course_data())
+    instructor = html[html.index(">Instructor</h3>") : html.index(">Detailed Syllabus</h3>")]
+    standard_text = html[html.index(">Technical Issues</h3>") :]
+
+    assert "<p>" not in instructor and "<p>" not in standard_text
+    assert '<p style="padding-left: 40px;"><strong>Dave Norwood</strong></p>' in instructor
+    detailed = html[html.index(">Detailed Syllabus</h3>") : html.index(">Technical Issues</h3>")]
+    assert detailed.startswith('>Detailed Syllabus</h3>\n<div style="padding-left: 40px;">')
 
 
 def test_the_instructor_section_uses_the_course_details_and_template_placeholders():
     html = render_canvas_html(build_sample_course_data())
     instructor = html[html.index(">Instructor</h3>") : html.index(">Detailed Syllabus</h3>")]
 
-    assert "<p><strong>Dave Norwood</strong></p>" in instructor
+    assert "<strong>Dave Norwood</strong></p>" in instructor
     assert "<strong>Time:</strong> Online async" in instructor
     assert "<strong>Email:</strong> Insert email here" in instructor
-    assert "<strong>TA:</strong> Insert TA here" in instructor
+    assert "<strong>Office Hours:</strong> Insert office hours here" in instructor
+    assert "mailto:" not in instructor  # a placeholder link would keep pointing nowhere once the text is edited
+
+
+def test_the_instructor_section_has_a_ta_block_with_open_and_scheduled_hours():
+    html = render_canvas_html(build_sample_course_data())
+    instructor = html[html.index(">Instructor</h3>") : html.index(">Detailed Syllabus</h3>")]
+
+    labels = ["<strong>TA:</strong> Insert TA name here", "<strong>TA email:</strong> Insert TA email here",
+              "<strong>TA Open Hours:</strong>", "<strong>TA Scheduled Hours:</strong>"]
+    positions = [instructor.index(label) for label in labels]
+    assert positions == sorted(positions)
+    assert instructor.count("Insert day: time") == 2
+    assert "pre-grade" not in html  # one course's TA policy isn't part of the default page
 
 
 def test_a_course_without_details_keeps_the_templates_placeholders():
     course_data = build_sample_course_data()
     course = course_data.course.model_copy(update={"instructor": "", "meeting_pattern": "", "title": "Networking"})
     html = render_canvas_html(course_data.model_copy(update={"course": course}))
-    assert "<p><strong>Instructor goes here</strong></p>" in html
+    assert "<strong>Instructor goes here</strong></p>" in html
     assert "Insert class days and times here" in html
-    assert ">IS 6640 - Networking</h2>" in html
+    assert ">IS 6640 - Networking</span>" in html
 
 
 def test_the_detailed_syllabus_has_objectives_grading_and_the_schedule():
