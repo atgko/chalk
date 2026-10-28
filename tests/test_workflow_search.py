@@ -26,3 +26,26 @@ def test_search_uses_plain_language_synonyms_and_all_words():
         "generate-slides"
     ]
     assert search_workflows("quiz canvas") == []
+
+
+def test_every_workflow_opens_a_real_tab():
+    from ui.shell import TAB_NAMES
+    from ui.workflow_search import WORKFLOWS
+
+    assert {workflow.tab for workflow in WORKFLOWS} <= set(TAB_NAMES)
+
+
+def test_grading_search_finds_the_grading_assistant():
+    matches = search_workflows("grade a submission")
+    assert [workflow.key for workflow in matches] == ["grade-submission"]
+    assert matches[0].tab == "Grading Assistant"
+
+
+def test_drafts_search_finds_saved_generated_files():
+    assert [workflow.key for workflow in search_workflows("saved drafts")] == ["view-drafts"]
+
+
+def test_session_search_finds_the_rollover():
+    assert [workflow.key for workflow in search_workflows("5-week session")] == [
+        "rollover-course"
+    ]

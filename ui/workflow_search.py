@@ -45,8 +45,8 @@ WORKFLOWS = (
         "rollover-course",
         "Update a course for a new term",
         "Rollover",
-        "Change semester dates or course length with a preview first.",
-        ("rollover", "update", "term", "semester", "dates", "schedule", "length"),
+        "Change semester dates, course length, or 5-week sessions with a preview first.",
+        ("rollover", "update", "term", "semester", "dates", "schedule", "length", "session"),
     ),
     Workflow(
         "generate-quiz",
@@ -97,11 +97,25 @@ WORKFLOWS = (
         "slides",
     ),
     Workflow(
+        "view-drafts",
+        "View saved drafts",
+        "Drafts",
+        "Preview, download, or delete the files saved from Generate.",
+        ("drafts", "saved", "files", "preview", "download", "delete", "archive"),
+    ),
+    Workflow(
         "export-canvas",
         "Prepare content for Canvas",
         "Export",
         "Create and copy Canvas-ready HTML or download course outputs.",
         ("canvas", "export", "html", "copy", "download", "output"),
+    ),
+    Workflow(
+        "grade-submission",
+        "Grade a student submission",
+        "Grading Assistant",
+        "Get rubric-based scores and feedback on a submission for you to review.",
+        ("grade", "grading", "submission", "student", "feedback", "score", "mark"),
     ),
     Workflow(
         "view-metrics",
