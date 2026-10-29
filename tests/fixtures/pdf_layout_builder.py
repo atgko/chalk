@@ -138,6 +138,30 @@ def build_two_page_syllabus(path: Path) -> Path:
     return build_pdf(path, [first, second])
 
 
+def build_one_page_syllabus(path: Path) -> Path:
+    """IS 6640, Fall 2026, on one page: a schedule of three weeks and no
+    breaks, with a running footer that carries the term."""
+    page = PageBuilder()
+    page.lines(72, 60, ["Networking and Servers", "IS 6640 | Fall 2026", "3 Credit Hours"])
+    page.text(72, 110, "Instructor: Dr. Ada Lovelace")
+    page.text(72, 140, "LEARNING OBJECTIVES")
+    page.lines(72, 156, ["• Explain how IP subnetting divides a network", "• Configure a VLAN on a managed switch"])
+    page.text(72, 196, "COURSE SCHEDULE")
+    page.table(
+        72,
+        212,
+        SCHEDULE_COLUMNS,
+        [
+            SCHEDULE_HEADER,
+            [["Week 1 (8/24)"], ["Course introduction"], ["Lab 0 due"]],
+            [["Week 2 (8/31)"], ["Subnetting"], ["Lab 1 due"]],
+            [["Week 3 (9/7)"], ["VLANs"], ["Quiz 1 due"]],
+        ],
+    )
+    page.text(72, 760, "IS 6640 | Fall 2026 | Page 1")
+    return build_pdf(path, [page])
+
+
 def build_pdf_without_text(path: Path) -> Path:
     """Only ruling lines — what a scanned page looks like to a text reader."""
     page = PageBuilder()

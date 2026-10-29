@@ -82,8 +82,15 @@ class ProjectPaths:
     def course_brief(self) -> Path:
         return self.outputs_dir / "course-brief.md"
 
+    @property
+    def original_pdfs_dir(self) -> Path:
+        """PDF syllabi as uploaded, kept so rollover can write a copy that
+        looks like the original. A subfolder of source/, so they aren't
+        listed as source materials."""
+        return self.source_dir / "original"
+
     def syllabus_output(self, source_format: str) -> Path:
-        suffix = ".docx" if source_format == "word" else ".md"
+        suffix = {"word": ".docx", "pdf": ".pdf"}.get(source_format, ".md")
         return self.outputs_dir / f"syllabus{suffix}"
 
 

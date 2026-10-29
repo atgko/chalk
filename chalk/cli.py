@@ -53,6 +53,7 @@ from chalk.pipeline import (
     confirm_rollover,
     export_outputs,
     extract_syllabus,
+    missing_pdf_note,
     preview_rollover,
     save_reviewed_course,
 )
@@ -301,8 +302,12 @@ def _cmd_rollover(args, console: _Console) -> int:
         console.say("Cancelled — nothing was written.")
         return 1
 
-    for path in confirm_rollover(paths, plan):
+    written = confirm_rollover(paths, plan)
+    for path in written:
         console.say(f"Wrote {_relative(path, paths)}")
+    note = missing_pdf_note(plan, written)
+    if note:
+        console.say(note)
     return 0
 
 

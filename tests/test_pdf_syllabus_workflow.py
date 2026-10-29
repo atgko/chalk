@@ -10,6 +10,8 @@ from chalk import metrics
 from chalk.cli import main
 from chalk.errors import ExtractionError, LLMProviderError
 from chalk.extractors import extract_course
+from chalk.pdf_import.blocks import blocks_as_text
+from chalk.pdf_import.layout import read_pdf_blocks
 from chalk.pipeline import (
     PDF_READING_CONTENT_TYPE,
     confirm_rollover,
@@ -17,11 +19,13 @@ from chalk.pipeline import (
     estimate_ai_reading_cost_per_page,
     expected_ai_reading_tokens,
     extract_syllabus,
+    missing_pdf_note,
     preview_rollover,
     save_reviewed_course,
 )
 from chalk.project import list_source_files
 from chalk.report import render_evaluation_report
+from chalk.rollover.pdf_rollover import PdfRolloverError
 from tests.fixtures import pdf_layout_builder
 from tests.test_pdf_import_readers import _reply
 from ui.upload_view import extract_upload
@@ -277,3 +281,76 @@ def test_an_ai_read_that_fails_partway_still_logs_what_the_parts_cost(tmp_projec
     assert event["output_tokens"] >= 2000
     [error] = metrics.read_events_by_type(tmp_project.eval_log, "extraction_error")
     assert error["error_type"] == "LLMProviderError"
+
+
+# ---- A PDF copy of the rollover --------------------------------------------------------
+
+
+def test_the_uploaded_pdf_is_kept_but_not_listed_as_a_source_material(tmp_project, pdf):
+    extract_syllabus(tmp_project, pdf)
+
+    assert (tmp_project.original_pdfs_dir / pdf.name).read_bytes() == pdf.read_bytes()
+    assert list_source_files(tmp_project) == ["IS 6640 Fall 2026 (from PDF).docx"]
+
+
+def test_a_same_length_rollover_also_writes_a_pdf_like_the_original(tmp_project, tmp_path):
+    pdf = pdf_layout_builder.build_one_page_syllabus(tmp_path / "IS 6640.pdf")
+    course_data, _ = extract_syllabus(tmp_project, pdf)
+    save_reviewed_course(tmp_project, course_data)
+
+    plan = preview_rollover(tmp_project, course_data, "Fall 2027", llm_generate_topics=False)
+    written = confirm_rollover(tmp_project, plan)
+
+    rolled_pdf = tmp_project.syllabus_output("pdf")
+    assert plan.files_to_write[:2] == [tmp_project.syllabus_output("word"), rolled_pdf]
+    assert rolled_pdf in written
+    assert missing_pdf_note(plan, written) is None
+    text = blocks_as_text(read_pdf_blocks(rolled_pdf))
+    assert "IS 6640 | Fall 2027" in text
+    assert "Week 1 (8/23)" in text
+    assert metrics.read_events_by_type(tmp_project.eval_log, "rollover")[-1]["pdf_copy"] == "written"
+
+
+def test_a_pdf_uploaded_before_chalk_kept_it_rolls_over_as_word_only(tmp_project, pdf):
+    course_data, _ = extract_syllabus(tmp_project, pdf)
+    (tmp_project.original_pdfs_dir / pdf.name).unlink()
+
+    plan = preview_rollover(tmp_project, course_data, "Fall 2027", llm_generate_topics=False)
+
+    assert tmp_project.syllabus_output("pdf") not in plan.files_to_write
+    assert any("Upload the PDF again" in flag for flag in plan.preview.general_flags)
+
+
+def test_a_break_that_moves_to_another_week_rolls_over_as_word_only(tmp_project, pdf):
+    course_data, _ = extract_syllabus(tmp_project, pdf)  # Fall Break after Week 3
+
+    plan = preview_rollover(tmp_project, course_data, "Fall 2027", llm_generate_topics=False)
+
+    assert tmp_project.syllabus_output("pdf") not in plan.files_to_write
+
+
+def test_a_longer_course_rolls_over_as_word_only(tmp_project, pdf):
+    course_data, _ = extract_syllabus(tmp_project, pdf)
+
+    plan = preview_rollover(
+        tmp_project, course_data, "Fall 2027", target_duration_weeks=6, llm_generate_topics=False
+    )
+
+    assert tmp_project.syllabus_output("pdf") not in plan.files_to_write
+    assert any("Weeks or breaks change places" in flag for flag in plan.preview.general_flags)
+
+
+def test_a_pdf_that_cant_be_changed_exactly_leaves_the_word_file_and_a_note(tmp_project, tmp_path, monkeypatch):
+    def cannot(*args, **kwargs):
+        raise PdfRolloverError("no")
+
+    monkeypatch.setattr("chalk.pipeline.write_rolled_over_pdf", cannot)
+    course_data, _ = extract_syllabus(tmp_project, pdf_layout_builder.build_one_page_syllabus(tmp_path / "s.pdf"))
+    plan = preview_rollover(tmp_project, course_data, "Fall 2027", llm_generate_topics=False)
+
+    written = confirm_rollover(tmp_project, plan)
+
+    assert written[0] == tmp_project.syllabus_output("word")
+    assert tmp_project.syllabus_output("pdf") not in written
+    assert "didn't write syllabus.pdf" in missing_pdf_note(plan, written)
+    assert metrics.read_events_by_type(tmp_project.eval_log, "rollover")[-1]["pdf_copy"] == "skipped"

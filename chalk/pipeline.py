@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from chalk import costs, metrics
+from chalk.archiving import archive_before_write
 from chalk.calendar_data import find_term, load_calendars
 from chalk.canvas_export import write_canvas_html
 from chalk.config import load_config
@@ -32,7 +34,12 @@ from chalk.extractors.undated_schedule import (
 )
 from chalk.generation.engine import current_env
 from chalk.models import CourseData
-from chalk.pdf_import import PdfReadMethod, converted_docx_name
+from chalk.pdf_import import (
+    PdfReadMethod,
+    converted_docx_name,
+    is_converted_from_pdf,
+    original_pdf_name,
+)
 from chalk.pdf_import.ai_reader import AiReading, ask_ai_to_read, blocks_from_reply
 from chalk.pdf_import.blocks import blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
@@ -41,6 +48,7 @@ from chalk.progress import CHARS_PER_TOKEN, ProgressCallback, report, writing_pr
 from chalk.project import ProjectPaths, copy_into_source, load_course, save_course
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
+from chalk.rollover.pdf_rollover import PdfRolloverError, keeps_pdf_layout, write_rolled_over_pdf
 from chalk.rollover.preview import RolloverPreview, roll_over_course
 
 # The metrics/report label for an AI read of a PDF syllabus.
@@ -115,6 +123,8 @@ def extract_syllabus(
         raise
 
     stored = copy_into_source(paths, syllabus_path)
+    if pdf_conversion is not None and pdf_conversion.pdf_path is not None:
+        _keep_original_pdf(paths, pdf_conversion.pdf_path)
     previous = load_course(paths)
     course_data = course_data.model_copy(
         update={
@@ -149,6 +159,7 @@ class PdfConversion:
     docx_path: Path
     method: PdfReadMethod
     cost_usd: float | None = None
+    pdf_path: Path | None = None  # the PDF as uploaded, kept for rollover
 
 
 def convert_pdf_syllabus(
@@ -185,7 +196,20 @@ def convert_pdf_syllabus(
         )
         raise
     docx_path = Path(tempfile.mkdtemp(prefix="chalk-pdf-")) / converted_docx_name(pdf_path)
-    return PdfConversion(pdf_path.name, write_docx(blocks, docx_path), method, cost)
+    return PdfConversion(pdf_path.name, write_docx(blocks, docx_path), method, cost, pdf_path)
+
+
+def _keep_original_pdf(paths: ProjectPaths, pdf_path: Path) -> None:
+    """Copy the uploaded PDF into source/original/, so rollover can write
+    a copy of it with only the dates changed."""
+    if not pdf_path.is_file():
+        return
+    destination = paths.original_pdfs_dir / pdf_path.name
+    if pdf_path.resolve() == destination.resolve():
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    archive_before_write(destination, eval_log_path=paths.eval_log)
+    shutil.copyfile(pdf_path, destination)
 
 
 def expected_ai_reading_tokens(blocks: list) -> int:
@@ -274,19 +298,60 @@ def preview_rollover(
         breaks_not_observed=breaks_not_observed,
         on_progress=on_progress,
     )
-    mismatch_flag = _duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)
-    if mismatch_flag:
-        preview = dataclasses.replace(preview, general_flags=[mismatch_flag, *preview.general_flags])
+    files_to_write = [
+        paths.syllabus_output(course_data.course.source_format),
+        paths.canvas_html,
+        paths.course_brief,
+    ]
+    flags = [_duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)]
+    if is_converted_from_pdf(course_data.course.source_file):
+        pdf_flag = _pdf_copy_flag(paths, course_data, rolled_over)
+        if pdf_flag is None:
+            files_to_write.insert(1, paths.syllabus_output("pdf"))
+        flags.append(pdf_flag)
+    flags = [flag for flag in flags if flag]
+    if flags:
+        preview = dataclasses.replace(preview, general_flags=[*flags, *preview.general_flags])
 
     return RolloverPlan(
         original=course_data,
         rolled_over=rolled_over,
         preview=preview,
-        files_to_write=[
-            paths.syllabus_output(course_data.course.source_format),
-            paths.canvas_html,
-            paths.course_brief,
-        ],
+        files_to_write=files_to_write,
+    )
+
+
+def _pdf_copy_flag(paths: ProjectPaths, course_data: CourseData, rolled_over: CourseData) -> str | None:
+    """Why a PDF syllabus's rollover can't include a PDF copy with the
+    original's layout, or None if it can."""
+    if not _original_pdf(paths, course_data).is_file():
+        return (
+            "This syllabus was uploaded as a PDF before Chalk kept a copy of the PDF, so the "
+            "rollover is a Word file only. Upload the PDF again to also get a PDF that keeps "
+            "its original layout."
+        )
+    if not keeps_pdf_layout(course_data, rolled_over):
+        return (
+            "Weeks or breaks change places in the new term (or are added or removed), which "
+            "a PDF can't do, so the rollover is a Word file only (syllabus.docx)."
+        )
+    return None
+
+
+def _original_pdf(paths: ProjectPaths, course_data: CourseData) -> Path:
+    return paths.original_pdfs_dir / original_pdf_name(course_data.course.source_file)
+
+
+def missing_pdf_note(plan: RolloverPlan, written: list[Path]) -> str | None:
+    """A note for the instructor when a planned PDF copy wasn't written
+    (confirm_rollover keeps the Word file and skips the PDF if it can't
+    change every date in it exactly)."""
+    missing = [path for path in plan.files_to_write if path.suffix == ".pdf" and path not in written]
+    if not missing:
+        return None
+    return (
+        "Chalk couldn't change every date in the PDF exactly, so it didn't write syllabus.pdf. "
+        "The Word file (syllabus.docx) has the full rollover."
     )
 
 
@@ -301,9 +366,11 @@ def confirm_rollover(paths: ProjectPaths, plan: RolloverPlan) -> list[Path]:
         else write_rolled_over_markdown
     )
     writer(source_syllabus, plan.rolled_over, syllabus_output, eval_log_path=paths.eval_log)
+    pdf_copy = _write_pdf_copy(paths, plan, source_syllabus, syllabus_output)
 
     written = [
         syllabus_output,
+        *([pdf_copy] if pdf_copy else []),
         write_canvas_html(plan.rolled_over, paths.canvas_html, eval_log_path=paths.eval_log),
         write_course_brief(plan.rolled_over, paths.course_brief, eval_log_path=paths.eval_log),
         save_course(paths, plan.rolled_over),
@@ -320,9 +387,33 @@ def confirm_rollover(paths: ProjectPaths, plan: RolloverPlan) -> list[Path]:
             "target_duration_weeks": preview.target_duration_weeks,
             "flag_count": len(preview.general_flags)
             + sum(len(change.flags) for change in preview.week_changes),
+            **({"pdf_copy": "written" if pdf_copy else "skipped"} if _plans_pdf(paths, plan) else {}),
         },
     )
     return written
+
+
+def _plans_pdf(paths: ProjectPaths, plan: RolloverPlan) -> bool:
+    return paths.syllabus_output("pdf") in plan.files_to_write
+
+
+def _write_pdf_copy(paths: ProjectPaths, plan: RolloverPlan, source_docx: Path, rolled_docx: Path) -> Path | None:
+    """Write the PDF copy the plan lists, or None if it can't be done
+    exactly (the Word file has the full rollover either way)."""
+    if not _plans_pdf(paths, plan):
+        return None
+    try:
+        return write_rolled_over_pdf(
+            _original_pdf(paths, plan.original),
+            source_docx,
+            rolled_docx,
+            paths.syllabus_output("pdf"),
+            old_term=plan.original.course.term,
+            new_term=plan.rolled_over.course.term,
+            eval_log_path=paths.eval_log,
+        )
+    except PdfRolloverError:
+        return None
 
 
 def _duration_mismatch_flag(course_data: CourseData, target_weeks: int) -> str | None:

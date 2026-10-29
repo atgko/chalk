@@ -14,7 +14,7 @@ from chalk.calendar_data import find_term, load_calendars, suggest_target_term
 from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.models import CourseData
-from chalk.pipeline import RolloverPlan, confirm_rollover, preview_rollover
+from chalk.pipeline import RolloverPlan, confirm_rollover, missing_pdf_note, preview_rollover
 from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
 from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
@@ -83,6 +83,9 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
     written = session.get_rollover_written()
     if written:
         st.success("Rollover complete. Previous versions were archived.")
+        note = session.get_rollover_note()
+        if note:
+            st.info(note)
         for path in written:
             common.download_button(path, paths, key_prefix="rollover")
 
@@ -239,12 +242,13 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
     confirm_col, cancel_col = st.columns(2)
     if confirm_col.button("Confirm rollover", type="primary"):
         try:
-            written = confirm_rollover(paths, plan)
+            with st.spinner("Writing the rolled-over files…"):
+                written = confirm_rollover(paths, plan)
         except ChalkError as exc:
             st.error(exc.user_message)
             return
         session.set_rollover_plan(None)
-        session.set_rollover_written(written)
+        session.set_rollover_written(written, missing_pdf_note(plan, written))
         st.rerun()
     if cancel_col.button("Cancel", key="cancel-rollover"):
         session.set_rollover_plan(None)

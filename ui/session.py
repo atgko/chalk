@@ -27,6 +27,7 @@ _PENDING_EXTRACTION_KEY = "chalk_pending_extraction"
 _TABLE_CHOICE_KEY = "chalk_table_choice"
 _ROLLOVER_PLAN_KEY = "chalk_rollover_plan"
 _ROLLOVER_WRITTEN_KEY = "chalk_rollover_written"
+_ROLLOVER_NOTE_KEY = "chalk_rollover_note"
 _DRAFT_KEY = "chalk_draft"
 _REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
@@ -142,8 +143,15 @@ def get_rollover_written() -> list[Path]:
     return st.session_state.get(_ROLLOVER_WRITTEN_KEY, [])
 
 
-def set_rollover_written(paths: list[Path]) -> None:
+def set_rollover_written(paths: list[Path], note: str | None = None) -> None:
+    """The files the last rollover wrote, and a note about one it
+    planned but couldn't write (chalk.pipeline.missing_pdf_note)."""
     st.session_state[_ROLLOVER_WRITTEN_KEY] = paths
+    st.session_state[_ROLLOVER_NOTE_KEY] = note
+
+
+def get_rollover_note() -> str | None:
+    return st.session_state.get(_ROLLOVER_NOTE_KEY)
 
 
 # ---- Generate ------------------------------------------------------------------
