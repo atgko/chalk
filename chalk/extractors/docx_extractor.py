@@ -105,6 +105,11 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
 # ---- Front matter --------------------------------------------------------
 
 
+def read_term(docx_path) -> str | None:
+    """The term a Word syllabus names in its front matter, as written."""
+    return _extract_front_matter(Document(str(docx_path))).get("term")
+
+
 def _extract_front_matter(document) -> dict:
     slots = list(front_matter_slots(document))
     return extract_front_matter(

@@ -27,6 +27,7 @@ to add or remove, which a PDF can't do; the caller checks that first
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import tempfile
@@ -73,6 +74,8 @@ __all__ = [
     "text_changes",
     "write_rolled_over_pdf",
 ]
+
+logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"\s+|\S+")
 # Words of context kept before a change, to find it in the PDF ("Week 2"
@@ -130,8 +133,24 @@ def write_rolled_over_pdf(
     """Write a copy of `original_pdf` with the changes between
     `source_docx` (the Word file read from it) and `rolled_docx` (its
     rollover) to `output_path`, archiving whatever was there first.
-    Raises PdfRolloverError, writing nothing, if it can't be done exactly."""
-    original_pdf = Path(original_pdf)
+    Raises PdfRolloverError, writing nothing, if it can't be done exactly
+    (including any unexpected failure reading or writing the PDF, so a
+    PDF Chalk can't handle never stops the rest of the rollover)."""
+    try:
+        return _write_rolled_over_pdf(
+            Path(original_pdf), source_docx, rolled_docx, Path(output_path),
+            old_term=old_term, new_term=new_term, eval_log_path=eval_log_path,
+        )  # fmt: skip
+    except PdfRolloverError:
+        raise
+    except Exception as exc:
+        logger.exception("The PDF copy of the rollover failed")
+        raise PdfRolloverError("Chalk couldn't edit this PDF exactly.") from exc
+
+
+def _write_rolled_over_pdf(
+    original_pdf: Path, source_docx, rolled_docx, output_path: Path, *, old_term, new_term, eval_log_path
+) -> Path:
     text = read_pdf_text(original_pdf)
     targets = locate(text_changes(source_docx, rolled_docx), text)
     if old_term != new_term:
@@ -141,7 +160,6 @@ def write_rolled_over_pdf(
         draft = Path(scratch) / "rolled-over.pdf"
         _write(original_pdf, text, targets, draft)
         _verify(draft, expected_lines(text, targets))
-        output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         archive_before_write(output_path, eval_log_path=eval_log_path)
         shutil.copyfile(draft, output_path)
@@ -191,7 +209,8 @@ def _paragraph_changes(old: str, new: str) -> list[TextChange]:
         if tag == "equal":
             continue
         if i1 == i2 and i1 > 0:  # an insertion: take the word before it along
-            i1, j1 = i1 - 1, j1 - 1
+            back = 1 if old_tokens[i1 - 1].strip() or i1 < 2 else 2
+            i1, j1 = i1 - back, j1 - back
         if spans and _absorbable(old_tokens[spans[-1][1] : i1]):
             spans[-1][1:4:2] = [i2, j2]
         else:

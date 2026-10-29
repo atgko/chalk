@@ -226,3 +226,19 @@ def test_picking_a_different_number_of_days_keeps_the_spacing_and_says_so(tmp_pa
 def test_the_schedule_tells_which_days_the_class_met(tmp_path):
     assert schedule_meeting_days(_course(tmp_path).weeks) == (1, 3)  # Tue/Thu
     assert schedule_meeting_days(extract_course_data(build_minimal_syllabus(tmp_path / "w.docx")).weeks) == ()
+
+
+def test_a_term_starting_on_tuesday_keeps_the_first_meeting_first(tmp_path):
+    new_course, _ = roll_over_course(
+        _course(tmp_path),
+        target_term="Fall 2026",
+        calendars=CALENDARS,
+        manual_week1_date=dt.date(2026, 8, 25),  # a Tuesday
+        meeting_days=(0, 2),
+    )
+
+    week1 = [w for w in _regular(new_course) if w.week_number == 1]
+    assert [(w.topics, w.date) for w in week1] == [
+        (["Topic 1a"], dt.date(2026, 8, 26)),  # Wed comes first in a week from Tuesday
+        (["Topic 1b"], dt.date(2026, 8, 31)),
+    ]

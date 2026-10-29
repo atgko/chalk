@@ -141,37 +141,63 @@ def _find(change, segments: list[Segment], cursor: int, used: set[int]) -> tuple
     contexts = [
         _compact("".join(change.before[-n:])) for n in range(len(change.before), 0, -1)
     ] or [""]
+    units = _units(segments)
     for context in contexts:
         for index in [*range(cursor, len(segments)), *range(cursor)]:
-            for unit in _units(segments, index):
-                compact = "".join(char["text"] for char in unit)
-                position = compact.find(context + old)
-                while position != -1:
-                    chars = unit[position + len(context) : position + len(context) + len(old)]
-                    if not any(id(char) in used for char in chars):
-                        return index, chars
-                    position = compact.find(context + old, position + 1)
+            for unit in units[index]:
+                chars = _chars_at(unit, context, old, used)
+                if chars is not None:
+                    return index, chars
     return None
 
 
-def _units(segments: list[Segment], index: int) -> list[tuple]:
-    """The segment's characters, and those followed by the segment just
-    below it in the same column."""
-    segment = segments[index]
-    below = _segment_below(segments, index)
-    return [segment.chars] + ([segment.chars + below.chars] if below is not None else [])
+def _chars_at(unit: tuple, context: str, old: str, used: set[int]) -> tuple | None:
+    """The unused characters of `old` after `context` in `unit`. A
+    character's text can be longer than one letter (a ligature read as
+    "ffi"), so string positions are mapped back to characters."""
+    owner: list[int] = []  # string position -> character index
+    for index, char in enumerate(unit):
+        owner += [index] * len(char["text"])
+    compact = "".join(char["text"] for char in unit)
+    needle = context + old
+    position = compact.find(needle)
+    while position != -1:
+        start, end = position + len(context), position + len(needle)
+        first, last = owner[start], owner[end - 1]
+        boundaries_match = (start == 0 or owner[start - 1] != first) and (end == len(owner) or owner[end] != last)
+        chars = unit[first : last + 1]
+        if boundaries_match and not any(id(char) in used for char in chars):
+            return chars
+        position = compact.find(needle, position + 1)
+    return None
 
 
-def _segment_below(segments: list[Segment], index: int) -> Segment | None:
-    segment = segments[index]
-    candidates = [
-        other
-        for other in segments[index + 1 :]
-        if other.page == segment.page
-        and 0 < other.top - segment.top <= _NEXT_LINE_HEIGHTS * segment.size
-        and abs(other.x0 - segment.x0) <= _SAME_COLUMN_POINTS
+def _units(segments: list[Segment]) -> list[list[tuple]]:
+    """For each segment: its characters, and those followed by the
+    segment just below it in the same column."""
+    below = _segments_below(segments)
+    return [
+        [segment.chars] + ([segment.chars + below[index].chars] if below[index] is not None else [])
+        for index, segment in enumerate(segments)
     ]
-    return min(candidates, key=lambda other: other.top, default=None)
+
+
+def _segments_below(segments: list[Segment]) -> list[Segment | None]:
+    """Each segment's neighbour just below it in the same column, found
+    once per page rather than once per search."""
+    by_page: dict[int, list[Segment]] = {}
+    for segment in segments:
+        by_page.setdefault(segment.page, []).append(segment)
+    below: list[Segment | None] = []
+    for segment in segments:
+        candidates = [
+            other
+            for other in by_page[segment.page]
+            if 0 < other.top - segment.top <= _NEXT_LINE_HEIGHTS * segment.size
+            and abs(other.x0 - segment.x0) <= _SAME_COLUMN_POINTS
+        ]
+        below.append(min(candidates, key=lambda other: other.top, default=None))
+    return below
 
 
 def margin_term_targets(

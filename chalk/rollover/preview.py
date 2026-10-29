@@ -175,7 +175,7 @@ def roll_over_course(
     general_flags = duration_change_flags(old_duration, new_duration)
     general_flags.extend(schedule_choice_flags(course_data, meeting_days, breaks_not_observed, dropped_breaks))
 
-    meeting_plan = _meeting_plan(regular_weeks, meeting_days, course_data.course.term_start)
+    meeting_plan = _meeting_plan(regular_weeks, meeting_days, course_data.course.term_start, new_term_start)
     if meeting_plan is None:
         general_flags.extend(meeting_count_flags(regular_weeks, meeting_days))
     new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start, meeting_plan)
@@ -336,18 +336,23 @@ def _meeting_date(week: Week, week_start: dt.date, meeting_plan: dict[int, int] 
 
 
 def _meeting_plan(
-    regular_weeks: list[Week], meeting_days: tuple[int, ...], source_term_start: dt.date | None
+    regular_weeks: list[Week],
+    meeting_days: tuple[int, ...],
+    source_term_start: dt.date | None,
+    new_term_start: dt.date,
 ) -> dict[int, int] | None:
     """For a schedule with a row per class meeting, which new weekday each
     old one moves to: the old meeting days and the picked ones, each in
-    their order through the week, paired up (Tue -> Mon, Thu -> Wed).
+    their order through a week that starts on its term's first weekday,
+    paired up (Tue -> Mon, Thu -> Wed), so the first meeting stays first.
     None when there's nothing to pair: one row per week, no days picked,
     or a different number of days picked than the class met."""
     old_days = schedule_meeting_days(regular_weeks)
     if not old_days or len(meeting_days) != len(old_days):
         return None
     week_start = source_term_start or min(week.date for week in regular_weeks if week.meeting)
-    return dict(zip(days_in_order_from(week_start, old_days), meeting_days))
+    new_days = days_in_order_from(new_term_start, meeting_days)
+    return dict(zip(days_in_order_from(week_start, old_days), new_days))
 
 
 def meeting_count_flags(regular_weeks: list[Week], meeting_days: tuple[int, ...]) -> list[str]:

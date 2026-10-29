@@ -12,13 +12,11 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from chalk import costs, metrics
-from chalk.archiving import archive_before_write
 from chalk.calendar_data import find_term, load_calendars
 from chalk.canvas_export import write_canvas_html
 from chalk.config import load_config
@@ -26,6 +24,7 @@ from chalk.course_brief import write_course_brief
 from chalk.errors import ChalkError, ProjectError, TermNotInCalendarError
 from chalk.extractors import extract_course
 from chalk.extractors.consistency import ConsistencyResult
+from chalk.extractors.docx_extractor import read_term
 from chalk.extractors.meetings import week_count
 from chalk.extractors.undated_schedule import (
     date_undated_schedule,
@@ -202,14 +201,8 @@ def convert_pdf_syllabus(
 def _keep_original_pdf(paths: ProjectPaths, pdf_path: Path) -> None:
     """Copy the uploaded PDF into source/original/, so rollover can write
     a copy of it with only the dates changed."""
-    if not pdf_path.is_file():
-        return
-    destination = paths.original_pdfs_dir / pdf_path.name
-    if pdf_path.resolve() == destination.resolve():
-        return
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    archive_before_write(destination, eval_log_path=paths.eval_log)
-    shutil.copyfile(pdf_path, destination)
+    if pdf_path.is_file():
+        copy_into_source(paths, pdf_path, folder=paths.original_pdfs_dir)
 
 
 def expected_ai_reading_tokens(blocks: list) -> int:
@@ -339,7 +332,13 @@ def _pdf_copy_flag(paths: ProjectPaths, course_data: CourseData, rolled_over: Co
 
 
 def _original_pdf(paths: ProjectPaths, course_data: CourseData) -> Path:
-    return paths.original_pdfs_dir / original_pdf_name(course_data.course.source_file)
+    """The kept PDF, matched without regard to case ("Syllabus.PDF")."""
+    expected = paths.original_pdfs_dir / original_pdf_name(course_data.course.source_file)
+    if paths.original_pdfs_dir.is_dir():
+        for candidate in paths.original_pdfs_dir.iterdir():
+            if candidate.is_file() and candidate.name.lower() == expected.name.lower():
+                return candidate
+    return expected
 
 
 def missing_pdf_note(plan: RolloverPlan, written: list[Path]) -> str | None:
@@ -408,7 +407,7 @@ def _write_pdf_copy(paths: ProjectPaths, plan: RolloverPlan, source_docx: Path, 
             source_docx,
             rolled_docx,
             paths.syllabus_output("pdf"),
-            old_term=plan.original.course.term,
+            old_term=read_term(source_docx) or plan.original.course.term,
             new_term=plan.rolled_over.course.term,
             eval_log_path=paths.eval_log,
         )

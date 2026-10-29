@@ -66,3 +66,10 @@ def test_group_tab_styles_skip_the_tabs_inside_them():
         ("Build", "Settings"), "group", {"Build": "running"}, nested_keys=("build", "settings")
     )
     assert '.st-key-group [data-testid="stTab"]:nth-of-type(1):not(.st-key-build *):not(.st-key-settings *)' in css
+
+
+def test_a_tab_name_from_before_the_grouping_opens_upload(state):
+    state[session.ACTIVE_TAB_KEY] = "Settings"  # the old Settings tab
+    session.apply_tab_request()
+
+    assert (state[session.ACTIVE_TAB_KEY], state[session.GROUP_TAB_KEY]) == ("Upload", "Build")

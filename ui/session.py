@@ -216,6 +216,8 @@ def apply_tab_request() -> None:
     if requested is not None:
         st.session_state[ACTIVE_TAB_KEY] = requested
     tab = active_tab()
+    if not any(tab in tabs for tabs in TAB_GROUPS.values()):
+        tab = "Upload"  # e.g. a session from before the tabs were grouped
     group = group_of(tab)
     st.session_state[ACTIVE_TAB_KEY] = tab
     st.session_state[GROUP_TAB_KEY] = group

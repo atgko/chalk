@@ -35,6 +35,7 @@ from pypdf.generic import (
     DictionaryObject,
     FloatObject,
     NameObject,
+    NumberObject,
     TextStringObject,
 )
 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -94,6 +95,7 @@ class Glyph:
     word_spacing: float
     h_scale: float
     to_page: Matrix  # text space at this glyph -> page space (pdfminer's)
+    render_mode: int  # Tr: 0 fill, 3 invisible (an OCR text layer), ...
     flow: int  # glyphs with the same flow follow on from each other
 
     @property
@@ -124,6 +126,7 @@ class _State:
     word_spacing: float = 0.0
     h_scale: float = 1.0
     leading: float = 0.0
+    render_mode: int = 0
 
 
 @dataclass
@@ -231,6 +234,7 @@ def text_operations(
         ([FloatObject(glyph.char_spacing)], b"Tc"),
         ([FloatObject(glyph.word_spacing)], b"Tw"),
         ([FloatObject(glyph.h_scale * 100)], b"Tz"),
+        ([NumberObject(glyph.render_mode)], b"Tr"),
         ([FloatObject(round(value, 6)) for value in (a, b, c, d, e + x0, f + y0)], b"Tm"),
         ([ArrayObject(elements)], b"TJ"),
         ([], b"ET"),
@@ -322,6 +326,9 @@ class _Walker:
     def set_leading(self, _index, operands) -> None:
         self.state.leading = float(operands[0])
 
+    def set_render_mode(self, _index, operands) -> None:
+        self.state.render_mode = int(operands[0])
+
     def set_h_scale(self, _index, operands) -> None:
         self.state.h_scale = float(operands[0]) / 100
 
@@ -373,7 +380,7 @@ class _Walker:
                 glyph = Glyph(
                     index, element_index, code_index, code, state.font, state.font_name, state.font_size,
                     state.char_spacing, state.word_spacing, state.h_scale, _multiply(self.text_matrix, state.ctm),
-                    self.flow,
+                    state.render_mode, self.flow,
                 )  # fmt: skip
                 self.glyphs.append(glyph)
                 self.text_matrix = _multiply(
@@ -391,6 +398,7 @@ _HANDLERS = {
     b"Tw": _Walker.set_word_spacing,
     b"TL": _Walker.set_leading,
     b"Tz": _Walker.set_h_scale,
+    b"Tr": _Walker.set_render_mode,
     b"Td": _Walker.td,
     b"TD": _Walker.td_leading,
     b"Tm": _Walker.tm,

@@ -17,6 +17,7 @@ from chalk.pipeline import (
     save_reviewed_course,
 )
 from chalk.rollover.pdf_glyphs import raw_bytes
+from chalk.rollover.pdf_locate import _chars_at
 from chalk.rollover.pdf_rollover import (
     PdfRolloverError,
     TextChange,
@@ -237,3 +238,43 @@ def test_the_is_4440_syllabus_rolls_over_as_a_pdf(tmp_project):
     text = "\n".join(_lines(pdf, 0) + _lines(pdf, 7))
     assert "IS 4440-001, Fall 2026" in text
     assert "Week 1 (8/24)" in text
+
+
+# ---- Fixes from code review (Oct 29) ------------------------------------------------
+
+
+def test_an_insertion_after_a_space_takes_the_word_before_it(tmp_path):
+    source, rolled = _pair(
+        tmp_path, ["Week 2 Intro to systems analysis"], ["Week 2 (8/25) Intro to systems analysis"]
+    )
+    assert text_changes(source, rolled) == [TextChange(("Week",), "2", "2 (8/25)")]
+
+
+def test_a_ligature_character_doesnt_shift_the_match():
+    unit = tuple({"text": text} for text in ["O", "ffi", "c", "e", "(", "1", ")"])
+    assert [c["text"] for c in _chars_at(unit, "Office", "(1)", set())] == ["(", "1", ")"]
+    assert _chars_at(unit, "", "fi", set()) is None  # half a ligature isn't a match
+
+
+def test_an_unexpected_failure_is_reported_as_no_pdf(tmp_path, monkeypatch):
+    def broken(_path):
+        raise RuntimeError("bad xref")
+
+    monkeypatch.setattr("chalk.rollover.pdf_rollover.read_pdf_text", broken)
+    with pytest.raises(PdfRolloverError, match="couldn't edit this PDF"):
+        _rollover(tmp_path, _syllabus_pdf(tmp_path / "s.pdf"), ["Week 1 (8/24)"], ["Week 1 (8/23)"])
+
+
+def test_invisible_text_is_redrawn_invisible(tmp_path):
+    """An OCR text layer (render mode 3) must not be drawn over the scan."""
+    page = PageBuilder()
+    page.text(72, 60, "IS 6640 | Fall 2026")
+    page.ops.append(rf"BT 3 Tr /F1 10 Tf 72 {PAGE_HEIGHT - 210} Td (Week 1 \(8/24\)) Tj ET")
+    pdf = build_pdf(tmp_path / "ocr.pdf", [page])
+
+    out = _rollover(tmp_path, pdf, ["Week 1 (8/24)"], ["Week 1 (8/23)"])
+
+    reader = PdfReader(out)
+    operations = ContentStream(reader.pages[0].get_contents(), reader).operations
+    modes = [operands[0] for operands, operator in operations if operator == b"Tr"]
+    assert modes[-1] == 3

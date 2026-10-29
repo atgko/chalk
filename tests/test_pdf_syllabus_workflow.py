@@ -4,6 +4,7 @@ metrics, and rollover of the converted Word file."""
 import io
 import json
 
+import pdfplumber
 import pytest
 
 from chalk import metrics
@@ -354,3 +355,27 @@ def test_a_pdf_that_cant_be_changed_exactly_leaves_the_word_file_and_a_note(tmp_
     assert tmp_project.syllabus_output("pdf") not in written
     assert "didn't write syllabus.pdf" in missing_pdf_note(plan, written)
     assert metrics.read_events_by_type(tmp_project.eval_log, "rollover")[-1]["pdf_copy"] == "skipped"
+
+
+def test_a_second_rollover_still_changes_the_pdfs_running_footer(tmp_project, tmp_path):
+    """The kept PDF says Fall 2026 even after course.json says Fall 2027."""
+    pdf = pdf_layout_builder.build_one_page_syllabus(tmp_path / "IS 6640.pdf")
+    course_data, _ = extract_syllabus(tmp_project, pdf)
+    first = preview_rollover(tmp_project, course_data, "Fall 2027", llm_generate_topics=False)
+    confirm_rollover(tmp_project, first)
+
+    second = preview_rollover(tmp_project, first.rolled_over, "Fall 2028", llm_generate_topics=False)
+    confirm_rollover(tmp_project, second)
+
+    with pdfplumber.open(tmp_project.syllabus_output("pdf")) as rolled:
+        footer = rolled.pages[0].extract_text_lines()[-1]["text"]
+    assert footer == "IS 6640 | Fall 2028 | Page 1"  # read_pdf_blocks drops footers, so read it directly
+
+
+def test_a_pdf_uploaded_as_upper_case_pdf_is_found(tmp_project, tmp_path):
+    pdf = pdf_layout_builder.build_one_page_syllabus(tmp_path / "IS 6640.PDF")
+    course_data, _ = extract_syllabus(tmp_project, pdf)
+
+    plan = preview_rollover(tmp_project, course_data, "Fall 2027", llm_generate_topics=False)
+
+    assert tmp_project.syllabus_output("pdf") in plan.files_to_write
