@@ -1288,3 +1288,15 @@ def test_a_summer_rollover_offers_10_or_12_weeks(saved_project):
     plan = at.session_state["chalk_rollover_plan"].plan
     assert plan.rolled_over.course.duration_weeks == 12
     assert next(w for w in plan.rolled_over.weeks if not w.is_break).date == dt.date(2027, 5, 17)
+
+
+# ---- Grading Assistant -------------------------------------------------------------------
+
+
+def test_grading_strictness_starts_at_standard(project):
+    at = launch(project, **{session.ACTIVE_TAB_KEY: "Grading Assistant"})
+
+    assert_no_exception(at)
+    [strictness] = [e for e in at.get("button_group") if e.label == "Grading strictness"]
+    assert strictness.value == "standard"
+    assert list(strictness.options) == ["Lenient", "Standard", "Strict"]

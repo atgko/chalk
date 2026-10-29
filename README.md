@@ -106,7 +106,7 @@ streamlit run app.py -- --project "path/to/project"   # open a project directly
 
 ## 3. How to use the app
 
-The tabs are grouped by what they're for. **Build** holds the course work, in order: Upload, Review, Rollover, Generate, Drafts, and Export. **Grading Assistant** stands on its own, since it doesn't need a course. **Settings** holds **AI Provider** (provider, model, and key) and **Metrics**. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
+The tabs are grouped by what they're for. **Build** holds the course work, in order: Upload, Review, Rollover, Generate, Drafts, and Export. **Grading Assistant** stands on its own, since it doesn't need a course. Its **Grading strictness** sets how strictly the suggested scores and the feedback read the rubric: **Lenient** gives the benefit of the doubt and encouraging feedback, **Strict** gives credit only for what the submission clearly shows, with direct feedback, and **Standard** (the default) grades as before. None of them grades against anything but the rubric. **Settings** holds **AI Provider** (provider, model, and key) and **Metrics**. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
 
 **Upload.** Choose your `.docx`, `.md`, or `.pdf` syllabus and click **Extract course**. For a PDF, first pick how Chalk should read it (see *PDF syllabi* in section 6). If the term label doesn't match the Week 1 date (for example, "Spring 2026" with an August Week 1), you'll see a warning. Fix the syllabus and re-upload, or click **Continue anyway**. The override is recorded in the metrics log. If the document has more than one table that looks like a schedule, you'll be asked to pick the right one.
 
