@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-28.
 
 ## Open questions (need someone outside the code)
 
@@ -10,7 +10,8 @@ Last updated: 2026-10-26.
 - **P1: Confirm the "16-week syllabus showed 10 weeks" report.** Most likely cause: the new syllabus was extracted into the demo project but not yet saved, so the Rollover tab still showed the saved 10-week demo course. The app now warns about this. Ask the teammate whether they clicked Confirm and save first.
 - **P1: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). As of Oct 15, the team is collecting more from faculty, who will also try Chalk themselves. The PRD's Section 15 test corpus (before the Nov 8 readiness meeting) lists what's still missing: a markdown syllabus with the DST boundary, the IS 6640 Spring copy with the term-label bug, and a 12- or 16-week course. Run each through extraction and rollover, then `toolkit.py report`, for the December evidence. Keep them in the git-ignored `reference/` folder, since the repo is public.
 - **P2: Confirm the session dates with a program that uses sessions.** The registrar publishes no session dates, so Chalk assumes three 5-week sessions counted in class weeks around Fall/Spring Break (Fall 2026: Aug 24, Sep 28, Nov 9), and 10- or 12-week summer courses (DECISIONS.md, Oct 21). If a program has its own session calendar, `session_start` in `chalk/sessions.py` is the one place to change.
-- **P1: Line up pilot testers (sponsor meeting, Oct 15).** Dave may find 2-3 professors to try Chalk. Also find pilot testers among technical staff. For both groups, find out which parts of the app they actually use, so the next steps focus there. The eval log already records which operations run; a short feedback form or a follow-up conversation would cover the rest.
+- **P1: Line up pilot testers (sponsor meeting, Oct 15).** Dave may find 2-3 professors to try Chalk. Also find pilot testers among technical staff. For both groups, find out which parts of the app they actually use, so the next steps focus there. The eval log already records which operations run; a short feedback form or a follow-up conversation would cover the rest. On Oct 28, Dave said they'd ask their faculty for more testers.
+- **P1: A two-hour working session with Dave (sponsor meeting, Oct 28).** Dave will move their real Fall course materials to Spring in Chalk, driving the app themselves while the team watches. Note where they hesitate or get stuck, what they expect a step to do, and which outputs they actually keep, and add what comes up to this backlog.
 
 ## AI providers and student data (sponsor discussion, Oct 5)
 
@@ -46,8 +47,11 @@ Chalk should make the instructor's work easier and keep a human in the loop, not
 - **P1: Make grading consistent.** The Grading Assistant (PR #20) gives different results when the same submission is graded again; consistent, evidence-based results are the "grounding" the meeting asked for. Try different approaches and measure each with the consistency test below. Ideas to start with: a low temperature (`chalk/llm_client.py` doesn't set one today), a quote from the submission as evidence for every criterion, and the default instructions below.
 - **P1: Test grading consistency, once it's grounded.** Testing now focuses on this. After the rules and prompting above are in place, grade a fixed set of test submissions several times each, and report the spread of the total and per-criterion scores, plus the cost. The results show that grading is consistent and back up the validation record below. Comparing models is a second step. This is a one-off test the team runs, not a feature: re-grading every submission 2-4 times would multiply the cost of grading a class (e.g. 30 students) by the same amount (decided Oct 26).
 - **P2: Default grading instructions.** Pre-fill "Additional grading instructions" with standing rules such as "be consistent across submissions" and "cite evidence from the submission for every score". The team decides the exact wording, based on the framework below.
-- **P2 (research): Choose an educational framework.** Base Chalk on an established framework from education. Use it to structure what Chalk does, how its quizzes, assignments, and content are validated, and how it supports better learning outcomes for students. The group will research this and decide later.
+- **P2 (research): Choose an educational framework.** Base Chalk on an established framework from education. Use it to structure what Chalk does, how its quizzes, assignments, and content are validated, and how it supports better learning outcomes for students. The group will research this and decide later. On Oct 28, the team agreed to show the work to Carson Pyle, who knows which educational frameworks, best practices, and standards to follow. The framework will be applied in the background (in Chalk's instructions to the AI and its checks), not as something the instructor has to pick or set up.
 - **P1: A validation record (paper trail).** For each feature, record how it was built, how it was tested, and how it was validated against the framework, like a certification or audit report. It shows that AI-assisted development followed a sound process (tests first, CI, the eval log, the variation results) and was checked. It depends on the framework above.
+- **P1: Add the team's grading instruction to the Grading Assistant (sponsor meeting, Oct 28).** An additional section of grading instructions will most likely be a backend instruction, sent with every grading rather than typed by the instructor. Kianu will provide the exact prompt used; the team is still refining it so grading is consistent. Once it's settled, add it, and check it with the consistency test above.
+- **P2: Grading difficulty (sponsor meeting, Oct 28).** Let the grader choose how strict the grading and feedback are, stricter or easier. This could be a single toggle. Decide whether it changes the scores, the feedback's tone, or both, and include it in the consistency test so each setting is measured.
+- **P2 (research): Let the grader learn from the instructor, stored locally (sponsor meeting, Oct 28).** Dave suggested an option to keep a memory on the instructor's computer, so they can refine the grader over time (for example, their corrections to earlier gradings). Explore how feasible this is. It must stay on the computer, must never hold student work or names (FERPA, and the privacy guardrails above), and must not undo the consistency the items above aim for.
 
 ## Handoff and sustainability (sponsor meeting, Oct 15)
 
@@ -68,6 +72,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P3: Title guesses can include the modality**, e.g. "Networking and Servers – Online". This is editable on Review.
 - **P3: Meeting pattern stays blank when it's only in a labeled line like "Time:"**. That's deliberate (in IS 6640, "Time:" is the webinar, not the class).
 - **P3: The objectives list stops at any short ALL-CAPS line**, so an objective written in all caps would end it early.
+- **P1: A twice-a-week syllabus is read as one week per class session (sponsor meeting, Oct 28).** An undergraduate syllabus whose class met twice a week was extracted as "29 weeks": each row was a class session, not a week. Extraction should recognize session rows (e.g. two dated rows in the same week, or Tue/Thu labels) and count weeks, not sessions. Related to the rollover item "Classes that meet twice a week" below.
 
 ## Rollover
 
@@ -77,6 +82,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P3: When the instructor picked one table from an ambiguous set, the writer still updates every schedule-like table.**
 - **P3: The preview always shows dates as M/D**, even when the syllabus uses "Jan. 6" (the written document keeps the original style).
 - **P2: Classes that meet twice a week (sponsor meeting, Oct 15).** Undergraduate courses often meet twice a week. Rollover already asks which days the class meets, but only to decide which holidays to warn about: every schedule row is still one week with one date. Test a syllabus with one row per class session (e.g. Tue and Thu rows) and decide how rollover should handle it, especially when the meeting days change between terms.
+- **P1: The rolled-over syllabus should keep the original's format (sponsor meeting, Oct 28).** The new syllabus download should look exactly like the one uploaded, not like standard AI output. Word to Word should be the easiest case. A Word rollover already writes into a copy of the original file (`chalk/rollover/docx_rollover.py`), so first confirm which download looked like AI output: a PDF syllabus (rebuilt as a new Word file), a markdown one, or another output such as the course brief. PDF and other formats will be harder.
 
 ## App / UX
 
@@ -85,11 +91,15 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P1: Paste the Canvas page into a real Canvas course.** Export's Canvas HTML is now the whole U of U syllabus template, filled in, with paste steps and a preview (Oct 22). It's been checked in a browser, not in Canvas itself: check that Canvas keeps the inline styles (banner, grey section bars), that the steps match its editor (some versions use a `</>` button instead of View → HTML Editor), and that the "Insert…" placeholders are easy to find.
 - **P3: The unsaved-extraction warning appears on Rollover, Generate, and Export, but not Metrics** (Metrics doesn't depend on the course).
 - **P3 Currently, the 'Open Project' button only lets you open a project if you manually enter in the file path. What should happen is that clicking on 'Open Project' assuming Windows OS is that it opens the file browser and you can navigate that way.** 
+- **P2: Make the AI task in assignments easy to find (sponsor meeting, Oct 28).** In Generate → Assignment Creator / Enhancer, it wasn't clear where the "Include a task where students use AI as part of their learning" task ended up once the toggle was on. Give the AI task its own clearly labeled section in the assignment, or emphasize it (e.g. bold) so it stands out.
+- **P2: Group the tabs by what they're for (sponsor meeting, Oct 28).** Dave suggested putting tabs with similar functions under a parent. Upload enables Review, Rollover, Generate, Drafts, and Export, so those could sit under one parent with a clear title such as "Build" or "Create Materials". The Grading Assistant doesn't need a course (it isn't gated on one in `ui/shell.py`), so it can stand alone. Settings could be a parent with Metrics and configuration underneath. Think this through, both what's logical and what's clear in the UI, before building; the "Jump to…" dropdown (PR #23) should follow the same grouping.
+- **P3: A subtle University of Utah logo watermark (sponsor meeting, Oct 28).** Place it somewhere it doesn't distract, the way https://www.utah.edu/ does. Check the university's brand guidelines for how the logo may be used.
 
 ## Engineering
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
 - **P2: Bundle Python with the download (sponsor meeting, Oct 15).** Today the launchers need Python 3.11+ already installed. Shipping Python inside the download (e.g. the official Windows embeddable package, or python-build-standalone on macOS) removes that step. To keep the bundle from going stale, pin the Python and package versions, build the bundle in GitHub Actions for each release instead of by hand, and add a check to the maintenance notes for when that Python version reaches end of life.
+- **P2 (research): Package Chalk as a desktop app (sponsor meeting, Oct 28).** The team will explore packaging Chalk as a desktop app that installs and starts like other programs. For now it would still open and run in the browser. This builds on bundling Python above.
 
 ## Done
 
