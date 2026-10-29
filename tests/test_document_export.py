@@ -117,3 +117,31 @@ def test_pdf_escapes_angle_brackets_and_ampersands():
     text = _pdf_text(data)
     assert "Use <subnet> & mask." in text
     assert "A & B" in text
+
+
+# ---- The AI-use task stands out (sponsor meeting, Oct 28) ----------------------------
+
+ASSIGNMENT = (
+    "# VLAN Lab\n\n## GOAL\nPlan a VLAN.\n\n"
+    "## AI-USE TASK\n> This task asks you to use a generative AI tool.\nAsk an AI tool to critique your plan.\n\n"
+    "## DELIVERABLES\nYour plan.\n"
+)
+
+
+def test_word_ai_task_heading_is_highlighted():
+    document = _docx(export_document(ASSIGNMENT, "Word (.docx)", content_type="assignment", title="VLAN Lab")[0])
+
+    headings = {p.text: p for p in document.paragraphs if p.style.name.startswith("Heading")}
+    ai_run = headings["AI-USE TASK"].runs[0]
+    other_run = headings["GOAL"].runs[0]
+    assert ai_run.font.color.rgb is not None
+    assert ai_run.font.color.rgb != other_run.font.color.rgb
+
+
+def test_pdf_ai_task_heading_is_highlighted():
+    data = export_document(ASSIGNMENT, "PDF (.pdf)", content_type="assignment", title="VLAN Lab")[0]
+    with pdfplumber.open(io.BytesIO(data)) as pdf:
+        lines = pdf.pages[0].extract_text_lines(return_chars=True)
+    color_of = {line["text"]: line["chars"][0]["non_stroking_color"] for line in lines}
+
+    assert color_of["AI-USE TASK"] != color_of["GOAL"]

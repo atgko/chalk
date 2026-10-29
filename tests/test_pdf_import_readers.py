@@ -28,6 +28,10 @@ REFERENCE_PDF = (
     Path(__file__).parent.parent / "reference" / "Syllabus_Project Management in Healthcare_OSC6660_Spring 2026.pdf"
 )
 
+# An undergraduate course that meets Tuesday and Thursday, one row per class
+# meeting (sponsor meeting, Oct 28).
+TWICE_WEEKLY_PDF = Path(__file__).parent.parent / "reference" / "IS-4440 16-Week Course Syllabus.pdf"
+
 
 def _extract(blocks, tmp_path):
     course_data, consistency = extract_course(write_docx(blocks, tmp_path / "converted.docx"))
@@ -106,6 +110,18 @@ def test_the_real_osc_6660_pdf(tmp_path):
     assert len(course_data.learning_objectives) == 5
     assert sum(a.weight for a in course_data.assessments) == pytest.approx(1.0)
     assert consistency.passed
+
+
+@pytest.mark.skipif(not TWICE_WEEKLY_PDF.exists(), reason="the real IS 4440 PDF is kept out of the repo")
+def test_the_real_twice_weekly_is_4440_pdf(tmp_path):
+    course_data, _ = _extract(read_pdf_blocks(TWICE_WEEKLY_PDF), tmp_path)
+
+    weeks = [w for w in course_data.weeks if not w.is_break]
+    assert course_data.course.duration_weeks == 16
+    assert [(w.week_number, w.meeting) for w in weeks] == [(n, m) for n in range(1, 17) for m in (1, 2)]
+    assert weeks[0].topics == ["Course Introduction"]
+    # A topic on a row of its own below the week's label row.
+    assert "Network+ Mod 3 – Addressing" in weeks[4].topics
 
 
 # ---- AI reader -----------------------------------------------------------------------
@@ -342,3 +358,20 @@ def test_converted_file_names():
     assert converted_docx_name("dir/OSC 6660 Syllabus.pdf") == "OSC 6660 Syllabus (from PDF).docx"
     assert is_converted_from_pdf("source/OSC 6660 Syllabus (from PDF).docx")
     assert not is_converted_from_pdf("source/OSC 6660 Syllabus.docx")
+
+
+def test_two_class_meetings_of_one_week_in_different_parts_stay_two_rows(monkeypatch):
+    replies = {
+        1: _part_reply({"term": "Spring 2026"}, [{"type": "schedule", "rows": [{"week": 1, "date": "1/6"}]}]),
+        2: _part_reply({}, [{"type": "schedule", "rows": [{"week": 1, "date": "1/8"}, {"week": 2, "date": "1/13"}]}]),
+    }
+    monkeypatch.setattr("chalk.pdf_import.ai_reader.PART_CHARS", 40)
+    monkeypatch.setattr(
+        "chalk.pdf_import.ai_reader.complete",
+        lambda prompt, system="", max_tokens=2000, on_text=None: replies[1 if "part 1 of 2" in prompt else 2],
+    )
+
+    blocks = blocks_from_reply(ask_ai_to_read([Paragraph("x" * 30), Paragraph("y" * 30)]))
+
+    [schedule] = [block for block in blocks if isinstance(block, Table)]
+    assert [row[0] for row in schedule.rows[1:]] == [("Week 1 (1/6)",), ("Week 1 (1/8)",), ("Week 2 (1/13)",)]

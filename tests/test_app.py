@@ -15,7 +15,7 @@ from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
 from chalk.generation.engine import NO_SOURCES_MESSAGE
-from chalk.pipeline import extract_syllabus
+from chalk.pipeline import extract_syllabus, save_reviewed_course
 from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
 from ui import session
@@ -275,6 +275,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
 
     assert_no_exception(at)
     assert [t.label for t in at.tabs] == [
+        "Build",
         "Upload",
         "Review",
         "Rollover",
@@ -282,8 +283,9 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Drafts",
         "Export",
         "Grading Assistant",
-        "Metrics",
         "Settings",
+        "AI Provider",
+        "Metrics",
     ]
     assert "Provider: Not configured" in at.caption[-1].value
 
@@ -390,8 +392,9 @@ def test_gated_tabs_redirect_until_a_course_exists(project):
     assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 4
     assert "course.json" not in NEEDS_COURSE_MESSAGE  # professors don't know the file
     [style] = at.get("html")
-    for position in (3, 4, 6, 8):  # Rollover, Generate, Export, Metrics are dimmed
-        assert f'[data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
+    for position in (3, 4, 6):  # Rollover, Generate, Export are dimmed under Build
+        assert f'.st-key-chalk_build_tab [data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
+    assert '.st-key-chalk_settings_tab [data-testid="stTab"]:nth-of-type(2) {opacity: 0.45;}' in style.proto.body  # Metrics
     assert "nth-of-type(1) {opacity" not in style.proto.body
 
 
@@ -732,6 +735,21 @@ def test_lengthening_offers_ai_drafts_and_shows_the_flags(saved_project):
     assert any("confirm Week 8 timing" in w for w in warnings)
 
 
+def test_a_row_per_meeting_schedule_starts_with_its_own_meeting_days(project, tmp_path):
+    """IS 4440's meeting pattern is only on a "Time:" line, so it's blank;
+    the picker starts from the days the schedule's rows fall on."""
+    from tests.fixtures import docx_builder
+
+    course_data, _ = extract_syllabus(project, docx_builder.build_twice_weekly_syllabus(tmp_path / "t.docx"))
+    blank_pattern = course_data.course.model_copy(update={"meeting_pattern": ""})
+    save_reviewed_course(project, course_data.model_copy(update={"course": blank_pattern}))
+    at = launch(project)
+
+    picker = widget(at.multiselect, "Class meets on")
+    assert picker.value == ["Tue", "Thu"]
+    assert "a row per class meeting (Tue/Thu)" in picker.help
+
+
 def test_meeting_days_and_break_toggles_narrow_the_flags(saved_project):
     at = launch(saved_project)
     widget(at.number_input, "Duration (weeks)").set_value(9)
@@ -777,7 +795,7 @@ def llm(monkeypatch):
 def test_generate_asks_for_a_provider_when_none_is_configured(saved_project):
     saved_project.env.unlink()
     at = launch(saved_project, chalk_setup_skipped=True)
-    assert "Connect an AI provider in the Settings tab to generate content." in texts(at.info)
+    assert "Connect an AI provider under Settings → AI Provider to generate content." in texts(at.info)
 
 
 def test_generate_without_source_materials_asks_for_one(saved_project):
@@ -1102,6 +1120,8 @@ def test_an_assignment_can_include_an_ai_use_task(sourced_project, llm):
     at = click(at.run(), "Generate")
 
     assert "AI-USE COMPONENT" in llm[-1]
+    # The fake draft has no AI-USE TASK section, so Chalk says so.
+    assert any('no "AI-USE TASK" section' in warning for warning in texts(at.warning))
 
 
 # ---- Launch screen: your projects, and creating one that exists ---------------------------
@@ -1268,3 +1288,15 @@ def test_a_summer_rollover_offers_10_or_12_weeks(saved_project):
     plan = at.session_state["chalk_rollover_plan"].plan
     assert plan.rolled_over.course.duration_weeks == 12
     assert next(w for w in plan.rolled_over.weeks if not w.is_break).date == dt.date(2027, 5, 17)
+
+
+# ---- Grading Assistant -------------------------------------------------------------------
+
+
+def test_grading_strictness_starts_at_standard(project):
+    at = launch(project, **{session.ACTIVE_TAB_KEY: "Grading Assistant"})
+
+    assert_no_exception(at)
+    [strictness] = [e for e in at.get("button_group") if e.label == "Grading strictness"]
+    assert strictness.value == "standard"
+    assert list(strictness.options) == ["Lenient", "Standard", "Strict"]

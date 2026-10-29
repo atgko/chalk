@@ -54,9 +54,14 @@ class Week(BaseModel):
     Regular weeks carry `week_number` and `date`. Break periods (is_break
     True) carry `date_start`/`date_end` instead and leave `week_number`
     unset, matching PRD section 5.2's Fall Break example.
+
+    A class that meets more than once a week may give each meeting its
+    own row; `meeting` then numbers the row within its week (1, 2, ...)
+    and the rows share `week_number` (chalk/extractors/meetings.py).
     """
 
     week_number: int | None = None
+    meeting: int | None = None
     date: dt.date | None = None
     date_start: dt.date | None = None
     date_end: dt.date | None = None

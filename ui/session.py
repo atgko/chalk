@@ -27,6 +27,7 @@ _PENDING_EXTRACTION_KEY = "chalk_pending_extraction"
 _TABLE_CHOICE_KEY = "chalk_table_choice"
 _ROLLOVER_PLAN_KEY = "chalk_rollover_plan"
 _ROLLOVER_WRITTEN_KEY = "chalk_rollover_written"
+_ROLLOVER_NOTE_KEY = "chalk_rollover_note"
 _DRAFT_KEY = "chalk_draft"
 _REGENERATE_KEY = "chalk_regenerate"
 _FLASH_KEY = "chalk_flash"
@@ -142,8 +143,15 @@ def get_rollover_written() -> list[Path]:
     return st.session_state.get(_ROLLOVER_WRITTEN_KEY, [])
 
 
-def set_rollover_written(paths: list[Path]) -> None:
+def set_rollover_written(paths: list[Path], note: str | None = None) -> None:
+    """The files the last rollover wrote, and a note about one it
+    planned but couldn't write (chalk.pipeline.missing_pdf_note)."""
     st.session_state[_ROLLOVER_WRITTEN_KEY] = paths
+    st.session_state[_ROLLOVER_NOTE_KEY] = note
+
+
+def get_rollover_note() -> str | None:
+    return st.session_state.get(_ROLLOVER_NOTE_KEY)
 
 
 # ---- Generate ------------------------------------------------------------------
@@ -174,9 +182,22 @@ def set_generation_content_type(content_type: str) -> None:
 # ---- Tabs ----------------------------------------------------------------------
 
 
+# The tabs are grouped by what they're for (sponsor meeting, Oct 28): a
+# group with several tabs shows them as a second row of tabs. A tab's own
+# name ("Generate") is what the rest of the app goes by; ACTIVE_TAB_KEY
+# holds the open one, and the two rows of tabs are set from it.
+TAB_GROUPS: dict[str, tuple[str, ...]] = {
+    "Build": ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export"),
+    "Grading Assistant": ("Grading Assistant",),
+    "Settings": ("AI Provider", "Metrics"),
+}
+GROUP_TAB_KEY = "chalk_tab_group"
+SUB_TAB_KEYS = {"Build": "chalk_build_tab", "Settings": "chalk_settings_tab"}
+
+
 def go_to_tab(name: str) -> None:
-    """Open tab `name` on the next run. The tabs widget can't be changed
-    once it has rendered in this run, so the shell applies the request
+    """Open tab `name` on the next run. The tabs widgets can't be changed
+    once they have rendered in this run, so the shell applies the request
     before it draws the tabs (`apply_tab_request`)."""
     st.session_state[_NEXT_TAB_KEY] = name
 
@@ -185,10 +206,37 @@ def active_tab() -> str:
     return st.session_state.get(ACTIVE_TAB_KEY) or "Upload"
 
 
+def group_of(tab: str) -> str:
+    return next(group for group, tabs in TAB_GROUPS.items() if tab in tabs)
+
+
 def apply_tab_request() -> None:
+    """Open a requested tab, then set both rows of tabs to the open one."""
     requested = st.session_state.pop(_NEXT_TAB_KEY, None)
     if requested is not None:
         st.session_state[ACTIVE_TAB_KEY] = requested
+    tab = active_tab()
+    if not any(tab in tabs for tabs in TAB_GROUPS.values()):
+        tab = "Upload"  # e.g. a session from before the tabs were grouped
+    group = group_of(tab)
+    st.session_state[ACTIVE_TAB_KEY] = tab
+    st.session_state[GROUP_TAB_KEY] = group
+    if group in SUB_TAB_KEYS:
+        st.session_state[SUB_TAB_KEYS[group]] = tab
+
+
+def on_group_change() -> None:
+    """A group was clicked: open the tab it showed last (its first tab the
+    first time)."""
+    group = st.session_state[GROUP_TAB_KEY]
+    tabs = TAB_GROUPS[group]
+    last = st.session_state.get(SUB_TAB_KEYS.get(group, ""))
+    st.session_state[ACTIVE_TAB_KEY] = last if last in tabs else tabs[0]
+
+
+def on_sub_tab_change(key: str) -> None:
+    """A tab in a group's second row was clicked."""
+    st.session_state[ACTIVE_TAB_KEY] = st.session_state[key]
 
 
 # ---- One-shot messages that survive a rerun -------------------------------------

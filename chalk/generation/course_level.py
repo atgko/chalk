@@ -49,16 +49,32 @@ _GUIDANCE = {
     ),
 }
 
+# The AI-use task gets a section of its own with this heading, so students
+# and the instructor can find it (sponsor meeting, Oct 28: it wasn't clear
+# where the task had ended up). Exports highlight it.
+AI_TASK_HEADING = "AI-USE TASK"
+
 AI_COMPONENT_GUIDANCE = (
     "AI-USE COMPONENT: include one task in which students use a generative AI tool as part of "
     "their learning, for example to brainstorm options, get feedback on a draft, or critique an "
     "AI-generated answer. Ask students to document how they used it (what they asked, what they "
     "kept or changed, and why) and to reflect on where the tool was wrong or limited. The "
     "assignment's learning goal must still be shown through the student's own work. Do not name "
-    "a specific AI product unless the instructor did."
+    "a specific AI product unless the instructor did. "
+    f"Give this task its own section, headed exactly `## {AI_TASK_HEADING}`, after MORE DETAILS "
+    "and before DELIVERABLES, and start the section with the line "
+    "`> This task asks you to use a generative AI tool.` Put all of the AI-use instructions "
+    "there, not inside another section. In TASKS IN BRIEF, end that task's line with "
+    "\"(AI-use task)\"."
 )
+_AI_TASK_HEADING_RE = re.compile(r"^#{1,3}\s*AI[- ]USE TASK\b", re.IGNORECASE | re.MULTILINE)
 
 _COURSE_NUMBER_RE = re.compile(r"(?<!\d)(\d{4})(?!\d)")  # "IS 6640" or "OSC6660"
+
+
+def has_ai_task_section(text: str) -> bool:
+    """True when a draft has the AI-use task's own section."""
+    return bool(_AI_TASK_HEADING_RE.search(text))
 
 
 def level_from_course_number(course_number: str) -> str | None:

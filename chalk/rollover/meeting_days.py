@@ -1,16 +1,22 @@
-"""Which weekdays a class meets, for rollover holiday checks.
+"""Which weekdays a class meets, for rollover.
 
 Classes can move days between terms (Tue/Thu one year, Mon/Wed the next),
 so the instructor picks the target term's meeting days at rollover time.
 A holiday or break is then flagged only when it lands on an actual class
-day, instead of whenever it touches the week's start date. Days are
-`datetime.date.weekday()` numbers: 0 = Monday ... 6 = Sunday.
+day, instead of whenever it touches the week's start date. A schedule
+with a row per class meeting has each meeting dated on those days
+(chalk.rollover.preview). Days are `datetime.date.weekday()` numbers:
+0 = Monday ... 6 = Sunday.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import re
+from collections import Counter
+from collections.abc import Iterable
+
+from chalk.models import Week
 
 DAY_ABBREVIATIONS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
@@ -42,6 +48,28 @@ def parse_meeting_days(meeting_pattern: str) -> tuple[int, ...]:
         if parts and "".join(parts) == token:
             days.update(_CODE_LETTERS[part] for part in parts)
     return tuple(sorted(days))
+
+
+def schedule_meeting_days(weeks: Iterable[Week]) -> tuple[int, ...]:
+    """The weekdays a class with a row per class meeting met on, read from
+    its dated rows: the most common set of weekdays among the weeks with
+    the most rows ("Week 2 (1/13)", "Week 2 (1/15)" -> Tue/Thu). Empty
+    for a schedule with one row per week."""
+    days_by_week: dict[int, set[int]] = {}
+    for week in weeks:
+        if week.meeting is not None and week.date is not None and not week.is_break:
+            days_by_week.setdefault(week.week_number, set()).add(week.date.weekday())
+    if not days_by_week:
+        return ()
+    most = max(len(days) for days in days_by_week.values())
+    full_weeks = Counter(tuple(sorted(days)) for days in days_by_week.values() if len(days) == most)
+    return full_weeks.most_common(1)[0][0]
+
+
+def days_in_order_from(start: dt.date, days: Iterable[int]) -> list[int]:
+    """`days` in the order they come in a week that begins on `start`'s
+    weekday: from a Wednesday, Mon/Wed is (Wed, Mon)."""
+    return sorted(days, key=lambda day: (day - start.weekday()) % 7)
 
 
 def format_meeting_days(days: tuple[int, ...]) -> str:

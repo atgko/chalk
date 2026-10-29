@@ -78,6 +78,7 @@ Schedule rows, in order:
 
 Rules:
 - Put every week in a single "schedule" block, even when the syllabus splits the schedule across tables, modules, or pages. A numbered week that is a break ("Week 10 — Spring Break") stays a week row.
+- If the schedule gives each class meeting of a week its own date (a class that meets Tuesday and Thursday), give each meeting its own row with its own date, and use the number of the week it falls in for both ("week": 2 for 1/13 and for 1/15).
 - "learning_objectives", "grading", "schedule", and "university_dates" each appear at most once, where that section is, and replace that section's heading and items. Don't repeat their contents in other blocks.
 - Keep all other text (description, contact details, policies, materials) as heading, paragraph, and bullet blocks, word for word, rejoining lines that were wrapped. Every section starts with a heading block.
 - Leave out page headers, footers, and page numbers.
@@ -304,7 +305,8 @@ def _join(syllabi: list[_Syllabus]) -> _Syllabus:
     """One syllabus from its parts: each course field from the first part
     that states it, the text blocks in order, and the schedule (and the
     objectives, grading, and dates) as one block where it first appears.
-    A week cut in two between parts becomes one row again."""
+    A week cut in two between parts becomes one row again, unless the two
+    rows have different dates: then they're two class meetings of one week."""
     if len(syllabi) == 1:
         return syllabi[0]
     course = _Course(
@@ -330,7 +332,12 @@ def _merged(first, later):
     rows = list(first.rows)
     for row in later.rows:
         previous = rows[-1]
-        if isinstance(row, _Week) and isinstance(previous, _Week) and previous.week == row.week:
+        if (
+            isinstance(row, _Week)
+            and isinstance(previous, _Week)
+            and previous.week == row.week
+            and (not previous.date or not row.date or previous.date == row.date)
+        ):
             rows[-1] = previous.model_copy(
                 update={
                     "date": previous.date or row.date,

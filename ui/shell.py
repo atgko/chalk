@@ -1,5 +1,6 @@
-"""App shell: project resolution, first-run setup, the eight tabs, tab
-gating, and the provider/cost footer (PRD section 7, DECISIONS.md).
+"""App shell: project resolution, first-run setup, the tabs (grouped as
+Build, Grading Assistant, and Settings; ui/session.py), tab gating, and
+the provider/cost footer (PRD section 7, DECISIONS.md).
 
 Every tab renders inside `_guarded`, so no traceback ever reaches the
 screen: ChalkErrors show their plain-English message, anything
@@ -44,7 +45,7 @@ from ui import (
 )
 from ui.common import render_header, render_needs_course
 
-TAB_NAMES = ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export", "Grading Assistant", "Metrics", "Settings")
+TAB_NAMES = tuple(tab for tabs in session.TAB_GROUPS.values() for tab in tabs)
 # Tabs that work from a saved course: dimmed until there is one.
 NEEDS_COURSE_TABS = ("Rollover", "Generate", "Export", "Metrics")
 
@@ -75,9 +76,13 @@ def main(argv: list[str] | None = None) -> None:
     course_data = _load_course_or_warn(paths)
     session.apply_tab_request()
     background.clear_mark(session.active_tab())
-    upload, review, rollover, generate, drafts, export, grading, metrics, settings = st.tabs(
-        TAB_NAMES, key=session.ACTIVE_TAB_KEY, on_change="rerun"
+    build_group, grading, settings_group = st.tabs(
+        tuple(session.TAB_GROUPS), key=session.GROUP_TAB_KEY, on_change=session.on_group_change
     )
+    with build_group:
+        upload, review, rollover, generate, drafts, export = _sub_tabs("Build")
+    with settings_group:
+        settings, metrics = _sub_tabs("Settings")
     with upload:
         _guarded(upload_view.render, paths)
     with review:
@@ -99,10 +104,19 @@ def main(argv: list[str] | None = None) -> None:
     with settings:
         _guarded(settings_view.render, paths)
     background.render_tab_marks(
-        TAB_NAMES, session.ACTIVE_TAB_KEY, inactive=NEEDS_COURSE_TABS if course_data is None else ()
+        session.TAB_GROUPS,
+        session.GROUP_TAB_KEY,
+        session.SUB_TAB_KEYS,
+        inactive=NEEDS_COURSE_TABS if course_data is None else (),
     )
 
     _render_footer(paths)
+
+
+def _sub_tabs(group: str):
+    """A group's own row of tabs."""
+    key = session.SUB_TAB_KEYS[group]
+    return st.tabs(session.TAB_GROUPS[group], key=key, on_change=session.on_sub_tab_change, args=(key,))
 
 
 ALL_COURSES = "All courses"

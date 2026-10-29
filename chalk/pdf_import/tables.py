@@ -9,6 +9,12 @@ break (no week label in its first cell) is merged into the week row above
 it. A row whose first cell is just a number ("10") counts as a week row,
 for an undated "Meeting 1, 2, 3" outline. A schedule split by module titles stays one table per module, which
 the Word schedule reader already handles.
+
+Some PDFs lay a schedule out less evenly (IS 4440, sponsor meeting,
+Oct 28): a week's label one column to the right of the others, and a
+week's topics on rows of their own below its label row, with an empty
+first cell. The label is moved into the first column, and those rows are
+added to the week above, one paragraph each.
 """
 
 from __future__ import annotations
@@ -50,9 +56,17 @@ def normalize_rows(rows: list[Row]) -> list[Row]:
     if not rows:
         return []
     width = max(len(row) for row in rows)
-    rows = [row + [[] for _ in range(width - len(row))] for row in rows]
+    rows = [_label_first(row + [[] for _ in range(width - len(row))]) for row in rows]
     keep = [i for i in range(width) if any(row[i] for row in rows)]
     return [[row[i] for i in keep] for row in rows]
+
+
+def _label_first(row: Row) -> Row:
+    """A row whose "Week N (date)" label is in the second column, with the
+    first empty, gets the label in the first column instead."""
+    if len(row) > 1 and not row[0] and row[1] and parse_week_label(" ".join(row[1])) is not None:
+        return [row[1], [], *row[2:]]
+    return row
 
 
 def is_real_table(rows: list[Row]) -> bool:
@@ -105,6 +119,7 @@ def _add_schedule_piece(blocks: list, schedule: list[Row] | None, rows: list[Row
     given the schedule's header row if it lacks one. Returns the table
     the piece went into."""
     lead, body = _split_lead(rows)
+    body = _fold_continuation_rows(body)
     repeated_header = [row for row in lead if _same_row(row, header)]
     cut_off = [row for row in lead if not _same_row(row, header)]
     if schedule is not None:
@@ -121,6 +136,21 @@ def _add_schedule_piece(blocks: list, schedule: list[Row] | None, rows: list[Row
     new_table = (lead or [header or _synthetic_header(body)]) + body
     blocks.append(new_table)
     return new_table
+
+
+def _fold_continuation_rows(rows: list[Row]) -> list[Row]:
+    """Rows with an empty first cell directly below a week row are more
+    of that week: their lines are added to its cells, column by column.
+    Each row is a line of its own, so nothing is rejoined."""
+    folded: list[Row] = []
+    for row in rows:
+        if folded and not row[0] and _is_week_row(folded[-1]):
+            target = folded[-1]
+            for index, cell in enumerate(row):
+                target[min(index, len(target) - 1)].extend(cell)
+        else:
+            folded.append(row)
+    return folded
 
 
 def _is_week_row(row) -> bool:

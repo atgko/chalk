@@ -30,6 +30,7 @@ from chalk.extractors._dates import (
 )
 from chalk.extractors._front_matter import extract_front_matter
 from chalk.extractors._grading import header_column, parse_rows
+from chalk.extractors.meetings import week_count, with_meetings
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
 _SEPARATOR_CELL_RE = re.compile(r"^:?-{3,}:?$")
@@ -62,7 +63,7 @@ def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> 
 
     tables = _parse_markdown_tables(text)
     schedule_table = _find_schedule_table(tables, schedule_table_index)
-    weeks = roll_dates_past_new_year(_extract_weeks(schedule_table, year))
+    weeks = with_meetings(roll_dates_past_new_year(_extract_weeks(schedule_table, year)))
 
     course_info = CourseInfo(
         title=front_matter["title"],
@@ -72,7 +73,7 @@ def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> 
         term=front_matter["term"],
         term_start=_course_start_date(weeks),
         term_end=_course_end_date(weeks),
-        duration_weeks=sum(1 for week in weeks if not week.is_break),
+        duration_weeks=week_count(weeks),
         meeting_pattern=front_matter["meeting_pattern"],
         instructor=front_matter["instructor"],
         source_format="markdown",

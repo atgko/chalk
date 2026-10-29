@@ -182,25 +182,43 @@ def tab_marks() -> dict[str, TabMark]:
 # ---- Drawing --------------------------------------------------------------------
 
 
-def render_tab_marks(tab_names: Iterable[str], tabs_key: str, *, inactive: Iterable[str] = ()) -> None:
+def render_tab_marks(
+    groups: dict[str, tuple[str, ...]],
+    group_key: str,
+    sub_keys: dict[str, str],
+    *,
+    inactive: Iterable[str] = (),
+) -> None:
     """Style the tab labels: running, done, failed, or inactive (a tab
-    that can't be used yet). While a job runs this refreshes every
-    second, and reruns the app once a job finishes so its view applies
-    the result. Draw it after the tabs, so it never moves them."""
+    that can't be used yet), in both rows of tabs. A group's label shows
+    the most pressing mark among its tabs. While a job runs this refreshes
+    every second, and reruns the app once a job finishes so its view
+    applies the result. Draw it after the tabs, so it never moves them."""
+    layout = (tuple(groups.items()), group_key, tuple(sub_keys.items()))
     if any_running():
-        _polled_marks(tuple(tab_names), tabs_key, tuple(inactive))
+        _polled_marks(layout, tuple(inactive))
     else:
-        _draw_marks(tuple(tab_names), tabs_key, tuple(inactive))
+        _draw_marks(layout, tuple(inactive))
 
 
 @st.fragment(run_every=POLL_SECONDS)
-def _polled_marks(tab_names: tuple[str, ...], tabs_key: str, inactive: tuple[str, ...]) -> None:
+def _polled_marks(layout: tuple, inactive: tuple[str, ...]) -> None:
     _rerun_if_a_job_finished()
-    _draw_marks(tab_names, tabs_key, inactive)
+    _draw_marks(layout, inactive)
 
 
-def _draw_marks(tab_names: tuple[str, ...], tabs_key: str, inactive: tuple[str, ...]) -> None:
-    st.html(f"<style>{tab_marks_css(tab_names, tabs_key, tab_marks(), inactive)}</style>")
+def _draw_marks(layout: tuple, inactive: tuple[str, ...]) -> None:
+    groups, group_key, sub_keys = dict(layout[0]), layout[1], dict(layout[2])
+    marks = tab_marks()
+    group_marks = {group: _strongest([marks.get(tab) for tab in tabs]) for group, tabs in groups.items()}
+    css = [tab_marks_css(tuple(groups), group_key, group_marks, nested_keys=tuple(sub_keys.values()))]
+    css += [tab_marks_css(groups[group], key, marks, inactive) for group, key in sub_keys.items()]
+    st.html("<style>" + "\n".join(css) + "</style>")
+
+
+def _strongest(marks: list) -> TabMark | None:
+    """The mark a group shows for its tabs: running, then failed, then done."""
+    return next((mark for mark in ("running", "failed", "done") if mark in marks), None)
 
 
 def _rerun_if_a_job_finished() -> None:
@@ -248,16 +266,23 @@ _SYMBOLS = {"done": "✓", "failed": "✕"}
 
 
 def tab_marks_css(
-    tab_names: tuple[str, ...], tabs_key: str, marks: dict[str, TabMark], inactive: tuple[str, ...] = ()
+    tab_names: tuple[str, ...],
+    tabs_key: str,
+    marks: dict[str, TabMark],
+    inactive: tuple[str, ...] = (),
+    *,
+    nested_keys: tuple[str, ...] = (),
 ) -> str:
     """The CSS for the tab labels. Streamlit gives the tabs widget a
     `st-key-<key>` class and each label `data-testid="stTab"`; a label is
-    picked by its position. A status uses both a color and a symbol, so
-    it doesn't rely on color alone."""
+    picked by its position. `nested_keys` are tabs widgets inside this
+    one, whose labels these rules must skip. A status uses both a color
+    and a symbol, so it doesn't rely on color alone."""
     rules = [_SPINNER_KEYFRAMES]
     light, dark = [], []
+    skip = "".join(f":not(.st-key-{key} *)" for key in nested_keys)
     for position, name in enumerate(tab_names, start=1):
-        tab = f'.st-key-{tabs_key} [data-testid="stTab"]:nth-of-type({position})'
+        tab = f'.st-key-{tabs_key} [data-testid="stTab"]:nth-of-type({position}){skip}'
         mark = marks.get(name)
         if mark == "running":
             rules.append(f"{tab}::before {{{_SPINNER}}}")

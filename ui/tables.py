@@ -6,6 +6,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
+from chalk.extractors.meetings import week_count
 from chalk.models import CourseData
 from chalk.rollover.preview import RolloverPreview, break_name
 
@@ -72,4 +73,4 @@ def preview_rows(preview: RolloverPreview) -> list[dict[str, str]]:
 
 
 def regular_week_count(course_data: CourseData) -> int:
-    return sum(1 for week in course_data.weeks if not week.is_break)
+    return week_count(course_data.weeks)
