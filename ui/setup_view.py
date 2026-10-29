@@ -30,7 +30,7 @@ def render(paths: ProjectPaths) -> None:
     st.divider()
     st.caption(
         "Extraction, rollover, and export work without an AI provider. "
-        "You can connect one later in the Settings tab."
+        "You can connect one later under Settings → AI Provider."
     )
     if st.button("Skip for now"):
         session.skip_setup()

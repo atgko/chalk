@@ -275,6 +275,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
 
     assert_no_exception(at)
     assert [t.label for t in at.tabs] == [
+        "Build",
         "Upload",
         "Review",
         "Rollover",
@@ -282,8 +283,9 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Drafts",
         "Export",
         "Grading Assistant",
-        "Metrics",
         "Settings",
+        "AI Provider",
+        "Metrics",
     ]
     assert "Provider: Not configured" in at.caption[-1].value
 
@@ -390,8 +392,9 @@ def test_gated_tabs_redirect_until_a_course_exists(project):
     assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 4
     assert "course.json" not in NEEDS_COURSE_MESSAGE  # professors don't know the file
     [style] = at.get("html")
-    for position in (3, 4, 6, 8):  # Rollover, Generate, Export, Metrics are dimmed
-        assert f'[data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
+    for position in (3, 4, 6):  # Rollover, Generate, Export are dimmed under Build
+        assert f'.st-key-chalk_build_tab [data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
+    assert '.st-key-chalk_settings_tab [data-testid="stTab"]:nth-of-type(2) {opacity: 0.45;}' in style.proto.body  # Metrics
     assert "nth-of-type(1) {opacity" not in style.proto.body
 
 
@@ -792,7 +795,7 @@ def llm(monkeypatch):
 def test_generate_asks_for_a_provider_when_none_is_configured(saved_project):
     saved_project.env.unlink()
     at = launch(saved_project, chalk_setup_skipped=True)
-    assert "Connect an AI provider in the Settings tab to generate content." in texts(at.info)
+    assert "Connect an AI provider under Settings → AI Provider to generate content." in texts(at.info)
 
 
 def test_generate_without_source_materials_asks_for_one(saved_project):

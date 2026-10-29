@@ -49,7 +49,7 @@ The welcome screen asks for an AI provider.
 - **No API key?** Click **Skip for now** at the bottom. Everything except generating drafts works without one, and costs nothing: reading syllabi (including PDFs read on this computer), reviewing, rolling over to a new term, Canvas HTML, the course brief, and metrics. See section 1a of the README for the full list.
 - **Have a key?** Choose OpenAI or Anthropic Claude, paste the key, pick a model, and click **Test connection and continue**. The key is saved once in your computer's password store (Windows Credential Manager or the Mac Keychain), and every course you open uses it.
 
-✅ **Check:** you see eight tabs: **Upload, Review, Rollover, Generate, Drafts, Export, Metrics, Settings**.
+✅ **Check:** you see three tabs, **Build, Grading Assistant, Settings**, and under Build a second row: **Upload, Review, Rollover, Generate, Drafts, Export**. Settings holds **AI Provider** and **Metrics**.
 
 ## 5. Walk through the demo
 
@@ -73,7 +73,7 @@ The sample files for uploading are in the project folder at **`projects/Chalk-De
 5. **Generate tab** (only if you entered an API key). Content type **Quiz**, Week **3**, and under *Source materials to use* tick **week-3-subnetting-notes.md**. Note the estimated cost, then click **Generate**.
    ✅ **Check:** a draft appears starting with **AI-generated draft — review and edit before use**. Click **Save**.
 
-6. **Metrics tab.**
+6. **Metrics tab** (under Settings).
    ✅ **Check:** Rollovers shows **1** and Consistency-check catches shows **1**. Try **Download evaluation report**.
 
 7. **Optional, the markdown path.** Upload **`IS-4490-Fall-2026.md`**, go to **Review**, click **Confirm and save**, then preview a rollover to Fall 2027.
@@ -104,7 +104,7 @@ Then start Chalk as usual. It notices new requirements and installs them automat
 | The console says it's running but no browser opened | Open the address it printed (e.g. `http://localhost:8501`) yourself. |
 | Everything is very slow | Move the Chalk folder out of OneDrive, iCloud, or Dropbox (see step 2), and close other heavy apps. |
 | The page shows grey placeholder bars for a long time | Give it a few seconds; it's still loading. If it never finishes, close the console window and start again. |
-| **"Could not reach the LLM provider"** on Generate | Network problem or wrong key. Everything except Generate still works. Check the key under **Settings**. |
+| **"Could not reach the LLM provider"** on Generate | Network problem or wrong key. Everything except Generate still works. Check the key under **Settings → AI Provider**. |
 | A red error box says *"Something unexpected went wrong"* | Copy the text from the console window and send it to the team (see below). Your files weren't changed. |
 | Anything else | See the FAQ in [README.md](README.md#11-faq-and-error-reference), which lists every error message and its fix. |
 

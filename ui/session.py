@@ -182,9 +182,22 @@ def set_generation_content_type(content_type: str) -> None:
 # ---- Tabs ----------------------------------------------------------------------
 
 
+# The tabs are grouped by what they're for (sponsor meeting, Oct 28): a
+# group with several tabs shows them as a second row of tabs. A tab's own
+# name ("Generate") is what the rest of the app goes by; ACTIVE_TAB_KEY
+# holds the open one, and the two rows of tabs are set from it.
+TAB_GROUPS: dict[str, tuple[str, ...]] = {
+    "Build": ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export"),
+    "Grading Assistant": ("Grading Assistant",),
+    "Settings": ("AI Provider", "Metrics"),
+}
+GROUP_TAB_KEY = "chalk_tab_group"
+SUB_TAB_KEYS = {"Build": "chalk_build_tab", "Settings": "chalk_settings_tab"}
+
+
 def go_to_tab(name: str) -> None:
-    """Open tab `name` on the next run. The tabs widget can't be changed
-    once it has rendered in this run, so the shell applies the request
+    """Open tab `name` on the next run. The tabs widgets can't be changed
+    once they have rendered in this run, so the shell applies the request
     before it draws the tabs (`apply_tab_request`)."""
     st.session_state[_NEXT_TAB_KEY] = name
 
@@ -193,10 +206,35 @@ def active_tab() -> str:
     return st.session_state.get(ACTIVE_TAB_KEY) or "Upload"
 
 
+def group_of(tab: str) -> str:
+    return next(group for group, tabs in TAB_GROUPS.items() if tab in tabs)
+
+
 def apply_tab_request() -> None:
+    """Open a requested tab, then set both rows of tabs to the open one."""
     requested = st.session_state.pop(_NEXT_TAB_KEY, None)
     if requested is not None:
         st.session_state[ACTIVE_TAB_KEY] = requested
+    tab = active_tab()
+    group = group_of(tab)
+    st.session_state[ACTIVE_TAB_KEY] = tab
+    st.session_state[GROUP_TAB_KEY] = group
+    if group in SUB_TAB_KEYS:
+        st.session_state[SUB_TAB_KEYS[group]] = tab
+
+
+def on_group_change() -> None:
+    """A group was clicked: open the tab it showed last (its first tab the
+    first time)."""
+    group = st.session_state[GROUP_TAB_KEY]
+    tabs = TAB_GROUPS[group]
+    last = st.session_state.get(SUB_TAB_KEYS.get(group, ""))
+    st.session_state[ACTIVE_TAB_KEY] = last if last in tabs else tabs[0]
+
+
+def on_sub_tab_change(key: str) -> None:
+    """A tab in a group's second row was clicked."""
+    st.session_state[ACTIVE_TAB_KEY] = st.session_state[key]
 
 
 # ---- One-shot messages that survive a rerun -------------------------------------

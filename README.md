@@ -89,7 +89,7 @@ The first start sets everything up, which takes a couple of minutes and needs in
 
 - **Want to look around first?** Double-click **`Start Chalk Demo`** instead, or click **Open the demo course** on the launch screen. It opens a sample course with a syllabus already loaded. See [DEMO.md](DEMO.md) for a guided walkthrough.
 - **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, pick it under **Your projects** (most recently used first) and click **Open**. For a project kept somewhere else, paste or browse to its folder under **Open a course project**.
-- **AI provider:** connect one on the welcome screen, or click **Skip for now**. Extraction, rollover, and export work without one, and you can connect later in the **Settings** tab.
+- **AI provider:** connect one on the welcome screen, or click **Skip for now**. Extraction, rollover, and export work without one, and you can connect later under **Settings → AI Provider**.
 
 ### 2d. Manual setup (optional)
 
@@ -106,7 +106,7 @@ streamlit run app.py -- --project "path/to/project"   # open a project directly
 
 ## 3. How to use the app
 
-The app has eight tabs. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
+The tabs are grouped by what they're for. **Build** holds the course work, in order: Upload, Review, Rollover, Generate, Drafts, and Export. **Grading Assistant** stands on its own, since it doesn't need a course. **Settings** holds **AI Provider** (provider, model, and key) and **Metrics**. Rollover, Generate, Export, and Metrics unlock once a course has been extracted and saved.
 
 **Upload.** Choose your `.docx`, `.md`, or `.pdf` syllabus and click **Extract course**. For a PDF, first pick how Chalk should read it (see *PDF syllabi* in section 6). If the term label doesn't match the Week 1 date (for example, "Spring 2026" with an August Week 1), you'll see a warning. Fix the syllabus and re-upload, or click **Continue anyway**. The override is recorded in the metrics log. If the document has more than one table that looks like a schedule, you'll be asked to pick the right one.
 
@@ -155,7 +155,7 @@ python toolkit.py status --project IS-6640-Fall-2027
 - `report` writes `outputs/evaluation-report.md`.
 - Run `python toolkit.py <command> -h` for every option.
 
-The CLI uses the AI provider saved in the app's Settings tab (one for every course). A project's own `.env` overrides it (see section 8), and so does any `LLM_*` variable already set in your shell.
+The CLI uses the AI provider saved in the app (Settings → AI Provider) (one for every course). A project's own `.env` overrides it (see section 8), and so does any `LLM_*` variable already set in your shell.
 
 ## 5. Adding source materials
 
@@ -237,7 +237,7 @@ Calendar data lives in `data/calendars.json` inside each project. The toolkit's 
 
 ## 8. Choosing and configuring your AI provider
 
-The app's first-run screen and Settings tab save these values for you, once for every course, in this computer's password store. To give one course different settings by hand, put all four in that project's `.env` file (start from `.env.example`); a complete `.env` overrides the saved provider for that course.
+The app's first-run screen and Settings → AI Provider save these values for you, once for every course, in this computer's password store. To give one course different settings by hand, put all four in that project's `.env` file (start from `.env.example`); a complete `.env` overrides the saved provider for that course.
 
 ### 8a. OpenAI (default)
 
@@ -470,7 +470,7 @@ The provider was rate-limiting or timing out. Chalk already retried. Wait a minu
 **"Unexpected error from LLM provider: …"**
 Usually a model name the provider doesn't recognize, or a request it rejected. Check `LLM_MODEL` in Settings.
 
-**"No LLM provider is configured…" (CLI) / "Connect an AI provider in the Settings tab to generate content." (app)**
+**"No LLM provider is configured…" (CLI) / "Connect an AI provider under Settings → AI Provider to generate content." (app)**
 Set up a provider (section 8). Extraction, rollover, and export don't need one.
 
 **"Paste your … API key to continue." / "Choose a model to continue."**

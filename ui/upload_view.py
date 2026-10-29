@@ -194,7 +194,7 @@ def _pdf_method_choice(paths: ProjectPaths) -> PdfReadMethod:
             f"For unusual layouts. Sends the syllabus text to {describe_provider(current_env())}; {cost}."
         )
     else:
-        ai_caption = "Set up an AI provider on the Settings tab to use this."
+        ai_caption = "Set up an AI provider under Settings → AI Provider to use this."
     method = st.radio(
         "How should Chalk read this PDF?",
         PDF_READ_METHODS,

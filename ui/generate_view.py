@@ -67,7 +67,7 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         return
 
     if describe_provider(current_env()) == "Not configured":
-        st.info("Connect an AI provider in the Settings tab to generate content.")
+        st.info("Connect an AI provider under Settings → AI Provider to generate content.")
         return
 
     spec = SPECS[
