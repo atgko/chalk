@@ -16,8 +16,11 @@ IS 6640, Fall 2026 -> Fall 2027):
   fall. This matches the worked example exactly: every week shifts by the
   same number of days Week 1 did (Aug 24 -> Aug 23 is -1 day; so is every
   later week). A class that meets more than once a week has a row per
-  meeting (chalk/extractors/meetings.py): each meeting keeps its days
-  after the week's first meeting (Tue/Thu stays two days apart).
+  meeting (chalk/extractors/meetings.py). When the instructor picks as
+  many meeting days as the schedule has meetings a week, each meeting is
+  dated on its day: the first meeting day on or after the week's start,
+  then the next (Tue/Thu rows on Mon/Wed in the new term). Otherwise
+  each meeting keeps its days after the week's first meeting.
 - Each break week's dates come from the target term's own calendar data
   (matched by label), not from shifting the original break's dates —
   breaks move independently of the instructional-week counter from year
@@ -52,6 +55,11 @@ from chalk.rollover.flags import (
     flag_numbered_weeks_marked_as_breaks,
     flag_weeks_colliding_with_target_breaks,
     schedule_choice_flags,
+)
+from chalk.rollover.meeting_days import (
+    days_in_order_from,
+    format_meeting_days,
+    schedule_meeting_days,
 )
 from chalk.rollover.season_change import (
     holiday_names,
@@ -167,7 +175,10 @@ def roll_over_course(
     general_flags = duration_change_flags(old_duration, new_duration)
     general_flags.extend(schedule_choice_flags(course_data, meeting_days, breaks_not_observed, dropped_breaks))
 
-    new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start)
+    meeting_plan = _meeting_plan(regular_weeks, meeting_days, course_data.course.term_start)
+    if meeting_plan is None:
+        general_flags.extend(meeting_count_flags(regular_weeks, meeting_days))
+    new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start, meeting_plan)
     if season_changed and syllabus_break_weeks and term_data is not None:
         new_break_weeks, break_changes = _rebuild_break_weeks_for_new_season(target_breaks, new_weeks)
         general_flags.append(
@@ -312,8 +323,51 @@ def _draft_topics_for_new_week(week_number: int, existing_weeks: list[Week]) -> 
 # ---- Date shifting -----------------------------------------------------------
 
 
+def _meeting_date(week: Week, week_start: dt.date, meeting_plan: dict[int, int] | None) -> dt.date | None:
+    """A class meeting's date on its new day: the first time that weekday
+    comes on or after the week's start. None for a row the plan doesn't
+    cover (one row per week, or an added week)."""
+    if meeting_plan is None or week.meeting is None or week.date == _PLACEHOLDER_DATE:
+        return None
+    new_day = meeting_plan.get(week.date.weekday())
+    if new_day is None:
+        return None
+    return week_start + dt.timedelta(days=(new_day - week_start.weekday()) % 7)
+
+
+def _meeting_plan(
+    regular_weeks: list[Week], meeting_days: tuple[int, ...], source_term_start: dt.date | None
+) -> dict[int, int] | None:
+    """For a schedule with a row per class meeting, which new weekday each
+    old one moves to: the old meeting days and the picked ones, each in
+    their order through the week, paired up (Tue -> Mon, Thu -> Wed).
+    None when there's nothing to pair: one row per week, no days picked,
+    or a different number of days picked than the class met."""
+    old_days = schedule_meeting_days(regular_weeks)
+    if not old_days or len(meeting_days) != len(old_days):
+        return None
+    week_start = source_term_start or min(week.date for week in regular_weeks if week.meeting)
+    return dict(zip(days_in_order_from(week_start, old_days), meeting_days))
+
+
+def meeting_count_flags(regular_weeks: list[Week], meeting_days: tuple[int, ...]) -> list[str]:
+    """A note when the picked days can't be paired with the class's
+    meetings, so each meeting keeps its spacing instead."""
+    old_days = schedule_meeting_days(regular_weeks)
+    if not old_days or not meeting_days:
+        return []
+    return [
+        (
+            f"The schedule has {len(old_days)} class meetings a week "
+            f"({format_meeting_days(old_days)}), but {len(meeting_days)} meeting days are picked "
+            f"({format_meeting_days(meeting_days)}), so each meeting keeps its spacing from the "
+            "week's first meeting. Pick one day per meeting to date each meeting on its day."
+        )
+    ]
+
+
 def _shift_regular_weeks(
-    regular_weeks: list[Week], new_term_start: dt.date
+    regular_weeks: list[Week], new_term_start: dt.date, meeting_plan: dict[int, int] | None = None
 ) -> tuple[list[Week], list[WeekChange]]:
     new_weeks: list[Week] = []
     changes: list[WeekChange] = []
@@ -321,8 +375,11 @@ def _shift_regular_weeks(
     for week in regular_weeks:
         first_meetings[week.week_number] = min(week.date, first_meetings.get(week.week_number, week.date))
     for week in regular_weeks:
-        days_after_first_meeting = (week.date - first_meetings[week.week_number]).days
-        new_date = new_term_start + dt.timedelta(days=7 * (week.week_number - 1) + days_after_first_meeting)
+        week_start = new_term_start + dt.timedelta(days=7 * (week.week_number - 1))
+        new_date = _meeting_date(week, week_start, meeting_plan)
+        if new_date is None:
+            days_after_first_meeting = (week.date - first_meetings[week.week_number]).days
+            new_date = week_start + dt.timedelta(days=days_after_first_meeting)
         new_label = f"Week {week.week_number} ({new_date.month}/{new_date.day})"
         new_weeks.append(week.model_copy(update={"date": new_date, "label": new_label}))
         changes.append(

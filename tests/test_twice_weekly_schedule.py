@@ -9,10 +9,11 @@ import datetime as dt
 from docx import Document
 
 from chalk.extractors.docx_extractor import extract_course_data
-from chalk.extractors.meetings import number_meetings, week_count
+from chalk.extractors.meetings import number_meetings, week_count, with_meetings
 from chalk.generation.engine import _find_week
 from chalk.models import Week
 from chalk.rollover.docx_rollover import write_rolled_over_docx
+from chalk.rollover.meeting_days import schedule_meeting_days
 from chalk.rollover.preview import roll_over_course
 from tests.fixtures.docx_builder import build_minimal_syllabus, build_twice_weekly_syllabus
 
@@ -145,3 +146,83 @@ def test_generating_for_a_week_covers_all_of_its_meetings(tmp_path):
     week = _find_week(_course(tmp_path), 2)
 
     assert week.topics == ["Topic 2a", "Topic 2b"]
+
+
+# ---- Dating meetings on the days picked for the new term ---------------------------
+
+
+def _dates(new_course):
+    return [w.date for w in _regular(new_course)]
+
+
+def test_meetings_are_dated_on_the_days_picked_for_the_new_term(tmp_path):
+    new_course, preview = roll_over_course(
+        _course(tmp_path), target_term="Fall 2026", calendars=CALENDARS, meeting_days=(1, 3)
+    )
+
+    assert _dates(new_course) == [
+        dt.date(2026, 8, 25),
+        dt.date(2026, 8, 27),
+        dt.date(2026, 9, 1),
+        dt.date(2026, 9, 3),
+        dt.date(2026, 9, 8),
+        dt.date(2026, 9, 10),
+    ]
+    assert [w.label for w in _regular(new_course)[:2]] == ["Week 1 (8/25)", "Week 1 (8/27)"]
+    # Founders Day (Wed 8/26) isn't a class day any more.
+    assert not any(change.flags for change in preview.week_changes)
+
+
+def test_meetings_can_move_to_other_days(tmp_path):
+    new_course, _ = roll_over_course(
+        _course(tmp_path), target_term="Fall 2026", calendars=CALENDARS, meeting_days=(0, 4)
+    )
+
+    assert _dates(new_course)[:4] == [
+        dt.date(2026, 8, 24),
+        dt.date(2026, 8, 28),
+        dt.date(2026, 8, 31),
+        dt.date(2026, 9, 4),
+    ]
+
+
+def test_a_course_starting_midweek_meets_first_on_its_first_day(tmp_path):
+    new_course, _ = roll_over_course(
+        _course(tmp_path),
+        target_term="Fall 2026",
+        calendars=CALENDARS,
+        manual_week1_date=dt.date(2026, 8, 26),  # a Wednesday
+        meeting_days=(0, 2),
+    )
+
+    assert _dates(new_course)[:4] == [
+        dt.date(2026, 8, 26),
+        dt.date(2026, 8, 31),
+        dt.date(2026, 9, 2),
+        dt.date(2026, 9, 7),
+    ]
+
+
+def test_a_week_with_only_its_thursday_row_moves_to_the_second_day(tmp_path):
+    course = _course(tmp_path)
+    without_week2_tuesday = [w for w in course.weeks if (w.week_number, w.meeting) != (2, 1)]
+    course = course.model_copy(update={"weeks": with_meetings(without_week2_tuesday)})
+
+    new_course, _ = roll_over_course(course, target_term="Fall 2026", calendars=CALENDARS, meeting_days=(0, 2))
+
+    week2 = [w for w in _regular(new_course) if w.week_number == 2]
+    assert [(w.topics, w.date) for w in week2] == [(["Topic 2b"], dt.date(2026, 9, 2))]
+
+
+def test_picking_a_different_number_of_days_keeps_the_spacing_and_says_so(tmp_path):
+    new_course, preview = roll_over_course(
+        _course(tmp_path), target_term="Fall 2026", calendars=CALENDARS, meeting_days=(0, 2, 4)
+    )
+
+    assert _dates(new_course)[:2] == [dt.date(2026, 8, 24), dt.date(2026, 8, 26)]
+    assert any("2 class meetings a week" in flag for flag in preview.general_flags)
+
+
+def test_the_schedule_tells_which_days_the_class_met(tmp_path):
+    assert schedule_meeting_days(_course(tmp_path).weeks) == (1, 3)  # Tue/Thu
+    assert schedule_meeting_days(extract_course_data(build_minimal_syllabus(tmp_path / "w.docx")).weeks) == ()

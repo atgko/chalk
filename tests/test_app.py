@@ -15,7 +15,7 @@ from streamlit.testing.v1 import AppTest
 
 from chalk import metrics
 from chalk.generation.engine import NO_SOURCES_MESSAGE
-from chalk.pipeline import extract_syllabus
+from chalk.pipeline import extract_syllabus, save_reviewed_course
 from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
 from ui import session
@@ -730,6 +730,21 @@ def test_lengthening_offers_ai_drafts_and_shows_the_flags(saved_project):
     warnings = texts(at.warning)
     assert any("Course length changed from 2 to 9 weeks" in w for w in warnings)
     assert any("confirm Week 8 timing" in w for w in warnings)
+
+
+def test_a_row_per_meeting_schedule_starts_with_its_own_meeting_days(project, tmp_path):
+    """IS 4440's meeting pattern is only on a "Time:" line, so it's blank;
+    the picker starts from the days the schedule's rows fall on."""
+    from tests.fixtures import docx_builder
+
+    course_data, _ = extract_syllabus(project, docx_builder.build_twice_weekly_syllabus(tmp_path / "t.docx"))
+    blank_pattern = course_data.course.model_copy(update={"meeting_pattern": ""})
+    save_reviewed_course(project, course_data.model_copy(update={"course": blank_pattern}))
+    at = launch(project)
+
+    picker = widget(at.multiselect, "Class meets on")
+    assert picker.value == ["Tue", "Thu"]
+    assert "a row per class meeting (Tue/Thu)" in picker.help
 
 
 def test_meeting_days_and_break_toggles_narrow_the_flags(saved_project):
