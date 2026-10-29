@@ -35,6 +35,7 @@ from chalk.extractors._dates import (
 from chalk.extractors._docx_schedule import extract_weeks, find_schedule_tables, is_undated_schedule
 from chalk.extractors._front_matter import extract_front_matter
 from chalk.extractors._grading import header_column, headerless_points, parse_rows
+from chalk.extractors.meetings import week_count, with_meetings
 from chalk.extractors.undated_schedule import provisional_week1
 from chalk.models import Assessment, CourseData, CourseInfo, UniversityDate, Week
 
@@ -69,8 +70,10 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
 
     schedule_tables = find_schedule_tables(document, schedule_table_index)
     undated = any(is_undated_schedule(table) for table in schedule_tables)
-    weeks = roll_dates_past_new_year(
-        extract_weeks(schedule_tables, year, undated_week1=provisional_week1(front_matter["term"], year))
+    weeks = with_meetings(
+        roll_dates_past_new_year(
+            extract_weeks(schedule_tables, year, undated_week1=provisional_week1(front_matter["term"], year))
+        )
     )
 
     course_info = CourseInfo(
@@ -81,7 +84,7 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
         term=front_matter["term"],
         term_start=_course_start_date(weeks),
         term_end=_course_end_date(weeks),
-        duration_weeks=sum(1 for week in weeks if not week.is_break),
+        duration_weeks=week_count(weeks),
         meeting_pattern=front_matter["meeting_pattern"],
         instructor=front_matter["instructor"],
         source_format="word",

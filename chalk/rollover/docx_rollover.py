@@ -37,6 +37,7 @@ from chalk.extractors._docx_schedule import (
 )
 from chalk.extractors._front_matter import parse_labeled_line, replace_term_text, term_line_index
 from chalk.extractors.docx_extractor import front_matter_slots
+from chalk.extractors.meetings import number_meetings, week_key
 from chalk.models import CourseData, UniversityDate, Week
 
 
@@ -55,15 +56,13 @@ def write_rolled_over_docx(
 
     _update_front_matter_term(document, new_course_data.course.term)
 
-    new_weeks_by_number = {
-        week.week_number: week
-        for week in new_course_data.weeks
-        if not week.is_break and week.date is not None
+    new_weeks_by_key = {
+        week_key(week): week for week in new_course_data.weeks if not week.is_break and week.date is not None
     }
     new_break_weeks = [week for week in new_course_data.weeks if week.is_break]
 
     schedule_tables = [table for table in document.tables if looks_like_schedule_table(table)]
-    _update_schedule(schedule_tables, new_weeks_by_number, new_break_weeks)
+    _update_schedule(schedule_tables, new_weeks_by_key, new_break_weeks)
     for table in document.tables:
         if table not in schedule_tables and _looks_like_university_dates_table(table):
             _update_university_dates_table(table, new_course_data.university_dates)
@@ -74,7 +73,7 @@ def write_rolled_over_docx(
     document.save(str(output_path))
 
 
-def _update_schedule(tables: list, new_weeks_by_number: dict, new_break_weeks: list[Week]) -> None:
+def _update_schedule(tables: list, new_weeks_by_key: dict, new_break_weeks: list[Week]) -> None:
     """Make the week rows match the new schedule, then rewrite the break
     rows, across all the schedule's tables (a schedule may be split into
     one table per module). Header and module-title rows are left alone
@@ -89,14 +88,16 @@ def _update_schedule(tables: list, new_weeks_by_number: dict, new_break_weeks: l
                 week_rows.append((row, table))
             elif kind == "break":
                 break_rows.append((row, table))
-    dated_rows = _update_week_rows(tables, week_rows, new_weeks_by_number)
+    dated_rows = _update_week_rows(tables, week_rows, new_weeks_by_key)
     _rewrite_break_rows(tables, break_rows, dated_rows, new_break_weeks)
 
 
-def _update_week_rows(tables: list, week_rows: list[tuple], new_weeks_by_number: dict) -> list[tuple]:
+def _update_week_rows(tables: list, week_rows: list[tuple], new_weeks_by_key: dict) -> list[tuple]:
     """Relabel the rows of weeks that stay, remove the rows of weeks a
     shorter course drops, and add a row after the last week for each week
     a longer course adds. Returns (new date, row) for every week row left.
+    A row is matched to its week by week number and, for a class with a
+    row per meeting, which meeting of the week it is (week_key).
 
     An added row is a copy of the last week row, so it keeps the table's
     formatting; its cells get the new week's label and placeholder content
@@ -107,20 +108,21 @@ def _update_week_rows(tables: list, week_rows: list[tuple], new_weeks_by_number:
     template_tr = deepcopy(template_row._tr)
     template_label = _label_paragraph_and_label(template_row)[1]
 
+    numbers = [_label_paragraph_and_label(row)[1].week_number for row, _table in week_rows]
     dated_rows: list[tuple] = []
-    kept_numbers: set[int] = set()
-    for row, _table in week_rows:
-        week = new_weeks_by_number.get(_label_paragraph_and_label(row)[1].week_number)
+    kept_keys: set[tuple] = set()
+    for (row, _table), key in zip(week_rows, zip(numbers, number_meetings(numbers))):
+        week = new_weeks_by_key.get(key)
         if week is None:
             row._tr.getparent().remove(row._tr)
             continue
         _relabel_week_row(row, week.date)
         dated_rows.append((week.date, row))
-        kept_numbers.add(week.week_number)
+        kept_keys.add(key)
 
     anchor_tr = dated_rows[-1][1]._tr if dated_rows else None
-    for number in sorted(set(new_weeks_by_number) - kept_numbers):
-        week = new_weeks_by_number[number]
+    for key in sorted(set(new_weeks_by_key) - kept_keys):
+        week = new_weeks_by_key[key]
         row = _Row(deepcopy(template_tr), template_table)
         _fill_new_week_row(row, week, template_label)
         if anchor_tr is not None:

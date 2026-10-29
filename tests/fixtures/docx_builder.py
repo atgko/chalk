@@ -386,3 +386,24 @@ def build_syllabus_with_course_info_table(path: Path) -> Path:
     _add_schedule_table(doc, rows=[("Week 1 (8/24)", ["Course Introduction"])])
     doc.save(str(path))
     return path
+
+
+def build_twice_weekly_syllabus(path: Path, *, weeks: int = 3) -> Path:
+    """A class that meets Tuesday and Thursday, one row per class meeting
+    with the week's number repeated ("Week 2 (1/13)", "Week 2 (1/15)"),
+    as in the IS 4440 syllabus (sponsor meeting, Oct 28). Spring 2026,
+    Week 1 on Tuesday Jan 6; topics are "Topic <week><a|b>"."""
+    import datetime as dt
+
+    tuesday = dt.date(2026, 1, 6)
+    rows: list[tuple[str, list[str]]] = []
+    for n in range(1, weeks + 1):
+        for offset, letter in ((0, "a"), (2, "b")):
+            day = tuesday + dt.timedelta(days=7 * (n - 1) + offset)
+            rows.append((f"Week {n} ({day.month}/{day.day})", [f"Topic {n}{letter}"]))
+
+    doc = Document()
+    _add_front_matter(doc, term="Spring 2026", meeting_pattern="Tuesdays and Thursdays 9:10 - 10:30am")
+    _add_schedule_table(doc, rows=rows)
+    doc.save(str(path))
+    return path

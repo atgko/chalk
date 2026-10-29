@@ -72,7 +72,6 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P3: Title guesses can include the modality**, e.g. "Networking and Servers – Online". This is editable on Review.
 - **P3: Meeting pattern stays blank when it's only in a labeled line like "Time:"**. That's deliberate (in IS 6640, "Time:" is the webinar, not the class).
 - **P3: The objectives list stops at any short ALL-CAPS line**, so an objective written in all caps would end it early.
-- **P1: A twice-a-week syllabus is read as one week per class session (sponsor meeting, Oct 28).** An undergraduate syllabus whose class met twice a week was extracted as "29 weeks": each row was a class session, not a week. Extraction should recognize session rows (e.g. two dated rows in the same week, or Tue/Thu labels) and count weeks, not sessions. Related to the rollover item "Classes that meet twice a week" below.
 
 ## Rollover
 
@@ -81,7 +80,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P3: Break rows in a split (per-module) schedule** are placed by date across all the tables; a break after the last week goes at the end of the last table. This is untested on a real split schedule that has break rows.
 - **P3: When the instructor picked one table from an ambiguous set, the writer still updates every schedule-like table.**
 - **P3: The preview always shows dates as M/D**, even when the syllabus uses "Jan. 6" (the written document keeps the original style).
-- **P2: Classes that meet twice a week (sponsor meeting, Oct 15).** Undergraduate courses often meet twice a week. Rollover already asks which days the class meets, but only to decide which holidays to warn about: every schedule row is still one week with one date. Test a syllabus with one row per class session (e.g. Tue and Thu rows) and decide how rollover should handle it, especially when the meeting days change between terms.
+- **P2: Classes that meet twice a week (sponsor meeting, Oct 15).** Undergraduate courses often meet twice a week. Rollover already asks which days the class meets, but only to decide which holidays to warn about: every schedule row is still one week with one date. Test a syllabus with one row per class session (e.g. Tue and Thu rows) and decide how rollover should handle it, especially when the meeting days change between terms. Update (Oct 28): a row per class meeting is now read and rolled over (see Done), but each meeting keeps its days after the week's first meeting, and Week 1 starts on the term's first day. So IS 4440's Tue/Thu rolls over to Fall 2026 as Mon/Wed. Next: date each meeting on the meeting days the instructor picks on the Rollover tab.
 - **P1: The rolled-over syllabus should keep the original's format (sponsor meeting, Oct 28).** The new syllabus download should look exactly like the one uploaded, not like standard AI output. Word to Word should be the easiest case. A Word rollover already writes into a copy of the original file (`chalk/rollover/docx_rollover.py`), so first confirm which download looked like AI output: a PDF syllabus (rebuilt as a new Word file), a markdown one, or another output such as the course brief. PDF and other formats will be harder.
 
 ## App / UX
@@ -103,6 +102,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 ## Done
 
+- 2026-10-28: A syllabus with a row per class meeting ("Week 2 (1/13)", "Week 2 (1/15)") counts weeks, not rows: IS 4440 reads as 16 weeks, not 29. Each row stays its own entry, numbered by its meeting in the week, and rollover, the Word rollover, the warnings, and Generate handle it. The local PDF reader also keeps rows whose week label sits one column over (Week 1 and Week 7 were lost) and lines on rows of their own below a week's label. The AI PDF reader keeps two meetings of a week apart (PR #27).
 - 2026-10-28: A "Jump to…" dropdown at the end of the course line opens any tab, or Generate with a content type already selected, as soon as you pick it. Typing filters the list, and labels carry the words people use ("Export for Canvas", "Generate slides (PowerPoint)"). It replaces the workflow search bar from PR #10, which was taken out in #15 (PR #23).
 - 2026-10-26: Every grading is logged in the eval log (model, AI calls, tokens, cost; never the submission, rubric, or file name) as content type "grading", so its cost shows on the Metrics tab, in the footer, and in `toolkit.py report` (PR #22).
 - 2026-10-26: Generation needs at least one instructor source file besides the syllabus, in the app and the CLI (`--source`); the Generate button appears once one is selected (PR #22).

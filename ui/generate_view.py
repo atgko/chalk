@@ -103,11 +103,14 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
 def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpec) -> GenerationRequest:
     fields: dict = {"content_type": spec.key}
     if spec.per_week:
-        weeks = {w.week_number: w for w in course_data.weeks if not w.is_break}
+        topics: dict[int, list[str]] = {}  # every class meeting's topics, for a row per meeting
+        for week in course_data.weeks:
+            if not week.is_break:
+                topics.setdefault(week.week_number, []).extend(week.topics)
         fields["week_number"] = st.selectbox(
             "Week",
-            list(weeks),
-            format_func=lambda n: f"Week {n} — {'; '.join(weeks[n].topics) or 'no topics listed'}",
+            list(topics),
+            format_func=lambda n: f"Week {n} — {'; '.join(topics[n]) or 'no topics listed'}",
         )
     if spec.key == "quiz":
         fields |= _quiz_fields()

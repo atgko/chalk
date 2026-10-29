@@ -47,6 +47,20 @@ def test_real_tables_are_schedules_or_mostly_filled_grids():
     assert not is_real_table([])
 
 
+def test_a_week_label_one_column_to_the_right_moves_into_the_first_column():
+    # The IS 4440 PDF puts some rows' label in the second column (Week 1, Week 7).
+    rows = [
+        [["Module"], [], ["Weekly Assignments"]],
+        [[], ["Week 1 (1/6)"], ["Course Introduction"]],
+        [["Week 2 (1/13)"], [], ["Network+ Mod 1"]],
+    ]
+    assert normalize_rows(rows) == [
+        [["Module"], ["Weekly Assignments"]],
+        [["Week 1 (1/6)"], ["Course Introduction"]],
+        [["Week 2 (1/13)"], ["Network+ Mod 1"]],
+    ]
+
+
 # ---- assemble -----------------------------------------------------------------------
 
 
@@ -115,3 +129,21 @@ def test_other_real_tables_pass_through():
     grading = freeze([[["Activity"], ["Weight"]], [["Labs"], ["60%"]]])
     blocks = assemble([grading])
     assert blocks == [Table(((("Activity",), ("Weight",)), (("Labs",), ("60%",))))]
+
+
+def test_a_row_with_an_empty_first_cell_inside_a_schedule_belongs_to_the_week_above():
+    schedule = freeze(
+        [
+            HEADER,
+            _week(3, "1/20", "Network+ Mod 2"),
+            [[], ["Network+ Mod 3"], []],
+            [[], [], ["Lab A due"]],
+            _week(4, "1/27", "Protocols"),
+        ]
+    )
+
+    [table] = assemble([schedule])
+
+    assert _cells(table, 1) == [["Week 3 (1/20)"], ["Network+ Mod 2", "Network+ Mod 3"], ["Lab A due"]]
+    assert _cells(table, 2)[0] == ["Week 4 (1/27)"]
+    assert len(table.rows) == 3

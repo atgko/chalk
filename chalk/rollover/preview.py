@@ -15,7 +15,9 @@ IS 6640, Fall 2026 -> Fall 2027):
   days — a pure instructional-week counter, unaffected by where breaks
   fall. This matches the worked example exactly: every week shifts by the
   same number of days Week 1 did (Aug 24 -> Aug 23 is -1 day; so is every
-  later week).
+  later week). A class that meets more than once a week has a row per
+  meeting (chalk/extractors/meetings.py): each meeting keeps its days
+  after the week's first meeting (Tue/Thu stays two days apart).
 - Each break week's dates come from the target term's own calendar data
   (matched by label), not from shifting the original break's dates —
   breaks move independently of the instructional-week counter from year
@@ -40,6 +42,7 @@ from dataclasses import dataclass, field
 
 from chalk.calendar_data import find_term
 from chalk.errors import LLMProviderError
+from chalk.extractors.meetings import week_count
 from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
 from chalk.progress import ProgressCallback, report
@@ -83,6 +86,7 @@ class WeekChange:
     old_date: dt.date | None
     new_date: dt.date | None
     flags: list[str] = field(default_factory=list)
+    meeting: int | None = None  # the class meeting within its week, if it has several
 
 
 @dataclass(frozen=True)
@@ -246,9 +250,10 @@ def _adjust_regular_week_count(
     llm_generate_topics: bool,
     on_progress: ProgressCallback | None = None,
 ) -> list[Week]:
-    current = len(regular_weeks)
+    current = week_count(regular_weeks)
     if new_duration <= current:
-        return regular_weeks[:new_duration]
+        kept = sorted({week.week_number for week in regular_weeks})[:new_duration]
+        return [week for week in regular_weeks if week.week_number in kept]
     return regular_weeks + _build_placeholder_weeks(
         range(current + 1, new_duration + 1), regular_weeks, llm_generate_topics, on_progress
     )
@@ -312,8 +317,12 @@ def _shift_regular_weeks(
 ) -> tuple[list[Week], list[WeekChange]]:
     new_weeks: list[Week] = []
     changes: list[WeekChange] = []
+    first_meetings: dict[int, dt.date] = {}
     for week in regular_weeks:
-        new_date = new_term_start + dt.timedelta(days=7 * (week.week_number - 1))
+        first_meetings[week.week_number] = min(week.date, first_meetings.get(week.week_number, week.date))
+    for week in regular_weeks:
+        days_after_first_meeting = (week.date - first_meetings[week.week_number]).days
+        new_date = new_term_start + dt.timedelta(days=7 * (week.week_number - 1) + days_after_first_meeting)
         new_label = f"Week {week.week_number} ({new_date.month}/{new_date.day})"
         new_weeks.append(week.model_copy(update={"date": new_date, "label": new_label}))
         changes.append(
@@ -322,6 +331,7 @@ def _shift_regular_weeks(
                 label=new_label,
                 old_date=None if week.date == _PLACEHOLDER_DATE else week.date,
                 new_date=new_date,
+                meeting=week.meeting,
             )
         )
     return new_weeks, changes

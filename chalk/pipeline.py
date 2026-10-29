@@ -24,6 +24,7 @@ from chalk.course_brief import write_course_brief
 from chalk.errors import ChalkError, ProjectError, TermNotInCalendarError
 from chalk.extractors import extract_course
 from chalk.extractors.consistency import ConsistencyResult
+from chalk.extractors.meetings import week_count
 from chalk.extractors.undated_schedule import (
     date_undated_schedule,
     default_week1,
@@ -330,7 +331,7 @@ def _duration_mismatch_flag(course_data: CourseData, target_weeks: int) -> str |
     to the schedule's week count, so a mismatch means the instructor
     changed it on purpose — the documented way to lengthen or shorten a
     course (section 6.2). See DECISIONS.md."""
-    schedule_weeks = sum(1 for week in course_data.weeks if not week.is_break)
+    schedule_weeks = week_count(course_data.weeks)
     if schedule_weeks == course_data.course.duration_weeks:
         return None
     return (
