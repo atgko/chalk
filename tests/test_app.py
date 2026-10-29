@@ -1102,6 +1102,8 @@ def test_an_assignment_can_include_an_ai_use_task(sourced_project, llm):
     at = click(at.run(), "Generate")
 
     assert "AI-USE COMPONENT" in llm[-1]
+    # The fake draft has no AI-USE TASK section, so Chalk says so.
+    assert any('no "AI-USE TASK" section' in warning for warning in texts(at.warning))
 
 
 # ---- Launch screen: your projects, and creating one that exists ---------------------------

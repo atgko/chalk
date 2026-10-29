@@ -14,9 +14,11 @@ from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
 from chalk.generation.course_level import (
+    AI_TASK_HEADING,
     COURSE_LEVELS,
     LEVEL_LABELS,
     UPPER_DIVISION,
+    has_ai_task_section,
     level_from_course_number,
 )
 from chalk.generation.document_export import can_export
@@ -359,6 +361,11 @@ def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: Generated
     else:
         with st.container(border=True):
             st.markdown(draft.text)
+    if draft.request.include_ai_component and not has_ai_task_section(draft.text):
+        st.warning(
+            f"This draft has no \"{AI_TASK_HEADING}\" section, so the AI-use task may be hard to "
+            "find. Generate a new version, or label the task before sharing the assignment."
+        )
 
     request = draft.request
     if can_export(request.content_type):
