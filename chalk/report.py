@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from chalk.archiving import archive_before_write
-from chalk.metrics import read_events
+from chalk.metrics import monthly_costs, read_events
 from chalk.project import ProjectPaths
 
 _FORMAT_BY_SUFFIX = {".docx": "word", ".md": "markdown", ".pdf": "pdf"}
@@ -33,6 +33,7 @@ def render_evaluation_report(events: list[dict[str, Any]], *, project_name: str,
         _consistency_section(events),
         _rollover_section(events),
         _generation_section(events),
+        _monthly_cost_section(events),
     ]
     return "\n\n".join(sections) + "\n"
 
@@ -135,4 +136,18 @@ def _generation_section(events: list[dict[str, Any]]) -> str:
         lines.append(f"{unpriced} call(s) used a model with no cost rate in config.json and are counted as $0.")
     models = sorted({e.get("model", "?") for e in generations})
     lines.append(f"Models used: {', '.join(models)}.")
+    return "\n".join(lines)
+
+
+def _monthly_cost_section(events: list[dict[str, Any]]) -> str:
+    months = monthly_costs(events)
+    lines = ["## Generation cost by month", ""]
+    if not months:
+        return "\n".join([*lines, "_No content generated yet._"])
+    lines += ["| Month | Calls | Total cost | Avg cost / call |", "| --- | --- | --- | --- |"]
+    lines += [
+        f"| {m.month} | {m.generations} | ${m.cost_usd:.4f} | "
+        f"{f'${m.avg_cost_usd:.4f}' if m.generations else '—'} |"
+        for m in months
+    ]
     return "\n".join(lines)
