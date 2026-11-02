@@ -46,8 +46,9 @@ from ui import (
 from ui.common import render_header, render_needs_course
 
 TAB_NAMES = tuple(tab for tabs in session.TAB_GROUPS.values() for tab in tabs)
-# Tabs that work from a saved course: dimmed until there is one.
-NEEDS_COURSE_TABS = ("Rollover", "Generate", "Export", "Metrics")
+# Tabs that work from a saved course: dimmed until there is one. Metrics isn't one:
+# it reads only the cost log, and an AI PDF read is charged before any course is saved.
+NEEDS_COURSE_TABS = ("Rollover", "Generate", "Export")
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ def main(argv: list[str] | None = None) -> None:
     with drafts:
         _guarded(drafts_view.render, paths)
     with metrics:
-        _gated("Metrics", course_data, metrics_view.render, paths)
+        _guarded(metrics_view.render, paths)
     with grading:
         _guarded(grading_view.render, paths)
     with settings:

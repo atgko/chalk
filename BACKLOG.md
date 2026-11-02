@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-10-28.
+Last updated: 2026-11-02.
 
 ## Open questions (need someone outside the code)
 
@@ -102,6 +102,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 ## Done
 
+- 2026-11-02: Metrics opens in a course with no syllabus saved yet, since an AI PDF read is charged before there's a course; Rollover, Generate, and Export stay dimmed until one is saved (found in UAT of PR #24; PR #27).
 - 2026-10-29: The Grading Assistant has a **Grading strictness** control: Lenient, Standard (the default, unchanged grading), or Strict. It changes both the suggested scores and the feedback's tone, never what the rubric asks for, and the eval log records the level of each grading (PR #27).
 - 2026-10-29: The tabs are grouped by purpose: **Build** (Upload, Review, Rollover, Generate, Drafts, Export) with its own row of tabs, **Grading Assistant** on its own, and **Settings** (AI Provider, Metrics). A group's label shows a running or finished job inside it. Jump to lists workflows in the same order and opens the group with the tab (PR #27).
 - 2026-10-29: A schedule with a row per class meeting is dated on the days picked under "Class meets on": IS 4440's Tue/Thu rows roll over to Fall 2026 on Tue 8/25 and Thu 8/27, not Mon/Wed. The picker starts from the days the rows fall on when the syllabus has no meeting pattern. Picking a different number of days keeps each meeting's spacing, with a note (PR #27).

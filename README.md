@@ -514,7 +514,7 @@ You tried to create a project that already exists. Click **Open …** to open it
 Choose a new name without slashes, like `IS-6640-Fall-2027`.
 
 **"Upload and extract a syllabus first…"**
-Rollover, Generate, Export, and Metrics need a saved `course.json`. Start on the Upload tab.
+Rollover, Generate, and Export need a saved `course.json`. Start on the Upload tab.
 
 **"Something unexpected went wrong (…)."**
 A bug. Your files were not changed. The terminal window running the app has the details. Please report them.

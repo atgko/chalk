@@ -389,13 +389,26 @@ def test_settings_keeps_the_saved_key_when_left_blank_and_switches_model(project
 def test_gated_tabs_redirect_until_a_course_exists(project):
     at = launch(project)
     assert_no_exception(at)
-    assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 4
+    assert texts(at.info).count(NEEDS_COURSE_MESSAGE) == 3
     assert "course.json" not in NEEDS_COURSE_MESSAGE  # professors don't know the file
     [style] = at.get("html")
     for position in (3, 4, 6):  # Rollover, Generate, Export are dimmed under Build
         assert f'.st-key-chalk_build_tab [data-testid="stTab"]:nth-of-type({position}) {{opacity: 0.45;}}' in style.proto.body
-    assert '.st-key-chalk_settings_tab [data-testid="stTab"]:nth-of-type(2) {opacity: 0.45;}' in style.proto.body  # Metrics
+    assert ".st-key-chalk_settings_tab" not in style.proto.body  # Metrics only reads the cost log
     assert "nth-of-type(1) {opacity" not in style.proto.body
+
+
+def test_metrics_shows_ai_cost_before_a_course_is_saved(project):
+    # An AI PDF read is charged even when it fails, so there can be a cost with no course yet.
+    metrics.append_event(project.eval_log, "generation", {"content_type": "pdf_syllabus_reading", "cost_usd": 0.2622})
+    metrics.append_event(project.eval_log, "extraction_error", {"filename": "a.pdf", "error_type": "ExtractionError"})
+
+    at = launch(project, **{session.ACTIVE_TAB_KEY: "Metrics"})
+
+    assert_no_exception(at)
+    values = {m.label: m.value for m in at.metric}
+    assert "$0.2622" in values.values()
+    assert values["Extraction errors"] == "1"
 
 
 def test_go_to_upload_opens_the_upload_tab(project):
