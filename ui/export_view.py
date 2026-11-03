@@ -52,8 +52,18 @@ CANVAS_STEPS = """1. In your Canvas course, click **Syllabus** in the menu on th
 6. Click **Update Syllabus**. Then fill in the parts marked "Insert…" (email, office hours, TAs)."""
 
 # Canvas pages are white, whatever Chalk's theme, so the preview is too.
+# The page itself carries no banner or section-bar styling: on Canvas the
+# DesignPLUS theme draws them, so the preview stands in for that theme,
+# scoped to .kl_emta so it can't touch the rest of the app. Not selectable,
+# so it can't be copied in place of the HTML (a pasted preview brings
+# Streamlit's own markup with it).
 _PREVIEW_FRAME = (
-    '<div style="background: #ffffff; color: #2d3b45; padding: 16px; border-radius: 8px; '
+    "<style>"
+    ".kl_emta #kl_banner h2 {{ background: #be0000; color: #ffffff; padding: 12px 16px; border-radius: 6px; "
+    "font-weight: normal; }}"
+    ".kl_emta h3 {{ background: #c7cdd1; padding: 8px 16px; border-radius: 6px; font-weight: normal; }}"
+    "</style>"
+    '<div style="background: #ffffff; color: #2d3b45; padding: 16px; border-radius: 8px; user-select: none; '
     "font-family: Lato, 'Helvetica Neue', Arial, sans-serif;\">{page}</div>"
 )
 
@@ -67,6 +77,10 @@ def _render_canvas_page(page_html: str) -> None:
     st.markdown("**How to put it on Canvas**")
     st.markdown(CANVAS_STEPS)
     with st.expander("Preview: how it will look in Canvas", expanded=True):
+        st.caption(
+            "This is only a preview, so don't copy from the preview. "
+            "Use the copy button on the HTML box below."
+        )
         st.html(_PREVIEW_FRAME.format(page=page_html))
     st.markdown("**HTML to paste**")
     st.code(page_html, language="html")
