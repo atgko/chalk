@@ -165,11 +165,11 @@ def test_an_extraction_finished_on_the_upload_tab_opens_review(project, tmp_path
 
 def test_an_extraction_finished_on_another_tab_leaves_the_instructor_there(project, tmp_path):
     at = launch(
-        project, **_finished_extraction(project, tmp_path), **{session.ACTIVE_TAB_KEY: "Settings"}
+        project, **_finished_extraction(project, tmp_path), **{session.ACTIVE_TAB_KEY: "AI Provider"}
     )
 
     assert not at.exception
-    assert at.session_state[session.ACTIVE_TAB_KEY] == "Settings"
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "AI Provider"
     assert any(s.endswith("Check it on the Review tab.") for s in _toasts(at))
 
 

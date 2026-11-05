@@ -38,7 +38,7 @@ from ui import background, common, session
 from ui.session import PendingExtraction, TableChoice
 
 # Share of the bar for an AI read of a PDF; extraction after it is quick.
-_AI_READ_SHARE = 0.9
+_PDF_READ_SHARE = 0.9
 _FINISHING = 0.95
 
 _PDF_METHOD_LABELS = {
@@ -83,16 +83,16 @@ def extract_upload(
     on_progress: ProgressCallback | None = None,
 ) -> UploadOutcome:
     """Extract an uploaded syllabus, converting a PDF first (unless an
-    earlier conversion is passed in). An AI read of a PDF fills the first
-    90% of the progress bar; the rest is quick. `tried` is the ways this
-    PDF was already read, so a failure suggests only the others."""
+    earlier conversion is passed in). Reading a PDF, locally or with AI,
+    fills the first 90% of the progress bar; the rest is quick. `tried` is
+    the ways this PDF was already read, so a failure suggests only the others."""
     try:
-        reading_with_ai = pdf_conversion is None and is_pdf(upload_path.name) and pdf_method == "ai"
-        if pdf_conversion is None and is_pdf(upload_path.name):
+        reading_pdf = pdf_conversion is None and is_pdf(upload_path.name)
+        if reading_pdf:
             pdf_conversion = convert_pdf_syllabus(
-                paths, upload_path, method=pdf_method, on_progress=within(on_progress, 0.0, _AI_READ_SHARE)
+                paths, upload_path, method=pdf_method, on_progress=within(on_progress, 0.0, _PDF_READ_SHARE)
             )
-        report(on_progress, _FINISHING if reading_with_ai else None, "Finding the course details and schedule")
+        report(on_progress, _FINISHING if reading_pdf else None, "Finding the course details and schedule")
         course_data, consistency = extract_syllabus(
             paths, upload_path, schedule_table_index=table_index, pdf_conversion=pdf_conversion
         )
@@ -194,7 +194,7 @@ def _pdf_method_choice(paths: ProjectPaths) -> PdfReadMethod:
             f"For unusual layouts. Sends the syllabus text to {describe_provider(current_env())}; {cost}."
         )
     else:
-        ai_caption = "Set up an AI provider on the Settings tab to use this."
+        ai_caption = "Set up an AI provider under Settings → AI Provider to use this."
     method = st.radio(
         "How should Chalk read this PDF?",
         PDF_READ_METHODS,

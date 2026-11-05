@@ -6,9 +6,11 @@ import pytest
 from chalk.errors import GenerationError
 from chalk.generation.course_level import (
     AI_COMPONENT_GUIDANCE,
+    AI_TASK_HEADING,
     GRADUATE,
     LOWER_DIVISION,
     UPPER_DIVISION,
+    has_ai_task_section,
     level_from_course_number,
     level_guidance,
 )
@@ -100,3 +102,23 @@ def test_an_assignment_can_ask_for_an_ai_use_component(tmp_project, course):
 def test_only_assignments_get_the_ai_use_component(tmp_project, course):
     prompt = build_prompt(tmp_project, course, GenerationRequest("quiz", week_number=3, include_ai_component=True))
     assert "AI-USE COMPONENT" not in prompt
+
+
+# ---- Finding the AI-use task (sponsor meeting, Oct 28) ------------------------------
+
+
+def test_the_ai_task_goes_in_its_own_labeled_section():
+    assert f"## {AI_TASK_HEADING}" in AI_COMPONENT_GUIDANCE
+    assert "(AI-use task)" in AI_COMPONENT_GUIDANCE
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("# Lab\n\n## MORE DETAILS\n...\n\n## AI-USE TASK\n> This task asks you to use AI.\n", True),
+        ("# Lab\n\n## AI-Use Task\nUse an AI tool.\n", True),
+        ("# Lab\n\n## MORE DETAILS\n3. Use an AI tool to brainstorm.\n", False),
+    ],
+)
+def test_has_ai_task_section(text, expected):
+    assert has_ai_task_section(text) is expected

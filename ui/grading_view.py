@@ -7,6 +7,7 @@ from io import BytesIO
 import streamlit as st
 
 from chalk.grading.eval_log import grade_and_log
+from chalk.grading.strictness import STANDARD, STRICTNESS_LABELS, STRICTNESS_LEVELS
 from chalk.llm_client import LLMProviderError
 
 
@@ -70,6 +71,17 @@ def render(paths):
         key="grading_instructions",
     )
 
+    strictness = st.segmented_control(
+        "Grading strictness",
+        STRICTNESS_LEVELS,
+        default=STANDARD,
+        format_func=STRICTNESS_LABELS.get,
+        key="grading_strictness",
+        help="Lenient gives the benefit of the doubt and encouraging feedback; Strict gives credit "
+        "only for what the submission clearly shows, with direct feedback. Both grade only against "
+        "the rubric. Standard grades as before.",
+    ) or STANDARD
+
     ready = uploaded_file is not None and bool(rubric.strip())
 
     if st.button(
@@ -93,6 +105,7 @@ def render(paths):
                     submission=submission,
                     rubric=rubric,
                     instructions=instructions,
+                    strictness=strictness,
                 )
 
             st.session_state["grading_feedback"] = feedback

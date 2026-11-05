@@ -17,7 +17,7 @@ from io import BytesIO
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
@@ -32,6 +32,8 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+
+from chalk.generation.course_level import AI_TASK_HEADING
 
 EXPORT_FORMATS = ("Word (.docx)", "PDF (.pdf)", "Markdown (.md)")
 HEADERS = {
@@ -51,6 +53,9 @@ _DOCUMENT_NAMES = {
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _BANNER_RE = re.compile(r"^>\s*\*\*AI-generated draft\*\*")
 _NUMBERED_RE = re.compile(r"^\d+\.\s")
+# The AI-use task's heading is printed in this color so it stands out
+# (chalk.generation.course_level.AI_TASK_HEADING): University of Utah red.
+_HIGHLIGHT_HEX = "BE0000"
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$")
 
 
@@ -119,7 +124,8 @@ def _line_block(line: str) -> tuple[str, str]:
     if line.startswith("### "):
         return "subsection", _clean(line[4:])
     if line.startswith("## "):
-        return "section", _clean(line[3:]).upper()
+        heading = _clean(line[3:]).upper()
+        return ("highlighted_section" if heading == AI_TASK_HEADING else "section"), heading
     if line.startswith(("- ", "* ")):
         return "bullet", _clean(line[2:])
     if _NUMBERED_RE.match(line):
@@ -216,9 +222,16 @@ def _docx_skip(document, content) -> None:
     return None
 
 
+def _docx_highlighted_section(document, text: str) -> None:
+    heading = document.add_heading(text, level=1)
+    for run in heading.runs:
+        run.font.color.rgb = RGBColor.from_string(_HIGHLIGHT_HEX)
+
+
 _DOCX_WRITERS: dict[str, Callable] = {
     "title": _docx_title,
     "section": lambda d, text: d.add_heading(text, level=1),
+    "highlighted_section": _docx_highlighted_section,
     "subsection": lambda d, text: d.add_heading(text, level=2),
     "bullet": lambda d, text: d.add_paragraph(text, style="List Bullet"),
     "number": lambda d, text: d.add_paragraph(text, style="List Number"),
@@ -291,6 +304,7 @@ def _pdf_story(blocks: list[tuple[str, object]], styles, width: float) -> list:
 _PDF_STYLE_FOR = {
     "title": "DocTitle",
     "section": "DocSection",
+    "highlighted_section": "DocHighlightedSection",
     "subsection": "DocSubsection",
     "quote": "DocBody",
     "paragraph": "DocBody",
@@ -331,6 +345,14 @@ def _pdf_styles():
     for name, parent, font, size, leading, extra in (
         ("DocTitle", "Title", "Helvetica-Bold", 19, 23, {"alignment": TA_CENTER, "spaceAfter": 18}),
         ("DocSection", "Heading2", "Helvetica-Bold", 11, 14, {"spaceBefore": 12, "spaceAfter": 6}),
+        (
+            "DocHighlightedSection",
+            "Heading2",
+            "Helvetica-Bold",
+            11,
+            14,
+            {"spaceBefore": 12, "spaceAfter": 6, "textColor": colors.HexColor(f"#{_HIGHLIGHT_HEX}")},
+        ),
         ("DocSubsection", "Heading3", "Helvetica-Bold", 10.5, 13, {"spaceBefore": 9, "spaceAfter": 4}),
         ("DocBody", "BodyText", "Helvetica", 10.5, 15, {"spaceAfter": 7}),
         ("DocTable", "BodyText", "Helvetica", 9, 12, {}),

@@ -268,12 +268,23 @@ def _quiz_format_text(request: GenerationRequest) -> str:
 
 
 def _find_week(course_data: CourseData, week_number: int | None) -> Week:
-    for week in course_data.weeks:
-        if not week.is_break and week.week_number == week_number:
-            return week
-    raise GenerationError(
-        f"Week {week_number} isn't in this course's schedule "
-        f"(weeks 1–{course_data.course.duration_weeks})."
+    """The week, with the topics, assignments, and notes of all its class
+    meetings when the schedule has a row per meeting."""
+    meetings = [week for week in course_data.weeks if not week.is_break and week.week_number == week_number]
+    if not meetings:
+        raise GenerationError(
+            f"Week {week_number} isn't in this course's schedule "
+            f"(weeks 1–{course_data.course.duration_weeks})."
+        )
+    first, *rest = meetings
+    if not rest:
+        return first
+    return first.model_copy(
+        update={
+            "topics": [topic for week in meetings for topic in week.topics],
+            "assignments": [assignment for week in meetings for assignment in week.assignments],
+            "notes": " ".join(week.notes for week in meetings if week.notes) or None,
+        }
     )
 
 

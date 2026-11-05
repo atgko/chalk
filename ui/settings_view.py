@@ -1,5 +1,5 @@
-"""Settings tab (DECISIONS.md, 7th tab): provider, model, and API key
-only. Always available, regardless of project state."""
+"""Settings → AI Provider tab (DECISIONS.md): provider, model, and API
+key only. Always available, regardless of project state."""
 
 from __future__ import annotations
 

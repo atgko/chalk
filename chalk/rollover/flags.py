@@ -11,6 +11,7 @@ import datetime as dt
 import re
 from typing import TYPE_CHECKING
 
+from chalk.extractors.meetings import week_key
 from chalk.models import CourseData, Week
 from chalk.rollover.meeting_days import class_dates_in_week, meeting_days_changed_flag
 
@@ -33,14 +34,15 @@ def flag_weeks_colliding_with_target_breaks(
     """Flag each week whose class days fall in a target-term break or
     holiday (its start date when `meeting_days` is empty), adding to that
     week's entry in `changes`."""
-    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
+    changes_by_week = {week_key(c): c for c in changes if c.week_number is not None}
     for week in weeks:
         if week.is_break or week.date is None:
             continue
-        class_dates = class_dates_in_week(week.date, meeting_days)
+        # A row per class meeting is one class day already.
+        class_dates = [week.date] if week.meeting else class_dates_in_week(week.date, meeting_days)
         for entry in target_breaks:
             if any(_date_in_break(class_date, entry) for class_date in class_dates):
-                changes_by_week_number[week.week_number].flags.append(
+                changes_by_week[week_key(week)].flags.append(
                     f"{entry['label']} {year} is {_format_break_range(entry)} — "
                     f"confirm Week {week.week_number} timing"
                 )
@@ -52,13 +54,13 @@ def flag_numbered_weeks_marked_as_breaks(
     """Some syllabi number their break week ("Week 10 (Mar. 10) — Spring
     Break"), so it rolls over as an ordinary week whose content is a break
     that's probably no longer in that week. Flag it rather than guess."""
-    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
+    changes_by_week = {week_key(c): c for c in changes if c.week_number is not None}
     for week in weeks:
-        if week.is_break or week.week_number not in changes_by_week_number:
+        if week.is_break or week_key(week) not in changes_by_week:
             continue
         match = _BREAK_MENTION_RE.search(" ".join([*week.topics, *week.assignments, week.notes or ""]))
         if match:
-            changes_by_week_number[week.week_number].flags.append(
+            changes_by_week[week_key(week)].flags.append(
                 f"Week {week.week_number} was marked '{match.group(0)}' in {source_term} — check "
                 f"this week against the {target_term} calendar."
             )
@@ -127,13 +129,13 @@ def flag_dst_boundary_weeks(weeks: list[Week], changes: list[WeekChange]) -> Non
     """Markdown-only (PRD section 6.2): flag any week with assignments
     that falls within two weeks of the DST boundary, for human review.
     Never automates a timezone suffix."""
-    changes_by_week_number = {c.week_number: c for c in changes if c.week_number is not None}
+    changes_by_week = {week_key(c): c for c in changes if c.week_number is not None}
     for week in weeks:
         if week.is_break or week.date is None or not week.assignments:
             continue
         boundary = _first_sunday_of_november(week.date.year)
         if abs((week.date - boundary).days) <= _DST_BOUNDARY_WINDOW_DAYS:
-            changes_by_week_number[week.week_number].flags.append(
+            changes_by_week[week_key(week)].flags.append(
                 "This week's assignments fall within two weeks of the DST "
                 "boundary (first Sunday of November). Double-check due "
                 "times/timezones by hand — this is never automated."

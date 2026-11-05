@@ -7,6 +7,7 @@ calls the AI and shouldn't stop if the instructor switches tabs."""
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import streamlit as st
 
@@ -14,10 +15,15 @@ from chalk.calendar_data import find_term, load_calendars, suggest_target_term
 from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
 from chalk.models import CourseData
-from chalk.pipeline import RolloverPlan, confirm_rollover, preview_rollover
+from chalk.pipeline import RolloverPlan, confirm_rollover, missing_pdf_note, preview_rollover
 from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
-from chalk.rollover.meeting_days import DAY_ABBREVIATIONS, parse_meeting_days
+from chalk.rollover.meeting_days import (
+    DAY_ABBREVIATIONS,
+    format_meeting_days,
+    parse_meeting_days,
+    schedule_meeting_days,
+)
 from chalk.rollover.season_change import multi_day_breaks
 from chalk.sessions import (
     FULL_TERM,
@@ -27,7 +33,7 @@ from chalk.sessions import (
     is_summer,
     session_start,
 )
-from ui import background, common, session, tables
+from ui import background, common, export_view, session, tables
 from ui.session import StoredPlan
 
 OTHER_TERM = "Another term (not in the calendar)"
@@ -83,8 +89,19 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
     written = session.get_rollover_written()
     if written:
         st.success("Rollover complete. Previous versions were archived.")
-        for path in written:
-            common.download_button(path, paths, key_prefix="rollover")
+        note = session.get_rollover_note()
+        if note:
+            st.info(note)
+        _render_written(paths, written)
+
+
+def _render_written(paths: ProjectPaths, written: list[Path]) -> None:
+    """The files the rollover wrote, grouped and named as on the Export
+    tab (UAT, Nov 4: a list of "Download outputs/..." buttons read as a
+    mess). course.json is the project's own data, not a download."""
+    outputs = [path for path in written if path.is_relative_to(paths.outputs_dir) and path.exists()]
+    export_view.render_sections(paths, outputs, key_prefix="rollover")
+    st.caption("These and every other output are also on the Export tab, with a download-everything zip.")
 
 
 def _render_term_inputs(paths: ProjectPaths, course_data: CourseData) -> tuple[str, dt.date | None]:
@@ -137,14 +154,25 @@ def _render_session_choice(
 def _render_schedule_inputs(
     paths: ProjectPaths, course_data: CourseData, term: str
 ) -> tuple[tuple[int, ...], frozenset[str]]:
-    """Meeting days (so holiday warnings only fire on real class days) and
-    which of the target term's breaks the class actually takes off."""
+    """Meeting days (so holiday warnings only fire on real class days, and
+    a schedule with a row per class meeting is dated on them) and which of
+    the target term's breaks the class actually takes off."""
+    by_meeting = schedule_meeting_days(course_data.weeks)
+    default_days = parse_meeting_days(course_data.course.meeting_pattern) or by_meeting
+    help_text = (
+        "Holiday and break warnings are only shown for weeks where one lands on a class day. "
+        "Leave empty to check each week's start date instead."
+    )
+    if by_meeting:
+        help_text += (
+            f" The schedule has a row per class meeting ({format_meeting_days(by_meeting)}): pick "
+            "one day per meeting and each meeting is dated on its day in the new term."
+        )
     day_names = st.multiselect(
         "Class meets on",
         DAY_ABBREVIATIONS,
-        default=[DAY_ABBREVIATIONS[day] for day in parse_meeting_days(course_data.course.meeting_pattern)],
-        help="Holiday and break warnings are only shown for weeks where one lands on a class day. "
-        "Leave empty to check each week's start date instead.",
+        default=[DAY_ABBREVIATIONS[day] for day in default_days],
+        help=help_text,
     )
     meeting_days = tuple(sorted(DAY_ABBREVIATIONS.index(name) for name in day_names))
 
@@ -227,24 +255,27 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
     )
     for flag in preview.general_flags:
         st.warning(flag)
-    for change in preview.week_changes:
-        for flag in change.flags:
-            st.warning(flag)
+    for flag in preview.week_flags():
+        st.warning(flag)
     st.dataframe(tables.preview_rows(preview), hide_index=True)
     st.markdown(
         "**Files to be written:**  \n"
-        + "  \n".join(f"`{common.relative(path, paths)}`" for path in plan.files_to_write)
+        + "  \n".join(
+            f"{export_view.describe(path, paths)[1]}: `{common.relative(path, paths)}`"
+            for path in plan.files_to_write
+        )
     )
 
     confirm_col, cancel_col = st.columns(2)
     if confirm_col.button("Confirm rollover", type="primary"):
         try:
-            written = confirm_rollover(paths, plan)
+            with st.spinner("Writing the rolled-over files…"):
+                written = confirm_rollover(paths, plan)
         except ChalkError as exc:
             st.error(exc.user_message)
             return
         session.set_rollover_plan(None)
-        session.set_rollover_written(written)
+        session.set_rollover_written(written, missing_pdf_note(plan, written))
         st.rerun()
     if cancel_col.button("Cancel", key="cancel-rollover"):
         session.set_rollover_plan(None)

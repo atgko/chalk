@@ -29,7 +29,7 @@ The IS 6640 Word syllabus was already extracted: course details, four learning o
 **3b. A different season (1 min).** Change the target term to **Spring 2027** and preview again. The Fall Break row becomes **Spring Break (3/6 – 3/14)**, and the preview explains the swap: *"This is a Fall → Spring rollover, so breaks come from the Spring 2027 calendar."* It also flags MLK Day, Presidents Day, and Week 9 landing in Spring Break. (A teammate found the old behavior, which kept "Fall Break", while testing. It's fixed.)
 
 **4. Canvas in one paste (1 min). Export tab.**
-Show the Canvas HTML box and its copy button, plus **Download all as zip**. The course brief is a one-page summary built automatically, with no AI and no cost.
+Show the Canvas HTML box and its copy button, plus **Download everything (.zip)**. The course brief is a one-page summary built automatically, with no AI and no cost.
 
 **5. The bug it catches (1–2 min). Upload tab.**
 Upload **`IS-6640-Spring-2026-term-label-bug.docx`** and click **Extract course**. The warning appears: *term label says Spring 2026, but Week 1 is August*. *"This is the real mistake that prompted the check: the label was updated but the schedule wasn't."* Click **Cancel**. The saved course is untouched. (The Metrics tab counts this as a consistency-check catch.)

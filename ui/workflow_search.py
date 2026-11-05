@@ -1,5 +1,8 @@
 """A compact "Jump to…" dropdown on the course line.
 
+Its workflows are listed in the order of the tab groups (Build, Grading
+Assistant, Settings; ui/session.py), and picking one opens its group too.
+
 Typing filters the list, and picking a workflow opens its tab right
 away (preselecting the content type for a Generate workflow). The
 dropdown only filters on the labels it shows, so each label carries the
@@ -39,8 +42,8 @@ WORKFLOWS = (
     Workflow("view-drafts", "View saved drafts", "Drafts"),
     Workflow("export-canvas", "Export for Canvas", "Export"),
     Workflow("grade-submission", "Grade a student submission", "Grading Assistant"),
+    Workflow("provider-settings", "Change AI provider settings", "AI Provider"),
     Workflow("view-metrics", "View costs and usage", "Metrics"),
-    Workflow("provider-settings", "Change AI provider settings", "Settings"),
 )
 
 _BY_KEY = {workflow.key: workflow for workflow in WORKFLOWS}

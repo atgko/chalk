@@ -82,8 +82,15 @@ class ProjectPaths:
     def course_brief(self) -> Path:
         return self.outputs_dir / "course-brief.md"
 
+    @property
+    def original_pdfs_dir(self) -> Path:
+        """PDF syllabi as uploaded, kept so rollover can write a copy that
+        looks like the original. A subfolder of source/, so they aren't
+        listed as source materials."""
+        return self.source_dir / "original"
+
     def syllabus_output(self, source_format: str) -> Path:
-        suffix = ".docx" if source_format == "word" else ".md"
+        suffix = {"word": ".docx", "pdf": ".pdf"}.get(source_format, ".md")
         return self.outputs_dir / f"syllabus{suffix}"
 
 
@@ -218,13 +225,14 @@ def add_source(paths: ProjectPaths, file_path, *, now: dt.datetime | None = None
     return destination
 
 
-def copy_into_source(paths: ProjectPaths, file_path: Path) -> Path:
-    """Copy `file_path` into source/ (archiving a same-named older copy).
-    A file already inside source/ is left where it is."""
-    destination = paths.source_dir / file_path.name
+def copy_into_source(paths: ProjectPaths, file_path: Path, *, folder: Path | None = None) -> Path:
+    """Copy `file_path` into source/, or `folder` (archiving a same-named
+    older copy). A file already there is left where it is."""
+    folder = folder or paths.source_dir
+    destination = folder / file_path.name
     if file_path.resolve() == destination.resolve():
         return destination
-    paths.source_dir.mkdir(parents=True, exist_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
     archive_before_write(destination, eval_log_path=paths.eval_log)
     shutil.copyfile(file_path, destination)
     return destination
