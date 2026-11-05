@@ -50,15 +50,16 @@ def relative(path: Path, paths: ProjectPaths) -> str:
     return path.relative_to(paths.root).as_posix()
 
 
-def download_button(path: Path, paths: ProjectPaths, *, key_prefix: str) -> None:
-    """A download button for one project file, labeled by its project path."""
-    label = relative(path, paths)
+def download_button(path: Path, paths: ProjectPaths, *, key_prefix: str, label: str | None = None) -> None:
+    """A download button for one project file, labeled `label` or else by
+    its project path."""
+    project_path = relative(path, paths)
     st.download_button(
-        f"Download {label}",
+        label or f"Download {project_path}",
         data=path.read_bytes(),
         file_name=path.name,
         mime=_MIME_TYPES.get(path.suffix, "application/octet-stream"),
-        key=f"{key_prefix}-{label}",
+        key=f"{key_prefix}-{project_path}",
     )
 
 

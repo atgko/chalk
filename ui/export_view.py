@@ -1,45 +1,105 @@
-"""Export tab (PRD section 7.2): every current output with a download
-button, the Canvas syllabus page (how to paste it in, a preview of how it
-will look, and a copyable HTML block), and download-all-as-zip."""
+"""Export tab (PRD section 7.2): every current output, grouped by what it
+is and named plainly, plus download-all-as-zip; then the Canvas syllabus
+page (how to paste it in, a preview, and a copyable HTML block)."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import streamlit as st
 
 from chalk.errors import ChalkError
+from chalk.generation.specs import SPECS
 from chalk.models import CourseData
 from chalk.pipeline import export_outputs
 from chalk.project import ProjectPaths, list_output_files, zip_outputs
 from ui import common, session
 
+_FORMAT_NAMES = {".docx": "Word", ".pdf": "PDF", ".md": "Markdown"}
+_MATERIAL_FOLDERS = tuple(spec.output_subdir for spec in SPECS.values())
+_SECTION_NOTES = {
+    "Syllabus": "The syllabus as Chalk last wrote it, from Confirm rollover.",
+    "Course materials": "Drafts saved from Generate, as Markdown. For Word or PDF, open one on the Drafts tab.",
+    "Canvas and course brief": (
+        "Rebuilt whenever you save the course or roll it over. The course brief is the one-page "
+        "summary Chalk gives the AI when it drafts course materials."
+    ),
+    "Other files": "Files in the outputs folder that Chalk didn't make.",
+}
+_BUTTONS_PER_ROW = 3
+
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
-    if st.button("Regenerate Canvas HTML and course brief"):
-        try:
-            export_outputs(paths, course_data)
-        except ChalkError as exc:
-            st.error(exc.user_message)
-            return
-        session.flash("Regenerated outputs/canvas.html and outputs/course-brief.md.")
-        st.rerun()
-
     files = list_output_files(paths)
     if not files:
         st.info("No outputs yet. Save a course on the Review tab or run a rollover to create them.")
-        return
-
-    st.download_button(
-        "Download all as zip",
-        data=zip_outputs(paths),
-        file_name=f"{paths.root.name}-outputs.zip",
-        mime="application/zip",
-        type="primary",
-    )
-    for path in files:
-        common.download_button(path, paths, key_prefix="export")
+    else:
+        st.download_button(
+            "Download everything (.zip)",
+            data=zip_outputs(paths),
+            file_name=f"{paths.root.name}-outputs.zip",
+            mime="application/zip",
+            type="primary",
+        )
+        for title, items in output_sections(files, paths):
+            _render_section(paths, title, items)
 
     if paths.canvas_html.exists():
         _render_canvas_page(paths.canvas_html.read_text(encoding="utf-8"))
+    _render_rebuild(paths, course_data)
+
+
+def output_sections(files: list[Path], paths: ProjectPaths) -> list[tuple[str, list[tuple[str, Path]]]]:
+    """The output files as (section title, [(button label, path)]), in the
+    order the tab shows them, leaving out empty sections."""
+    sections: dict[str, list[tuple[str, Path]]] = {title: [] for title in _SECTION_NOTES}
+    for path in files:
+        title, label = _describe(path, paths)
+        sections[title].append((label, path))
+    sections["Syllabus"].sort(key=lambda item: list(_FORMAT_NAMES).index(item[1].suffix))
+    sections["Canvas and course brief"].sort(key=lambda item: item[1] != paths.canvas_html)
+    return [(title, items) for title, items in sections.items() if items]
+
+
+def _describe(path: Path, paths: ProjectPaths) -> tuple[str, str]:
+    if path.parent == paths.outputs_dir and path.stem == "syllabus" and path.suffix in _FORMAT_NAMES:
+        return "Syllabus", f"Syllabus ({_FORMAT_NAMES[path.suffix]})"
+    if path == paths.canvas_html:
+        return "Canvas and course brief", "Canvas syllabus page (HTML)"
+    if path == paths.course_brief:
+        return "Canvas and course brief", "Course brief"
+    if path.parent.parent == paths.outputs_dir and path.parent.name in _MATERIAL_FOLDERS and path.suffix == ".md":
+        name = path.stem.replace("-", " ")
+        return "Course materials", name[:1].upper() + name[1:]
+    return "Other files", common.relative(path, paths).removeprefix("outputs/")
+
+
+def _render_section(paths: ProjectPaths, title: str, items: list[tuple[str, Path]]) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{title}**")
+        st.caption(_SECTION_NOTES[title])
+        for start in range(0, len(items), _BUTTONS_PER_ROW):
+            columns = st.columns(_BUTTONS_PER_ROW)
+            for column, (label, path) in zip(columns, items[start : start + _BUTTONS_PER_ROW], strict=False):
+                with column:
+                    common.download_button(path, paths, key_prefix="export", label=label)
+
+
+def _render_rebuild(paths: ProjectPaths, course_data: CourseData) -> None:
+    """Rarely needed (F-03): Chalk rebuilds both on save and rollover."""
+    with st.expander("Canvas page or course brief out of date?"):
+        st.caption(
+            "Chalk rebuilds them every time you save the course or roll it over. Rebuild them here "
+            "only if they don't match the course, for example after editing course.json by hand."
+        )
+        if st.button("Rebuild the Canvas page and course brief"):
+            try:
+                export_outputs(paths, course_data)
+            except ChalkError as exc:
+                st.error(exc.user_message)
+                return
+            session.flash("Rebuilt the Canvas syllabus page and the course brief from the saved course.")
+            st.rerun()
 
 
 # Where the professor pastes the page, step by step (UAT round 2: staff

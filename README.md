@@ -118,7 +118,7 @@ The tabs are grouped by what they're for. **Build** holds the course work, in or
 
 **Drafts.** Every draft you've saved from Generate, grouped by type and in week order. Open one to read it and download it as Word, PDF, or markdown, as on Generate (slides as markdown only). **Show** narrows the list to one type. Each draft says when it was saved and how many earlier versions are in its folder's `.archive/`. To delete a draft, tick the confirm box and click **Delete**. The file moves to `.archive/` too, so it can still be recovered.
 
-**Export.** Download any output file, or everything as a zip. The Canvas HTML is shown in a box with a copy button. **Regenerate Canvas HTML and course brief** rebuilds both from the current `course.json`.
+**Export.** Download any output file, grouped as Syllabus, Course materials, and Canvas and course brief, or **Download everything (.zip)**. The Canvas HTML is shown in a box with a copy button. Chalk rebuilds the Canvas page and course brief on every save and rollover; to rebuild them by hand from the current `course.json`, open **Canvas page or course brief out of date?** at the bottom.
 
 **Metrics.** Total AI cost, rollovers, consistency-check catches, extraction errors, generations by type, and rollover history. **Download evaluation report** produces a markdown summary for reporting.
 
