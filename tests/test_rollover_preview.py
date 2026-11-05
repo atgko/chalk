@@ -398,3 +398,23 @@ def test_a_rollover_without_ai_topics_reports_nothing():
         on_progress=lambda fraction, step: reports.append((fraction, step)),
     )
     assert reports == []
+
+
+def test_a_week_flag_shared_by_both_meetings_of_a_week_is_listed_once():
+    """A Tue/Thu syllabus has a row per meeting, so a week's flag is on
+    both rows; the list above the preview table shows it once (UAT, Nov 4)."""
+    from chalk.rollover.preview import RolloverPreview, WeekChange
+
+    flag = "Spring Break 2028 is Mar 5–12 — confirm Week 9 timing"
+    preview = RolloverPreview(
+        source_term="Spring 2026",
+        target_term="Spring 2028",
+        source_duration_weeks=16,
+        target_duration_weeks=16,
+        week_changes=[
+            WeekChange(9, "Week 9", None, None, flags=[flag], meeting=1),
+            WeekChange(9, "Week 9", None, None, flags=[flag, "other"], meeting=2),
+        ],
+    )
+
+    assert preview.week_flags() == [flag, "other"]

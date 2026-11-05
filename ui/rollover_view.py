@@ -246,9 +246,8 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
     )
     for flag in preview.general_flags:
         st.warning(flag)
-    for change in preview.week_changes:
-        for flag in change.flags:
-            st.warning(flag)
+    for flag in preview.week_flags():
+        st.warning(flag)
     st.dataframe(tables.preview_rows(preview), hide_index=True)
     st.markdown(
         "**Files to be written:**  \n"

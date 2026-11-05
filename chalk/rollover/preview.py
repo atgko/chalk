@@ -107,6 +107,11 @@ class RolloverPreview:
     week_changes: list[WeekChange]
     general_flags: list[str] = field(default_factory=list)
 
+    def week_flags(self) -> list[str]:
+        """Every row's flags, each once, in schedule order. A week with a
+        row per class meeting carries its week-level flags on each row."""
+        return list(dict.fromkeys(flag for change in self.week_changes for flag in change.flags))
+
 
 def roll_over_course(
     course_data: CourseData,
