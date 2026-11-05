@@ -7,6 +7,7 @@ calls the AI and shouldn't stop if the instructor switches tabs."""
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import streamlit as st
 
@@ -32,7 +33,7 @@ from chalk.sessions import (
     is_summer,
     session_start,
 )
-from ui import background, common, session, tables
+from ui import background, common, export_view, session, tables
 from ui.session import StoredPlan
 
 OTHER_TERM = "Another term (not in the calendar)"
@@ -91,8 +92,16 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         note = session.get_rollover_note()
         if note:
             st.info(note)
-        for path in written:
-            common.download_button(path, paths, key_prefix="rollover")
+        _render_written(paths, written)
+
+
+def _render_written(paths: ProjectPaths, written: list[Path]) -> None:
+    """The files the rollover wrote, grouped and named as on the Export
+    tab (UAT, Nov 4: a list of "Download outputs/..." buttons read as a
+    mess). course.json is the project's own data, not a download."""
+    outputs = [path for path in written if path.is_relative_to(paths.outputs_dir) and path.exists()]
+    export_view.render_sections(paths, outputs, key_prefix="rollover")
+    st.caption("These and every other output are also on the Export tab, with a download-everything zip.")
 
 
 def _render_term_inputs(paths: ProjectPaths, course_data: CourseData) -> tuple[str, dt.date | None]:
@@ -251,7 +260,10 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
     st.dataframe(tables.preview_rows(preview), hide_index=True)
     st.markdown(
         "**Files to be written:**  \n"
-        + "  \n".join(f"`{common.relative(path, paths)}`" for path in plan.files_to_write)
+        + "  \n".join(
+            f"{export_view.describe(path, paths)[1]}: `{common.relative(path, paths)}`"
+            for path in plan.files_to_write
+        )
     )
 
     confirm_col, cancel_col = st.columns(2)

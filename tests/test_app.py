@@ -705,12 +705,16 @@ def test_rollover_preview_then_confirm_writes_files(saved_project):
     at = click(at, "Preview rollover")
     assert_no_exception(at)
     assert any("Rollover preview: IS 4490 (2 weeks) → Fall 2027" in s.value for s in at.subheader)
-    assert any("`outputs/syllabus.md`" in m.value for m in at.markdown)
+    assert any("Syllabus (Markdown): `outputs/syllabus.md`" in m.value for m in at.markdown)
 
     at = click(at, "Confirm rollover")
 
     assert_no_exception(at)
     assert "Rollover complete. Previous versions were archived." in texts(at.success)
+    # Grouped and plainly named, as on the Export tab; course.json isn't offered.
+    downloads = [el.proto.label for el in at.get("download_button")]
+    assert {"Syllabus (Markdown)", "Canvas syllabus page (HTML)", "Course brief"} <= set(downloads)
+    assert not [label for label in downloads if label.startswith(("Download outputs/", "Download course.json"))]
     assert load_course(saved_project).course.term == "Fall 2027"
     assert saved_project.syllabus_output("markdown").exists()
 

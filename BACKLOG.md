@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-11-02.
+Last updated: 2026-11-04.
 
 ## Open questions (need someone outside the code)
 
@@ -81,7 +81,8 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 - **P3: When the instructor picked one table from an ambiguous set, the writer still updates every schedule-like table.**
 - **P3: The preview always shows dates as M/D**, even when the syllabus uses "Jan. 6" (the written document keeps the original style).
 - **P3: A once-a-week class's rows stay on the week's start date.** Only a schedule with a row per class meeting is dated on the picked meeting days. A once-a-week class labeled by its class day ("Week 1 (8/25)" for a Tuesday class) rolls over to the new week's first day, as it always has. Changing that would move every existing once-a-week syllabus's dates, so it waits for an instructor to ask.
-- **P2: A PDF rollover that changes the schedule's rows is Word only.** The PDF copy (see Done) can only change text, so a longer or shorter course, or a break that lands after a different week in the new term, gets `syllabus.docx` alone, rebuilt in plain Word styles. Copying a row in a PDF would mean moving everything below it down the page. If this comes up often, the Word file read from the PDF could at least take the PDF's fonts and sizes.
+- **P2: A PDF rollover that changes the schedule's rows is Word only.** The PDF copy (see Done) can only change text, so a longer or shorter course, or a break that lands after a different week in the new term, gets `syllabus.docx` alone, rebuilt in plain Word styles. Copying a row in a PDF would mean moving everything below it down the page.
+- **P2: The Word file read from a PDF should take the PDF's fonts (UAT of PR #27, Nov 4).** The `(from PDF).docx` and its rolled-over `syllabus.docx` use python-docx's stock template (Calibri, blue headings), so OSC 6660 (black Times New Roman, 12 pt body, 14-16 pt bold headings) looks nothing like its PDF. `syllabus.pdf` keeps the exact layout when it can be written. Fix in `chalk/pdf_import`: read each line's main font, size, bold/italic and colour from pdfplumber's chars, write them as runs, restyle Normal and the Heading styles to the PDF's body font in black, and match the page size and margins. Keep the Heading styles and real tables, since extraction and the Word rollover depend on them. An exact layout match (columns, shading, the logo) isn't the goal: a layout-copying converter (e.g. pdf2docx) writes positioned frames that Chalk can't read back, and its PyMuPDF dependency is AGPL.
 - **P2: Check the PDF copy on more real PDFs.** It's been run on IS 4440 (Word → PrimoPDF) and OSC 6660 (Google Docs). Try a PDF saved straight from Word ("Save as PDF"), one from Mac Preview or Pages, and one with a coloured or shaded schedule header. A PDF it can't change exactly is skipped with a note, so the risk is a missing PDF, not a wrong one.
 
 ## App / UX
@@ -102,6 +103,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 ## Done
 
+- 2026-11-04: After Confirm rollover, the written files are grouped and plainly named as on the Export tab ("Syllabus (Word)", "Canvas syllabus page (HTML)") instead of "Download outputs/..." buttons, and course.json is no longer offered. The preview's "Files to be written" names each file the same way (UAT of PR #27).
 - 2026-11-02: Metrics opens in a course with no syllabus saved yet, since an AI PDF read is charged before there's a course; Rollover, Generate, and Export stay dimmed until one is saved (found in UAT of PR #24; PR #27).
 - 2026-10-29: The Grading Assistant has a **Grading strictness** control: Lenient, Standard (the default, unchanged grading), or Strict. It changes both the suggested scores and the feedback's tone, never what the rubric asks for, and the eval log records the level of each grading (PR #27).
 - 2026-10-29: The tabs are grouped by purpose: **Build** (Upload, Review, Rollover, Generate, Drafts, Export) with its own row of tabs, **Grading Assistant** on its own, and **Settings** (AI Provider, Metrics). A group's label shows a running or finished job inside it. Jump to lists workflows in the same order and opens the group with the tab (PR #27).

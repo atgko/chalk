@@ -41,8 +41,7 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             mime="application/zip",
             type="primary",
         )
-        for title, items in output_sections(files, paths):
-            _render_section(paths, title, items)
+        render_sections(paths, files, key_prefix="export")
 
     if paths.canvas_html.exists():
         _render_canvas_page(paths.canvas_html.read_text(encoding="utf-8"))
@@ -54,14 +53,14 @@ def output_sections(files: list[Path], paths: ProjectPaths) -> list[tuple[str, l
     order the tab shows them, leaving out empty sections."""
     sections: dict[str, list[tuple[str, Path]]] = {title: [] for title in _SECTION_NOTES}
     for path in files:
-        title, label = _describe(path, paths)
+        title, label = describe(path, paths)
         sections[title].append((label, path))
     sections["Syllabus"].sort(key=lambda item: list(_FORMAT_NAMES).index(item[1].suffix))
     sections["Canvas and course brief"].sort(key=lambda item: item[1] != paths.canvas_html)
     return [(title, items) for title, items in sections.items() if items]
 
 
-def _describe(path: Path, paths: ProjectPaths) -> tuple[str, str]:
+def describe(path: Path, paths: ProjectPaths) -> tuple[str, str]:
     if path.parent == paths.outputs_dir and path.stem == "syllabus" and path.suffix in _FORMAT_NAMES:
         return "Syllabus", f"Syllabus ({_FORMAT_NAMES[path.suffix]})"
     if path == paths.canvas_html:
@@ -74,7 +73,15 @@ def _describe(path: Path, paths: ProjectPaths) -> tuple[str, str]:
     return "Other files", common.relative(path, paths).removeprefix("outputs/")
 
 
-def _render_section(paths: ProjectPaths, title: str, items: list[tuple[str, Path]]) -> None:
+def render_sections(paths: ProjectPaths, files: list[Path], *, key_prefix: str) -> None:
+    """The files as the Export tab groups them: a bordered box per section
+    with plainly named download buttons. The Rollover tab shows the files
+    it just wrote this way too."""
+    for title, items in output_sections(files, paths):
+        _render_section(paths, title, items, key_prefix)
+
+
+def _render_section(paths: ProjectPaths, title: str, items: list[tuple[str, Path]], key_prefix: str) -> None:
     with st.container(border=True):
         st.markdown(f"**{title}**")
         st.caption(_SECTION_NOTES[title])
@@ -82,7 +89,7 @@ def _render_section(paths: ProjectPaths, title: str, items: list[tuple[str, Path
             columns = st.columns(_BUTTONS_PER_ROW)
             for column, (label, path) in zip(columns, items[start : start + _BUTTONS_PER_ROW], strict=False):
                 with column:
-                    common.download_button(path, paths, key_prefix="export", label=label)
+                    common.download_button(path, paths, key_prefix=key_prefix, label=label)
 
 
 def _render_rebuild(paths: ProjectPaths, course_data: CourseData) -> None:
