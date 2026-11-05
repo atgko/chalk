@@ -227,16 +227,25 @@ def apply_tab_request() -> None:
 
 def on_group_change() -> None:
     """A group was clicked: open the tab it showed last (its first tab the
-    first time)."""
-    group = st.session_state[GROUP_TAB_KEY]
+    first time).
+
+    The tabs' state can be missing when a click lands while a slow run
+    hasn't drawn them yet; the open tab then stays as it is."""
+    group = st.session_state.get(GROUP_TAB_KEY)
+    if group not in TAB_GROUPS:
+        return
     tabs = TAB_GROUPS[group]
-    last = st.session_state.get(SUB_TAB_KEYS.get(group, ""))
+    sub_tab_key = SUB_TAB_KEYS.get(group)  # None for a group with no second row
+    last = st.session_state.get(sub_tab_key) if sub_tab_key else None
     st.session_state[ACTIVE_TAB_KEY] = last if last in tabs else tabs[0]
 
 
 def on_sub_tab_change(key: str) -> None:
-    """A tab in a group's second row was clicked."""
-    st.session_state[ACTIVE_TAB_KEY] = st.session_state[key]
+    """A tab in a group's second row was clicked (state can be missing, as
+    in `on_group_change`)."""
+    tab = st.session_state.get(key)
+    if tab is not None:
+        st.session_state[ACTIVE_TAB_KEY] = tab
 
 
 # ---- One-shot messages that survive a rerun -------------------------------------

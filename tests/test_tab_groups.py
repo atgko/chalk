@@ -55,6 +55,35 @@ def test_a_group_opens_its_first_tab_and_then_the_one_it_showed_last(state):
     assert state[session.ACTIVE_TAB_KEY] == "Metrics"
 
 
+class _StrictState(dict):
+    """Rejects an empty key, as Streamlit's session state does."""
+
+    def get(self, key, default=None):
+        if not isinstance(key, str) or not key:
+            raise ValueError("Invalid `key` value. Supported values: a non-empty string.")
+        return super().get(key, default)
+
+
+def test_a_group_without_a_second_row_opens_without_an_empty_key_lookup(monkeypatch):
+    state = _StrictState({session.GROUP_TAB_KEY: "Grading Assistant"})
+    monkeypatch.setattr(session.st, "session_state", state)
+
+    session.on_group_change()
+
+    assert state[session.ACTIVE_TAB_KEY] == "Grading Assistant"
+
+
+def test_a_tab_click_during_an_interrupted_run_leaves_the_open_tab_alone(state):
+    """A click while a slow run hasn't redrawn the tabs yet (UAT, Nov 4):
+    Streamlit calls the callbacks with the tabs' keys missing."""
+    state[session.ACTIVE_TAB_KEY] = "Rollover"
+
+    session.on_group_change()
+    session.on_sub_tab_change(session.SUB_TAB_KEYS["Build"])
+
+    assert state[session.ACTIVE_TAB_KEY] == "Rollover"
+
+
 def test_a_group_shows_the_most_pressing_mark_of_its_tabs():
     assert background._strongest(["done", None, "running"]) == "running"
     assert background._strongest(["done", "failed"]) == "failed"
