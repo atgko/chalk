@@ -43,7 +43,7 @@ from chalk.pdf_import.ai_reader import AiReading, ask_ai_to_read, blocks_from_re
 from chalk.pdf_import.blocks import blocks_as_text
 from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
-from chalk.progress import CHARS_PER_TOKEN, ProgressCallback, report, writing_progress
+from chalk.progress import CHARS_PER_TOKEN, ProgressCallback, report, within, writing_progress
 from chalk.project import ProjectPaths, copy_into_source, load_course, save_course
 from chalk.rollover.docx_rollover import write_rolled_over_docx
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
@@ -57,6 +57,8 @@ PDF_READING_CONTENT_TYPE = "pdf_syllabus_reading"
 # model's thinking. Only used for the "about $X per page" hint.
 _AI_READING_INPUT_TOKENS_PER_PAGE = 800
 _AI_READING_OUTPUT_TOKENS_PER_PAGE = 1200
+# The share of an AI read's progress bar that reading the PDF's own pages fills.
+_AI_READ_PAGES_SHARE = 0.15
 
 
 @dataclass(frozen=True)
@@ -175,12 +177,16 @@ def convert_pdf_syllabus(
     chalk/progress.py; only an AI read reports a fraction."""
     pdf_path = Path(pdf_path)
     try:
-        report(on_progress, None, "Reading the PDF's pages")
-        blocks = read_pdf_blocks(pdf_path)
+        # An AI read spends most of its time on the AI's reply, so its pages
+        # fill only the first part of the bar.
+        pages_share = _AI_READ_PAGES_SHARE if method == "ai" else 1.0
+        blocks = read_pdf_blocks(pdf_path, on_progress=within(on_progress, 0.0, pages_share))
         cost = None
         if method == "ai":
-            report(on_progress, None, "Waiting for the AI to start reading")
-            on_text = writing_progress(on_progress, expected_ai_reading_tokens(blocks))
+            report(on_progress, pages_share, "Waiting for the AI to start reading")
+            on_text = writing_progress(
+                within(on_progress, pages_share, 1.0), expected_ai_reading_tokens(blocks)
+            )
             reading = ask_ai_to_read(blocks, on_text=on_text)
             if reading.replies:  # paid for even if it can't be used
                 cost = _log_ai_reading(paths, pdf_path, reading)

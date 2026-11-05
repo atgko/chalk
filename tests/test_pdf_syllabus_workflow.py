@@ -236,16 +236,26 @@ def test_an_ai_read_reports_the_reply_streaming_in(tmp_project, pdf, ai):
 
     convert_pdf_syllabus(tmp_project, pdf, method="ai", on_progress=lambda f, s: reports.append((f, s)))
 
-    assert reports[:2] == [(None, "Reading the PDF's pages"), (None, "Waiting for the AI to start reading")]
+    pages = [f for f, s in reports if s.startswith("Reading page")]
+    assert pages and pages[-1] == pytest.approx(0.15)  # the pages are a small first part of an AI read
+    assert (pages[-1], "Waiting for the AI to start reading") in reports
     fraction, step = reports[-1]
     assert step == "The AI is writing"
     assert 0 < fraction < 1
 
 
-def test_a_local_read_reports_steps_without_a_fraction(tmp_project, pdf):
+def test_a_local_read_fills_the_bar_page_by_page(tmp_project, pdf):
+    """UAT, Nov 4: a local read sat at 0% and then jumped to done. Reading
+    the pages is most of its time, so the bar counts them."""
     reports = []
     extract_upload(tmp_project, pdf, on_progress=lambda f, s: reports.append((f, s)))
-    assert reports == [(None, "Reading the PDF's pages"), (None, "Finding the course details and schedule")]
+
+    pages = [(f, s) for f, s in reports if s.startswith("Reading page")]
+    assert pages, reports
+    fractions = [f for f, _ in pages]
+    assert fractions == sorted(fractions) and 0 < fractions[0] and fractions[-1] == pytest.approx(0.9)
+    assert pages[-1][1] == f"Reading page {len(pages)} of {len(pages)}"
+    assert reports[-1] == (0.95, "Finding the course details and schedule")
 
 
 def test_an_ai_read_upload_fills_most_of_the_bar_then_finishes(tmp_project, pdf, ai):

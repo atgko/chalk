@@ -22,6 +22,7 @@ from chalk.errors import ExtractionError, ProtectedFileError
 from chalk.pdf_import.blocks import Block, Paragraph
 from chalk.pdf_import.reflow import Line, is_bullet, is_caps_heading, reflow_lines, strip_bullet
 from chalk.pdf_import.tables import RawTable, assemble, freeze, is_real_table, normalize_rows
+from chalk.progress import ProgressCallback, report
 
 # Lines this close to the top or bottom edge (fraction of page height) are
 # running headers/footers when they repeat or carry a page number.
@@ -33,11 +34,12 @@ _DIGITS_RE = re.compile(r"\d+")
 _MIN_TEXT_CHARS = 200
 
 
-def read_pdf_blocks(pdf_path) -> list[Block]:
+def read_pdf_blocks(pdf_path, on_progress: ProgressCallback | None = None) -> list[Block]:
     """Read a PDF syllabus into paragraphs and tables. Raises
     ProtectedFileError if it can't be opened and ExtractionError if it has
-    no text layer (a scan)."""
-    pages = _open_pages(Path(pdf_path))
+    no text layer (a scan). Reading the pages is the slow part, so
+    `on_progress` (chalk/progress.py) hears after each one."""
+    pages = _open_pages(Path(pdf_path), on_progress)
     repeated = _repeated_margin_lines(pages)
 
     items: list[Paragraph | RawTable] = []
@@ -57,10 +59,14 @@ def read_pdf_blocks(pdf_path) -> list[Block]:
     return blocks
 
 
-def _open_pages(path: Path) -> list[_PageSnapshot]:
+def _open_pages(path: Path, on_progress: ProgressCallback | None = None) -> list[_PageSnapshot]:
     try:
         with pdfplumber.open(path) as pdf:
-            return [_PageSnapshot.of(page) for page in pdf.pages]
+            snapshots = []
+            for number, page in enumerate(pdf.pages, start=1):
+                snapshots.append(_PageSnapshot.of(page))
+                report(on_progress, number / len(pdf.pages), f"Reading page {number} of {len(pdf.pages)}")
+            return snapshots
     except PdfminerException as exc:
         raise ProtectedFileError(
             "Chalk couldn't open this PDF. If it's password-protected, save a copy without "
