@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> None:
     background.show_toasts()
 
     course_data = _load_course_or_warn(paths)
-    session.apply_tab_request()
+    session.apply_tab_request(default="Upload" if course_data is None else "Review")
     background.clear_mark(session.active_tab())
     build_group, grading, settings_group = st.tabs(
         tuple(session.TAB_GROUPS), key=session.GROUP_TAB_KEY, on_change=session.on_group_change
