@@ -3,6 +3,15 @@
 from io import BytesIO
 
 
+def evidence_lines(criterion):
+    """The quotes behind a criterion's score, then the note when they
+    don't support it (chalk/grading/grounding.py), one line each."""
+    lines = [f'Evidence: "{quote}"' for quote in criterion.get("evidence", [])]
+    if criterion.get("evidence_note"):
+        lines.append(criterion["evidence_note"])
+    return lines
+
+
 def export_word(result):
     """Generate a Word grading report."""
     from docx import Document
@@ -36,6 +45,8 @@ def export_word(result):
             level=2,
         )
         doc.add_paragraph(criterion["reasoning"])
+        for line in evidence_lines(criterion):
+            doc.add_paragraph(line)
 
         if score < maximum:
             deduction = maximum - score
@@ -99,6 +110,8 @@ def export_pdf(result):
             "Heading2",
         )
         add_text(criterion["reasoning"])
+        for line in evidence_lines(criterion):
+            add_text(line)
 
         if score < maximum:
             deduction = maximum - score
