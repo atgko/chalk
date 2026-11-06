@@ -1134,11 +1134,34 @@ def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
     assert_no_exception(at)
     demo_root = tmp_path / "Chalk-Demo"
     assert (demo_root / "course.json").exists()
-    assert at.title[0].value == "Welcome to Chalk"  # the demo has no .env yet
+    # No AI provider yet, but the demo skips first-run setup and opens on its course.
+    assert at.title[0].value == "Chalk"
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Review"
+    assert "Settings → AI Provider" in at.success[0].value
 
     at = click(launch(), "Reset the demo course")
     assert_no_exception(at)
     assert (demo_root / ".chalk-demo").exists()
+
+
+def test_the_demo_confirmation_skips_the_ai_note_once_a_provider_is_saved(tmp_path, monkeypatch):
+    monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", tmp_path)
+    monkeypatch.setattr("ui.project_picker.env_is_configured", lambda env_path: True)
+
+    at = click(launch(), "Open the demo course")
+
+    assert_no_exception(at)
+    assert at.success[0].value == "Opened the demo course."
+
+
+def test_a_saved_course_opens_on_the_review_tab(saved_project):
+    at = launch(saved_project)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Review"
+
+
+def test_a_project_without_a_course_opens_on_the_upload_tab(project):
+    at = launch(project)
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Upload"
 
 
 def test_generate_defaults_the_course_level_from_the_course_number(sourced_project, llm):
@@ -1342,3 +1365,48 @@ def test_grading_strictness_starts_at_standard(project):
     [strictness] = [e for e in at.get("button_group") if e.label == "Grading strictness"]
     assert strictness.value == "standard"
     assert list(strictness.options) == ["Lenient", "Standard", "Strict"]
+
+
+def _grading_notes(at: AppTest) -> list[str]:
+    return texts(at.info) + texts(at.error)
+
+
+def test_grading_says_student_work_goes_to_the_hosted_provider(project):
+    at = launch(project, **{session.ACTIVE_TAB_KEY: "Grading Assistant"})
+
+    assert_no_exception(at)
+    assert any("is sent to OpenAI" in note for note in _grading_notes(at))
+    assert any(u.label == "Upload student submission" for u in at.get("file_uploader"))
+
+
+def test_grading_with_a_local_model_says_student_work_stays_here(tmp_project):
+    tmp_project.env.write_text(
+        "LLM_PROVIDER=openai\nLLM_API_KEY=ollama\nLLM_BASE_URL=http://localhost:11434/v1\nLLM_MODEL=llama3.1:70b\n",
+        encoding="utf-8",
+    )
+    at = launch(tmp_project, **{session.ACTIVE_TAB_KEY: "Grading Assistant"})
+
+    assert_no_exception(at)
+    assert any("stays on this computer" in note for note in _grading_notes(at))
+
+
+def test_grading_is_off_for_a_provider_not_approved_for_student_data(tmp_project):
+    tmp_project.env.write_text(
+        "LLM_PROVIDER=gemini\nLLM_API_KEY=g-test\n"
+        "LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/\nLLM_MODEL=gemini-3.5-flash-lite\n",
+        encoding="utf-8",
+    )
+    at = launch(tmp_project, **{session.ACTIVE_TAB_KEY: "Grading Assistant"})
+
+    assert_no_exception(at)
+    assert any("Google Gemini isn't approved" in note for note in texts(at.error))
+    assert not any(u.label == "Upload student submission" for u in at.get("file_uploader"))
+
+
+def test_grading_asks_for_a_provider_before_any_upload(tmp_project):
+    at = launch(tmp_project, **{session.ACTIVE_TAB_KEY: "Grading Assistant"})
+    at = click(at, "Skip for now")
+
+    assert_no_exception(at)
+    assert any("to use the Grading Assistant" in note for note in texts(at.info))
+    assert not any(u.label == "Upload student submission" for u in at.get("file_uploader"))

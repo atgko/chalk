@@ -179,6 +179,10 @@ def validate_provider(provider: str, api_key: str, base_url: str, model: str) ->
 # ---- Provider form (first-run setup + Settings tab) --------------------------
 
 PROVIDER_CHOICES = ("OpenAI", "Anthropic Claude", "Google Gemini", "Local model (Ollama)")
+# Providers the university hasn't approved for student data: the Grading
+# Assistant, which sends student work to the provider, is off while one is in use.
+NOT_APPROVED_FOR_STUDENT_DATA = frozenset({"Google Gemini"})
+LOCAL_CHOICE = "Local model (Ollama)"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 DEFAULT_OLLAMA_URL = "http://localhost:11434/v1"
