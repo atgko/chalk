@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-11-04.
+Last updated: 2026-11-06.
 
 ## Open questions (need someone outside the code)
 
@@ -44,7 +44,7 @@ Raised at the Oct 5 sponsor meeting. Nothing student-related is sent to an AI to
 
 Chalk should make the instructor's work easier and keep a human in the loop, not replace the instructor. What it produces should come from what the instructor uploads, not from what the model happens to know. That keeps the instructor responsible for the content and makes results less dependent on which model is used. The team also needs a record of how each feature was tested and validated, in case deans or the department have concerns about AI use.
 
-- **P1: Make grading consistent.** The Grading Assistant (PR #20) gives different results when the same submission is graded again; consistent, evidence-based results are the "grounding" the meeting asked for. Try different approaches and measure each with the consistency test below. Ideas to start with: a low temperature (`chalk/llm_client.py` doesn't set one today), a quote from the submission as evidence for every criterion, and the default instructions below.
+- **P1: Make grading consistent.** The Grading Assistant (PR #20) gave different results when the same submission was graded again; consistent, evidence-based results are the "grounding" the meeting asked for. Temperature 0 and a checked quote for every score are in (see Done, Nov 6). Next: measure them with the consistency test below, then try the default instructions below if the spread is still too wide. Also watch how often quotes are flagged as not found on real submissions: frequent flags would mean the matching is too strict, or the model is paraphrasing.
 - **P1: Test grading consistency, once it's grounded.** Testing now focuses on this. After the rules and prompting above are in place, grade a fixed set of test submissions several times each, and report the spread of the total and per-criterion scores, plus the cost. The results show that grading is consistent and back up the validation record below. Comparing models is a second step. This is a one-off test the team runs, not a feature: re-grading every submission 2-4 times would multiply the cost of grading a class (e.g. 30 students) by the same amount (decided Oct 26).
 - **P2: Default grading instructions.** Pre-fill "Additional grading instructions" with standing rules such as "be consistent across submissions" and "cite evidence from the submission for every score". The team decides the exact wording, based on the framework below.
 - **P2 (research): Choose an educational framework.** Base Chalk on an established framework from education. Use it to structure what Chalk does, how its quizzes, assignments, and content are validated, and how it supports better learning outcomes for students. The group will research this and decide later. On Oct 28, the team agreed to show the work to Carson Pyle, who knows which educational frameworks, best practices, and standards to follow. The framework will be applied in the background (in Chalk's instructions to the AI and its checks), not as something the instructor has to pick or set up.
@@ -103,6 +103,7 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 ## Done
 
+- 2026-11-06: Grading is grounded in the submission. It asks for temperature 0 (except Gemini; a model that refuses it is asked again at its default), and every score comes with a word-for-word quote from the submission that Chalk checks is there. A quote that isn't found, or credit without one, is flagged on the criterion and in the Instructor Review Notes, never scored down. The quotes appear in the app and in the Word, PDF, and Markdown reports. Also fixed: the Markdown grading report had literal "\n" text in place of line breaks.
 - 2026-11-04: After Confirm rollover, the written files are grouped and plainly named as on the Export tab ("Syllabus (Word)", "Canvas syllabus page (HTML)") instead of "Download outputs/..." buttons, and course.json is no longer offered. The preview's "Files to be written" names each file the same way (UAT of PR #27).
 - 2026-11-02: Metrics opens in a course with no syllabus saved yet, since an AI PDF read is charged before there's a course; Rollover, Generate, and Export stay dimmed until one is saved (found in UAT of PR #24; PR #27).
 - 2026-10-29: The Grading Assistant has a **Grading strictness** control: Lenient, Standard (the default, unchanged grading), or Strict. It changes both the suggested scores and the feedback's tone, never what the rubric asks for, and the eval log records the level of each grading (PR #27).

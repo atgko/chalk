@@ -105,6 +105,12 @@ def analyze_by_criterion(
         for item in criteria
     ]
 
+    unsupported = [item["name"] for item in criteria if item["evidence_note"]]
+    evidence_check = (
+        "Check the quoted evidence for: " + ", ".join(unsupported) + ".\n\n"
+        if unsupported else ""
+    )
+
     return {
         **scores,
         "student_feedback": student_comment,
@@ -112,6 +118,7 @@ def analyze_by_criterion(
             "These are preliminary AI recommendations. "
             "Review each criterion and its supporting evidence "
             "before assigning a final grade.\n\n"
+            + evidence_check
             + "\n".join(feedback_lines)
         ),
     }

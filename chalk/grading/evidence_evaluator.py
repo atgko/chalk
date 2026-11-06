@@ -4,6 +4,7 @@ import json
 import re
 
 from chalk.grading.evidence_scoring import calculate_evidence_score
+from chalk.grading.grounding import GRADING_TEMPERATURE, QUOTE_INSTRUCTION, check_quote
 from chalk.llm_client import complete
 
 
@@ -40,14 +41,17 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
         '- "met": true or false\n'
         '- "evidence": a brief explanation citing student work, '
         "or explaining what is missing\n"
+        '- "quote": for a met requirement, a quote from the submission that shows it. '
+        f"{QUOTE_INSTRUCTION} "
+        "Use an empty string for a requirement that is not met.\n"
         "Return exactly one evaluation per requirement, in the same order."
     )
 
     response = complete(
         prompt,
-
         system="You are a careful university rubric evidence evaluator.",
         max_tokens=2000,
+        temperature=GRADING_TEMPERATURE,
     )
 
     raw = response["text"].strip()
@@ -60,8 +64,9 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
     if not isinstance(data, dict) or not isinstance(data.get("evaluations"), list):
         raise TypeError("AI did not return a valid evaluations list.")
 
+    evaluations = data["evaluations"]
     try:
-        result = calculate_evidence_score(requirements, data["evaluations"])
+        result = calculate_evidence_score(requirements, evaluations)
     except ValueError as error:
         retry_prompt = (
             prompt
@@ -75,9 +80,9 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
         )
         retry_response = complete(
             retry_prompt,
-
             system="You are a careful university rubric evidence evaluator.",
             max_tokens=2000,
+            temperature=GRADING_TEMPERATURE,
         )
         retry_raw = retry_response["text"].strip()
         retry_match = re.search(
@@ -96,13 +101,22 @@ def evaluate_weighted_criterion(submission, criterion, instructions=""):
                 "Instructor review is required."
             )
 
-        result = calculate_evidence_score(
-            requirements, retry_data["evaluations"]
-        )
+        evaluations = retry_data["evaluations"]
+        result = calculate_evidence_score(requirements, evaluations)
+
+    quotes, notes = [], []
+    for detail, evaluation in zip(result["details"], evaluations):
+        quote, note = check_quote(evaluation.get("quote"), submission, earned=detail["earned"])
+        if quote:
+            quotes.append(quote)
+        if note:
+            notes.append(f"{detail['name']}: {note}")
 
     return {
         "name": criterion["name"],
         "possible": criterion["possible"],
         "earned": result["earned"],
         "details": result["details"],
+        "evidence": quotes,
+        "evidence_note": " ".join(notes),
     }

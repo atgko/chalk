@@ -77,6 +77,10 @@ _NOT_FOUND_EXCEPTIONS: tuple[type[Exception], ...] = (
     openai.NotFoundError,
     anthropic.NotFoundError,
 )
+_BAD_REQUEST_EXCEPTIONS: tuple[type[Exception], ...] = (
+    openai.BadRequestError,
+    anthropic.BadRequestError,
+)
 
 
 class CompletionResult(TypedDict):
@@ -126,6 +130,11 @@ _GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 # Gemini 3 models always think, and thinking tokens count against
 # max_tokens, so ask for the lowest level that every current model accepts.
 _GEMINI_REASONING_EFFORT = "low"
+
+# Providers that get the temperature a caller asks for. Gemini is left at
+# its default: Google advises against lowering it for Gemini 3 models,
+# which can then repeat themselves or loop.
+_TEMPERATURE_PROVIDERS = frozenset({"openai", "anthropic"})
 
 
 def _get_provider() -> str:
@@ -223,7 +232,17 @@ def _status_error_message(exc: Exception) -> str:
 _STREAMING_PROVIDERS = frozenset({"openai", "anthropic"})
 
 
-def _call_openai(prompt: str, system: str, max_tokens: int, on_text: TextCallback | None) -> CompletionResult:
+def _temperature_field(temperature: float | None) -> dict:
+    """The request's temperature, when one was asked for and the provider
+    takes it; otherwise the provider's default."""
+    if temperature is None or _get_provider() not in _TEMPERATURE_PROVIDERS:
+        return {}
+    return {"temperature": temperature}
+
+
+def _call_openai(
+    prompt: str, system: str, max_tokens: int, on_text: TextCallback | None, temperature: float | None
+) -> CompletionResult:
     """OpenAI, Gemini, and Ollama: all speak the OpenAI chat API."""
     is_gemini = _get_provider() == "gemini"
     client = openai.OpenAI(
@@ -238,6 +257,7 @@ def _call_openai(prompt: str, system: str, max_tokens: int, on_text: TextCallbac
             {"role": "user", "content": prompt},
         ],
         "max_tokens": max_tokens,
+        **_temperature_field(temperature),
         **extra,
     }
     if on_text is not None and _get_provider() in _STREAMING_PROVIDERS:
@@ -276,11 +296,14 @@ def _stream_openai(client, request: dict, on_text: TextCallback) -> CompletionRe
     }
 
 
-def _call_anthropic(prompt: str, system: str, max_tokens: int, on_text: TextCallback | None) -> CompletionResult:
+def _call_anthropic(
+    prompt: str, system: str, max_tokens: int, on_text: TextCallback | None, temperature: float | None
+) -> CompletionResult:
     client = anthropic.Anthropic(api_key=os.getenv("LLM_API_KEY"))
     request = {
         "model": os.getenv("LLM_MODEL", "claude-sonnet-5"),
         "max_tokens": max_tokens,
+        **_temperature_field(temperature),
         "system": system,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -302,14 +325,31 @@ def _call_anthropic(prompt: str, system: str, max_tokens: int, on_text: TextCall
     }
 
 
+def _refuses_temperature(exc: Exception, temperature: float | None) -> bool:
+    """Whether the provider turned the request down over the temperature it
+    was sent (OpenAI's reasoning models, for one, take only their default)."""
+    return (
+        temperature is not None
+        and isinstance(exc, _BAD_REQUEST_EXCEPTIONS)
+        and "temperature" in _provider_detail(exc).lower()
+    )
+
+
 def complete(
-    prompt: str, system: str = "", max_tokens: int = 2000, *, on_text: TextCallback | None = None
+    prompt: str,
+    system: str = "",
+    max_tokens: int = 2000,
+    *,
+    on_text: TextCallback | None = None,
+    temperature: float | None = None,
 ) -> CompletionResult:
     """Send a prompt to the configured LLM provider.
 
     Returns {"text": str, "input_tokens": int, "output_tokens": int}.
     `on_text`, if given, is called with the number of reply characters
     received so far as the reply streams in (OpenAI and Anthropic only).
+    `temperature`, if given, is sent to OpenAI, Anthropic, and Ollama; a
+    model that refuses it is asked again with its default temperature.
     Raises LLMProviderError with a plain-English message on failure — the
     only exception type that escapes this module. Every caller wraps this
     call in a try/except for LLMProviderError and surfaces `.user_message`
@@ -320,9 +360,10 @@ def complete(
     call = _call_anthropic if provider == "anthropic" else _call_openai
 
     last_transient_error: Exception | None = None
-    for attempt in range(_MAX_ATTEMPTS):
+    attempt = 0
+    while attempt < _MAX_ATTEMPTS:
         try:
-            return _record_usage(call(prompt, system, max_tokens, on_text))
+            return _record_usage(call(prompt, system, max_tokens, on_text, temperature))
 
         except _AUTH_EXCEPTIONS as exc:
             raise LLMProviderError(_auth_error_message()) from exc
@@ -334,12 +375,16 @@ def complete(
             if _is_out_of_credits(exc):
                 raise LLMProviderError(_out_of_credits_message()) from exc
             last_transient_error = exc
-            if attempt < _MAX_ATTEMPTS - 1:
-                time.sleep(_BACKOFF_BASE_SECONDS * (2**attempt))
-                continue
+            attempt += 1
+            if attempt < _MAX_ATTEMPTS:
+                time.sleep(_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1)))
 
         except _STATUS_EXCEPTIONS as exc:
-            raise LLMProviderError(_status_error_message(exc)) from exc
+            if not _refuses_temperature(exc, temperature):
+                raise LLMProviderError(_status_error_message(exc)) from exc
+            # Asked again at once with the model's default temperature; this
+            # isn't a transient failure, so it doesn't use up an attempt.
+            temperature = None
 
         except LLMProviderError:
             raise

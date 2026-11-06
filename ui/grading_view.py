@@ -1,4 +1,4 @@
-from chalk.grading.export import export_pdf, export_word
+from chalk.grading.export import evidence_lines, export_pdf, export_word
 
 """AI Grading Assistant interface."""
 
@@ -154,6 +154,12 @@ def render(paths):
             )
             st.progress(min(1.0, score / maximum))
             st.write(criterion["reasoning"])
+            # Plain text: a quote is the student's own words, so it isn't
+            # read as Markdown (no links, images, or formatting).
+            for quote in criterion.get("evidence", []):
+                st.text(f'Evidence: "{quote}"')
+            if criterion.get("evidence_note"):
+                st.warning(criterion["evidence_note"])
 
             deduction = maximum - score
             comment = criterion.get("deduction_comment", "")
@@ -186,33 +192,34 @@ def render(paths):
         st.write(result["instructor_notes"] or "No additional notes provided.")
 
         report = (
-            f"# AI Grading Recommendations\\n\\n"
+            f"# AI Grading Recommendations\n\n"
             f"Suggested Grade: {earned:g}/{possible:g} "
-            f"({percentage:.1f}%)\\n\\n"
-            "## Rubric Breakdown\\n\\n"
+            f"({percentage:.1f}%)\n\n"
+            "## Rubric Breakdown\n\n"
         )
 
         for criterion in result["criteria"]:
             report += (
-                f"### {criterion['name']}\\n"
+                f"### {criterion['name']}\n"
                 f"Score: {criterion['earned']:g}/"
-                f"{criterion['possible']:g}\\n\\n"
-                f"{criterion['reasoning']}\\n\\n"
+                f"{criterion['possible']:g}\n\n"
+                f"{criterion['reasoning']}\n\n"
+                + "".join(f"{line}\n\n" for line in evidence_lines(criterion))
                 + (
                     f"Suggested deduction: "
-                    f"{criterion['possible'] - criterion['earned']:g} points\\n\\n"
-                    f"{criterion['deduction_comment']}\\n\\n"
+                    f"{criterion['possible'] - criterion['earned']:g} points\n\n"
+                    f"{criterion['deduction_comment']}\n\n"
                     if criterion['possible'] > criterion['earned']
                     else ""
                 )
             )
 
         report += (
-            f"## Student Feedback\\n\\n{student_feedback}\\n\\n"
-            f"## Instructor Review Notes\\n\\n"
-            f"{result['instructor_notes']}\\n\\n"
+            f"## Student Feedback\n\n{student_feedback}\n\n"
+            f"## Instructor Review Notes\n\n"
+            f"{result['instructor_notes']}\n\n"
             "All grades are preliminary recommendations "
-            "requiring instructor approval.\\n"
+            "requiring instructor approval.\n"
         )
 
         st.subheader("Download Grading Report")
