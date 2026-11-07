@@ -46,6 +46,9 @@ Do NOT:
 
 If the reference material conflicts with the instructor's explicit assignment instructions below, follow the explicit assignment instructions.
 
+EDUCATIONAL FRAMEWORK GUIDANCE:
+{educational_framework_guidance}
+
 INSTRUCTOR'S ASSIGNMENT INSTRUCTIONS:
 
 Assignment name:

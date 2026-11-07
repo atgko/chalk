@@ -10,6 +10,7 @@ shows the draft for review before the instructor saves (PRD section 7.2).
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -19,7 +20,14 @@ from chalk import costs, metrics
 from chalk.archiving import archive_before_write
 from chalk.config import load_config
 from chalk.errors import GenerationError
+from chalk.generation.assignment_quality import (
+    assignment_quality_guidance,
+    remove_unauthorized_submission_logistics,
+    review_assignment_draft,
+    revision_prompt,
+)
 from chalk.generation.course_level import AI_COMPONENT_GUIDANCE, level_guidance
+from chalk.generation.educational_frameworks import framework_guidance
 from chalk.generation.prompts import fill_template, load_template
 from chalk.generation.slides import normalize_slides
 from chalk.generation.source_context import build_source_context
@@ -60,6 +68,8 @@ class GenerationRequest:
     assignment_description: str = ""
     assignment_mode: str = "create"
     assignment_goal: str = ""
+    educational_framework: str = "none"
+    learning_evidence: str = ""
     assignment_requirements: str = ""
     assignment_scenario: str = ""
     assignment_deliverables: str = ""
@@ -86,6 +96,9 @@ class GeneratedDraft:
 
 
 # ---- Request -> prompt ---------------------------------------------------------------
+
+
+logger = logging.getLogger(__name__)
 
 
 def spec_for(content_type: str) -> ContentSpec:
@@ -135,20 +148,29 @@ def build_prompt(paths: ProjectPaths, course_data: CourseData, request: Generati
     }
     optional = _optional_guidance(spec, request)
     prompt = fill_template(template, variables | optional)
-    # A template from before these variables existed: add the guidance at the end.
+    # Older templates may not have optional placeholders. Preserve their guidance.
     unplaced = [text for name, text in optional.items() if text and f"{{{name}}}" not in template]
-    if not unplaced:
-        return prompt
-    return "\n\n".join([prompt.rstrip(), *unplaced]) + "\n"
+    if unplaced:
+        prompt = "\n\n".join([prompt.rstrip(), *unplaced]) + "\n"
+    if spec.key == "assignment":
+        # Final quality rules must be at the end for old and customized templates.
+        prompt = prompt.rstrip() + "\n\n" + assignment_quality_guidance(request) + "\n"
+    return prompt
 
 
 def _optional_guidance(spec: ContentSpec, request: GenerationRequest) -> dict[str, str]:
     """Course level and the assignment's AI-use component: optional
     template variables, empty when not asked for."""
     include_ai = spec.key == "assignment" and request.include_ai_component
+    framework = (
+        framework_guidance(request.educational_framework, request.learning_evidence)
+        if spec.key == "assignment"
+        else ""
+    )
     return {
         "course_level_guidance": level_guidance(request.course_level),
         "ai_component_guidance": AI_COMPONENT_GUIDANCE if include_ai else "",
+        "educational_framework_guidance": framework,
     }
 
 
@@ -333,10 +355,44 @@ def generate(
         on_text=writing_progress(on_progress, expected_output_tokens(paths, spec)),
     )
 
+    body = _strip_wrapping_fence(result["text"].strip())
+    total_input_tokens = result["input_tokens"]
+    total_output_tokens = result["output_tokens"]
+    if spec.key == "assignment":
+        body = remove_unauthorized_submission_logistics(body, request)
+        issues = review_assignment_draft(body, request)
+        if issues:
+            # At most one additional call. Keep original if revision is worse,
+            # fails, or loses the assignment's identity. Never silently save.
+            report(on_progress, None, "Checking assignment against instructor instructions")
+            try:
+                revised = complete(
+                    revision_prompt(body, issues, request),
+                    system=SYSTEM_PROMPT,
+                    max_tokens=spec.max_tokens,
+                )
+                total_input_tokens += revised["input_tokens"]
+                total_output_tokens += revised["output_tokens"]
+                candidate = _strip_wrapping_fence(revised["text"].strip())
+                candidate_issues = review_assignment_draft(candidate, request)
+                title = request.assignment_name.strip().casefold()
+                if (candidate and len(candidate) > 120
+                        and (not title or title in candidate.casefold())
+                        and len(candidate_issues) < len(issues)):
+                    body = candidate
+            except Exception as exc:  # noqa: BLE001
+                # Preserve the original draft if optional revision fails.
+                logger.warning("Optional assignment revision failed: %s", exc)
+        # The model may reintroduce unsupported submission logistics even
+        # after revision. Remove only independently identifiable logistics;
+        # all other warnings remain visible for faculty review.
+        body = remove_unauthorized_submission_logistics(body, request)
+
     env = current_env()
     model = env["LLM_MODEL"] or "unknown model"
     cost = costs.cost_usd(
-        costs.rate_for(load_config(paths.config_json), env), result["input_tokens"], result["output_tokens"]
+        costs.rate_for(load_config(paths.config_json), env),
+        total_input_tokens, total_output_tokens,
     )
     output_path = output_path_for(paths, request)
     metrics.append_event(
@@ -348,15 +404,14 @@ def generate(
             "output_file": output_path.relative_to(paths.root).as_posix(),
             "provider": env["LLM_PROVIDER"],
             "model": model,
-            "input_tokens": result["input_tokens"],
-            "output_tokens": result["output_tokens"],
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
             "cost_usd": cost,
             "source_file_count": len(request.source_files),
         },
     )
 
     banner = f"Generated {(today or dt.date.today()).isoformat()} using {model}."
-    body = _strip_wrapping_fence(result["text"].strip())
     if spec.key == "slides":
         week = _find_week(course_data, request.week_number)
         text = normalize_slides(
@@ -375,8 +430,8 @@ def generate(
         text=text,
         output_path=output_path,
         model=model,
-        input_tokens=result["input_tokens"],
-        output_tokens=result["output_tokens"],
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
         cost_usd=cost,
     )
 
