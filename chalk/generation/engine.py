@@ -10,6 +10,7 @@ shows the draft for review before the instructor saves (PRD section 7.2).
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -19,11 +20,13 @@ from chalk import costs, metrics
 from chalk.archiving import archive_before_write
 from chalk.config import load_config
 from chalk.errors import GenerationError
-from chalk.generation.course_level import AI_COMPONENT_GUIDANCE, level_guidance
 from chalk.generation.assignment_quality import (
-    assignment_quality_guidance, review_assignment_draft, revision_prompt,
+    assignment_quality_guidance,
     remove_unauthorized_submission_logistics,
+    review_assignment_draft,
+    revision_prompt,
 )
+from chalk.generation.course_level import AI_COMPONENT_GUIDANCE, level_guidance
 from chalk.generation.educational_frameworks import framework_guidance
 from chalk.generation.prompts import fill_template, load_template
 from chalk.generation.slides import normalize_slides
@@ -93,6 +96,9 @@ class GeneratedDraft:
 
 
 # ---- Request -> prompt ---------------------------------------------------------------
+
+
+logger = logging.getLogger(__name__)
 
 
 def spec_for(content_type: str) -> ContentSpec:
@@ -374,10 +380,9 @@ def generate(
                         and (not title or title in candidate.casefold())
                         and len(candidate_issues) < len(issues)):
                     body = candidate
-            except Exception:
-                # The first draft is still available for faculty review.
-                # Do not mask provider failures from the initial generation.
-                pass
+            except Exception as exc:  # noqa: BLE001
+                # Preserve the original draft if optional revision fails.
+                logger.warning("Optional assignment revision failed: %s", exc)
         # The model may reintroduce unsupported submission logistics even
         # after revision. Remove only independently identifiable logistics;
         # all other warnings remain visible for faculty review.

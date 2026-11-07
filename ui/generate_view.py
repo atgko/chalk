@@ -13,6 +13,7 @@ import streamlit as st
 from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
+from chalk.generation.assignment_quality import review_assignment_draft
 from chalk.generation.course_level import (
     AI_TASK_HEADING,
     COURSE_LEVELS,
@@ -21,7 +22,6 @@ from chalk.generation.course_level import (
     has_ai_task_section,
     level_from_course_number,
 )
-from chalk.generation.assignment_quality import review_assignment_draft
 from chalk.generation.document_export import can_export
 from chalk.generation.engine import (
     GeneratedDraft,

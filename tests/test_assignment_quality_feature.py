@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 from chalk.generation.assignment_quality import (
     assignment_quality_guidance,
+    remove_unauthorized_submission_logistics,
     review_assignment_draft,
     revision_prompt,
-    remove_unauthorized_submission_logistics,
 )
 
 
