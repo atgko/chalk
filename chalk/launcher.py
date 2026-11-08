@@ -1,7 +1,9 @@
 """One-click launcher behind `Start Chalk.bat` / `Start Chalk.command`.
 
-The double-click scripts only create the virtual environment; everything
-else happens here, in one cross-platform place:
+The double-click scripts pick the Python: the one bundled in a release
+download (the `python` folder next to them, packages already installed),
+or else a virtual environment they create. Everything else happens here,
+in one cross-platform place:
 
 1. check the Python version
 2. install requirements.txt on the first run, and again whenever it changes
@@ -33,6 +35,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = REPO_ROOT / "requirements.txt"
 PROJECTS_DIR = REPO_ROOT / "projects"
+BUNDLED_PYTHON_DIR = REPO_ROOT / "python"
 MIN_PYTHON = (3, 11)
 DEFAULT_PORT = 8501
 STAMP_NAME = ".chalk-requirements.sha256"
@@ -57,6 +60,15 @@ def python_version_problem(version: tuple[int, ...] = tuple(sys.version_info[:3]
 
 def in_virtualenv() -> bool:
     return sys.prefix != sys.base_prefix
+
+
+def running_bundled_python(prefix: str | None = None) -> bool:
+    """True when this is the Python shipped inside a release download
+    (`bundle/build_bundle.py`), whose packages are already installed."""
+    try:
+        return Path(prefix or sys.prefix).resolve() == BUNDLED_PYTHON_DIR.resolve()
+    except OSError:
+        return False
 
 
 def requirements_digest(requirements: Path = REQUIREMENTS) -> str:
@@ -161,7 +173,7 @@ def main(
     if problem:
         print(problem)
         return 1
-    if not in_virtualenv():
+    if not (in_virtualenv() or running_bundled_python()):
         print("Start Chalk with the 'Start Chalk' launcher so it can use its own Python environment.")
         return 1
 
