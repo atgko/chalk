@@ -109,3 +109,12 @@ def test_main_refuses_to_build_for_another_platform(capsys):
     with pytest.raises(SystemExit):
         build_bundle.main([other])
     assert "packages are installed by the bundled Python itself" in capsys.readouterr().err
+
+
+def test_every_mac_bundle_records_its_cpu_type_for_the_launcher():
+    macs = {name for name in build_bundle.RUNTIMES if name.startswith("macos")}
+    assert set(build_bundle.MAC_ARCHES) == macs
+    launcher = (_PATH.parent.parent / "Start Chalk.command").read_text(encoding="utf-8")
+    assert f"python/{build_bundle.ARCH_FILE}" in launcher
+    for arch in build_bundle.MAC_ARCHES.values():
+        assert f'"$bundle_arch" = {arch}' in launcher

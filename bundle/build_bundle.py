@@ -51,6 +51,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PYTHON_VERSION = "3.14.10"
 PBS_RELEASE = "20261026"  # python-build-standalone release tag
 STAMP_NAME = ".chalk-requirements.sha256"  # same as chalk.launcher.STAMP_NAME
+# Written into a Mac bundle's python folder, so Start Chalk.command can say
+# which zip to download when someone picks the one for the other kind of Mac.
+ARCH_FILE = ".chalk-arch"
+MAC_ARCHES = {"macos-arm64": "arm64", "macos-x64": "x86_64"}
 
 # Tracked files that an instructor doesn't need in the download.
 EXCLUDED_PREFIXES = (".github/", "bundle/", "tests/")
@@ -312,6 +316,8 @@ def build(platform: str, version: str, out: Path, *, skip_smoke_test: bool = Fal
     python_dir = stage / "python"
     unpack_runtime(platform, archives, python_dir)
     python = runtime_python(python_dir, platform)
+    if platform in MAC_ARCHES:
+        (python_dir / ARCH_FILE).write_text(MAC_ARCHES[platform] + "\n", encoding="utf-8")
     install_requirements(python, python_dir, stage)
     if not skip_smoke_test:
         smoke_test(python, stage)
