@@ -4,7 +4,7 @@ A 10–15 minute walkthrough for a sponsor or faculty audience, using the built-
 
 ## Before the meeting (5 minutes, the day before)
 
-1. **Start it once.** Double-click **`Start Chalk Demo.bat`** (Windows) or **`Start Chalk Demo.command`** (macOS). The first run installs everything, which takes a couple of minutes and needs internet. Later starts take a few seconds.
+1. **Start it once.** Double-click **`Start Chalk Demo.bat`** (Windows) or **`Start Chalk Demo.command`** (macOS; the first time, approve it under System Settings → Privacy & Security → **Open Anyway**, see [GETTING-STARTED.md](GETTING-STARTED.md#3-start-the-demo)). The first run installs everything, which takes a couple of minutes and needs internet. Later starts take a few seconds.
 2. **Connect an AI provider** on the welcome screen if you'll show generation. The key is saved only in the demo project, and it survives a demo reset. With no key, click **Skip for now**: everything except step 6 below still works.
 3. **Do one practice generation** so you know the provider works from the meeting network.
 4. **Reset the demo** so you start clean: on the launch screen click **Reset the demo course**, or run `Start Chalk.bat --reset-demo`.

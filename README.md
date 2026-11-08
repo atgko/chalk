@@ -86,7 +86,11 @@ git clone https://github.com/atgko/chalk.git
 
 ### 2c. Start it
 
-**Double-click `Start Chalk.bat`** (Windows) or **`Start Chalk.command`** (macOS; the first time, right-click it and choose **Open**). On Linux, run `./"Start Chalk.command"`.
+**Double-click `Start Chalk.bat`** (Windows) or **`Start Chalk.command`** (macOS). On Linux, run `./"Start Chalk.command"`.
+
+- **Windows, the first time:** if a blue **"Windows protected your PC"** box appears, click **More info → Run anyway**.
+- **macOS, the first time:** macOS says *"Start Chalk.command" Not Opened* because the file came from the internet. Click **Done** (not Move to Trash). Open **System Settings → Privacy & Security**, scroll down to **Security**, and click **Open Anyway** next to the message about Start Chalk.command. Confirm with your password or Touch ID, then click **Open Anyway** again. Each launcher needs this once (Start Chalk and Start Chalk Demo separately). Right-click → Open no longer works for this on current macOS. On a university-managed Mac, IT may have turned **Open Anyway** off; if so, ask them.
+- **Mac release download says it's for the other kind of Mac?** Download the other zip: `macos-arm64` for Apple silicon (M1 or later), `macos-x64` for Intel. **Apple menu → About This Mac** shows which you have.
 
 From a release download, Chalk opens in seconds. From the source code, the first start sets everything up, which takes a couple of minutes and needs internet; after that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
 

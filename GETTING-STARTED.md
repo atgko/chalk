@@ -33,7 +33,12 @@ Pick one:
 **Windows:** double-click **`Start Chalk Demo.bat`**.
 - If a blue **"Windows protected your PC"** box appears, click **More info → Run anyway**. It appears because the file came from the internet.
 
-**Mac:** right-click **`Start Chalk Demo.command`** → **Open** → **Open** again. You only need to right-click the first time, to get past Gatekeeper.
+**Mac:** double-click **`Start Chalk Demo.command`**. The first time, macOS says *"Start Chalk Demo.command" Not Opened*, because the file came from the internet:
+1. Click **Done** (not Move to Trash).
+2. Open **System Settings → Privacy & Security** and scroll down to **Security**.
+3. Next to *"Start Chalk Demo.command" was blocked*, click **Open Anyway**, confirm with your password or Touch ID, and click **Open Anyway** again.
+
+You only do this once per launcher (Start Chalk needs its own approval the first time you use it). Right-click → Open no longer gets past this on current macOS.
 - If you downloaded the ZIP and nothing happens, open Terminal in the folder and run `chmod +x "Start Chalk.command" "Start Chalk Demo.command"`, then try again.
 
 A console window opens. **The first start takes a few minutes** while it installs components; you'll see `Installing Chalk's components...`. Later starts take seconds.
