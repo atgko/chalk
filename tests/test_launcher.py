@@ -195,3 +195,17 @@ def test_main_refuses_to_install_outside_a_virtualenv(env, monkeypatch, capsys):
 
 def test_in_virtualenv_reflects_the_running_interpreter():
     assert launcher.in_virtualenv() == (sys.prefix != sys.base_prefix)
+
+
+def test_running_bundled_python_matches_only_the_python_folder(monkeypatch, tmp_path):
+    monkeypatch.setattr(launcher, "BUNDLED_PYTHON_DIR", tmp_path / "python")
+    assert launcher.running_bundled_python(str(tmp_path / "python"))
+    assert not launcher.running_bundled_python(str(tmp_path / ".venv"))
+
+
+def test_main_runs_under_the_bundled_python_without_a_virtualenv(env, monkeypatch):
+    monkeypatch.setattr(launcher, "in_virtualenv", lambda: False)
+    monkeypatch.setattr(launcher, "BUNDLED_PYTHON_DIR", env)
+    code, started, _, _ = _main()
+    assert code == 0
+    assert started

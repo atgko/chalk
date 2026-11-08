@@ -70,12 +70,15 @@ Every AI call's cost is added to the footer's "Project cost to date" and the Met
 
 ### 2a. Requirements
 
-- **Python 3.11 or newer.** Check with `python --version`. Get it from [python.org](https://www.python.org/downloads/). On Windows, tick "Add python.exe to PATH" in the installer.
+- **Nothing to install if you use a release download** (2b). It carries its own Python.
+- Otherwise, **Python 3.11 or newer.** Check with `python --version`. Get it from [python.org](https://www.python.org/downloads/). On Windows, tick "Add python.exe to PATH" in the installer.
 - An AI provider account is optional; see [section 8](#8-choosing-and-configuring-your-ai-provider).
 
 ### 2b. Get the code
 
-Download it from GitHub (**Code → Download ZIP**, then unzip it), or clone it:
+**Easiest: a release download.** On the [Releases page](https://github.com/atgko/chalk/releases), download the zip for your computer: `windows-x64` for Windows, `macos-arm64` for a Mac with Apple silicon (M1 or later), `macos-x64` for an older Intel Mac. Unzip it (Windows: right-click → **Extract All**). The `Chalk` folder inside has Chalk, its own Python, and everything it needs, so the first start installs nothing and needs no internet. Keep it out of OneDrive, iCloud Drive, or Dropbox.
+
+**Or the source code:** download it from GitHub (**Code → Download ZIP**, then unzip it), or clone it. This needs Python (2a), and the first start downloads Chalk's components:
 
 ```bash
 git clone https://github.com/atgko/chalk.git
@@ -85,7 +88,7 @@ git clone https://github.com/atgko/chalk.git
 
 **Double-click `Start Chalk.bat`** (Windows) or **`Start Chalk.command`** (macOS; the first time, right-click it and choose **Open**). On Linux, run `./"Start Chalk.command"`.
 
-The first start sets everything up, which takes a couple of minutes and needs internet. After that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
+From a release download, Chalk opens in seconds. From the source code, the first start sets everything up, which takes a couple of minutes and needs internet; after that, it opens in seconds. Your browser opens on Chalk. A console window stays open while Chalk runs: minimize it, but don't close it, because closing it stops Chalk.
 
 - **Want to look around first?** Double-click **`Start Chalk Demo`** instead, or click **Open the demo course** on the launch screen. It opens a sample course with a syllabus already loaded. See [DEMO.md](DEMO.md) for a guided walkthrough.
 - **Your own course:** on the launch screen, type a name (for example `IS-6640-Fall-2027`) and click **Create project**. Projects are saved in the `projects/` folder next to the launchers. To reopen one, pick it under **Your projects** (most recently used first) and click **Open**. For a project kept somewhere else, paste or browse to its folder under **Open a course project**.

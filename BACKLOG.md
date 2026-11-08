@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-11-06.
+Last updated: 2026-11-07.
 
 ## Open questions (need someone outside the code)
 
@@ -106,10 +106,15 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 ## Engineering
 
 - **P1: Before the presentation, turn off raw provider error text.** `_SHOW_PROVIDER_DETAILS` in `chalk/llm_client.py` adds the provider's own explanation (e.g. "Provider said: …") to refused-request errors, to debug teammates' setup problems. Set it to `False` for the presentation, so only the plain-English messages show.
-- **P2: Bundle Python with the download (sponsor meeting, Oct 15).** Today the launchers need Python 3.11+ already installed. Shipping Python inside the download (e.g. the official Windows embeddable package, or python-build-standalone on macOS) removes that step. To keep the bundle from going stale, pin the Python and package versions, build the bundle in GitHub Actions for each release instead of by hand, and add a check to the maintenance notes for when that Python version reaches end of life.
+- **P1: Try a release download on a real university-managed computer** (Windows and Mac) before giving it to faculty. Only a managed machine shows what its antivirus does with the bundle. Download the zips from the Bundle workflow's run (Actions → Bundle → Artifacts) or a draft release.
+- **P2: Keep the bundled Python current.** `PYTHON_VERSION`, `PBS_RELEASE`, and the SHA-256 pins in `bundle/build_bundle.py` are updated by hand. Check for a new 3.14 patch release each term; Python 3.14 reaches end of life in October 2030.
+- **P2: Sign the macOS bundle with an Apple Developer ID and notarize it** ($99/year). Then macOS opens it without right-click → Open, and `Start Chalk.command` no longer has to remove the download quarantine, which some endpoint-security tools flag (DECISIONS.md, Bundled Python).
+- **P3: Sign the Windows launcher.** The bundled Python is already signed by the PSF, but `Start Chalk.bat` still gets the "Windows protected your PC" box. A code-signing certificate (e.g. Azure Trusted Signing) can't sign a .bat, so this means a small signed `Start Chalk.exe`; only worth it if the warning keeps stopping faculty.
 - **P2 (research): Package Chalk as a desktop app (sponsor meeting, Oct 28).** The team will explore packaging Chalk as a desktop app that installs and starts like other programs. For now it would still open and run in the browser. This builds on bundling Python above.
 
 ## Done
+
+- 2026-11-07: Release downloads carry their own Python. `bundle/build_bundle.py` builds a zip for Windows, Apple-silicon Macs, and Intel Macs, with Python 3.14 and every package installed, so the first start downloads and installs nothing. GitHub Actions builds them for tagged releases (as a draft release) and for pull requests that touch the bundle. The launchers use the bundled Python when it's there (sponsor meeting, Oct 15).
 
 - 2026-11-06: Grading is grounded in the submission. It asks for temperature 0 (except Gemini; a model that refuses it is asked again at its default), and every score comes with a word-for-word quote from the submission that Chalk checks is there. A quote that isn't found, or credit without one, is flagged on the criterion and in the Instructor Review Notes, never scored down. The quotes appear in the app and in the Word, PDF, and Markdown reports. Also fixed: the Markdown grading report had literal "\n" text in place of line breaks.
 - 2026-11-04: After Confirm rollover, the written files are grouped and plainly named as on the Export tab ("Syllabus (Word)", "Canvas syllabus page (HTML)") instead of "Download outputs/..." buttons, and course.json is no longer offered. The preview's "Files to be written" names each file the same way (UAT of PR #27).
