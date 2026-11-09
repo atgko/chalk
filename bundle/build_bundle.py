@@ -198,6 +198,29 @@ def install_requirements(python: Path, python_dir: Path, stage: Path) -> None:
     (python_dir / STAMP_NAME).write_text(digest, encoding="utf-8")
 
 
+def compile_bytecode(python: Path, stage: Path) -> None:
+    """Precompile every .py in the bundle (standard library, packages, app)
+    as hash-checked bytecode, so the first start doesn't recompile them all.
+
+    By default a .pyc records its source's modification time, and Python
+    throws the .pyc away when that time doesn't match. A zip stores times
+    rounded to 2 seconds with no time zone, so after unzipping, especially
+    in another time zone, every .pyc is stale. The first start on a fresh PC
+    then took 3 to 4 minutes, with a blank page the whole time. A
+    hash-checked .pyc records the source's hash instead, which unzipping
+    doesn't change."""
+    log("Compiling Python files")
+    result = subprocess.run(
+        [str(python), "-m", "compileall", "-q", "-f", "-j", "0",
+         "--invalidation-mode", "checked-hash", str(stage)],
+        env=_isolated_env(), check=False,
+    )
+    if result.returncode:
+        # Some packages ship .py files that aren't meant to compile (templates,
+        # Python 2 examples). Python compiles the rest; those are never imported.
+        log("Some files didn't compile (listed above); they are never imported.")
+
+
 def _isolated_env() -> dict[str, str]:
     """The build machine's own Python settings must not leak into the bundle."""
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONHOME", "PYTHONPATH")}
@@ -319,6 +342,7 @@ def build(platform: str, version: str, out: Path, *, skip_smoke_test: bool = Fal
     if platform in MAC_ARCHES:
         (python_dir / ARCH_FILE).write_text(MAC_ARCHES[platform] + "\n", encoding="utf-8")
     install_requirements(python, python_dir, stage)
+    compile_bytecode(python, stage)
     if not skip_smoke_test:
         smoke_test(python, stage)
     # Course projects are never shipped; drop any the smoke test created.

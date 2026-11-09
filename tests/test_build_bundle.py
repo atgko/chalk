@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import os
 import stat
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -118,3 +119,32 @@ def test_every_mac_bundle_records_its_cpu_type_for_the_launcher():
     assert f"python/{build_bundle.ARCH_FILE}" in launcher
     for arch in build_bundle.MAC_ARCHES.values():
         assert f'"$bundle_arch" = {arch}' in launcher
+
+
+def test_compiled_bytecode_survives_a_changed_timestamp(tmp_path):
+    # Unzipping in another time zone moves every file's modification time.
+    # A timestamp-checked .pyc is then stale and recompiled on first start;
+    # the bundle's hash-checked ones must still be used.
+    stage = tmp_path / "Chalk"
+    package = stage / "pkg"
+    package.mkdir(parents=True)
+    source = package / "mod.py"
+    source.write_text("VALUE = 42\n")
+    (package / "broken.py").write_text("this is not python\n")  # mustn't stop the build
+
+    build_bundle.compile_bytecode(Path(sys.executable), stage)
+
+    pyc = package / "__pycache__" / f"mod.{sys.implementation.cache_tag}.pyc"
+    compiled = pyc.read_bytes()
+    assert int.from_bytes(compiled[4:8], "little") == 0b11  # hash-based, source checked
+
+    moved = source.stat().st_mtime - 7 * 3600
+    os.utime(source, (moved, moved))
+    pyc_mtime = pyc.stat().st_mtime_ns
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONDONTWRITEBYTECODE", "SOURCE_DATE_EPOCH")}
+    subprocess.run(
+        [sys.executable, "-c", "import pkg.mod; assert pkg.mod.VALUE == 42"],
+        cwd=stage, env=env, check=True,
+    )
+    assert pyc.read_bytes() == compiled
+    assert pyc.stat().st_mtime_ns == pyc_mtime
