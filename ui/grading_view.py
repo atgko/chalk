@@ -11,6 +11,41 @@ from chalk.grading.strictness import STANDARD, STRICTNESS_LABELS, STRICTNESS_LEV
 from chalk.llm_client import LLMProviderError
 
 
+def markdown_report(result):
+    """Build the downloadable Markdown grading report."""
+    report = (
+        f"# AI Grading Recommendations\n\n"
+        f"Suggested Grade: {result['earned_total']:g}/{result['possible_total']:g} "
+        f"({result['percentage']:.1f}%)\n\n"
+        "## Rubric Breakdown\n\n"
+    )
+
+    for criterion in result["criteria"]:
+        report += (
+            f"### {criterion['name']}\n"
+            f"Score: {criterion['earned']:g}/"
+            f"{criterion['possible']:g}\n\n"
+            f"{criterion['reasoning']}\n\n"
+            + "".join(f"{line}\n\n" for line in evidence_lines(criterion))
+            + (
+                f"Suggested deduction: "
+                f"{criterion['possible'] - criterion['earned']:g} points\n\n"
+                f"{criterion['deduction_comment']}\n\n"
+                if criterion['possible'] > criterion['earned']
+                else ""
+            )
+        )
+
+    report += (
+        f"## Student Feedback\n\n{result['student_feedback']}\n\n"
+        f"## Instructor Review Notes\n\n"
+        f"{result['instructor_notes']}\n\n"
+        "All grades are preliminary recommendations "
+        "requiring instructor approval.\n"
+    )
+    return report
+
+
 def extract_submission(uploaded_file):
     """Extract text from PDF, Word, or TXT submissions."""
     data = uploaded_file.getvalue()
@@ -191,36 +226,7 @@ def render(paths):
         st.subheader("Instructor Review Notes")
         st.write(result["instructor_notes"] or "No additional notes provided.")
 
-        report = (
-            f"# AI Grading Recommendations\n\n"
-            f"Suggested Grade: {earned:g}/{possible:g} "
-            f"({percentage:.1f}%)\n\n"
-            "## Rubric Breakdown\n\n"
-        )
-
-        for criterion in result["criteria"]:
-            report += (
-                f"### {criterion['name']}\n"
-                f"Score: {criterion['earned']:g}/"
-                f"{criterion['possible']:g}\n\n"
-                f"{criterion['reasoning']}\n\n"
-                + "".join(f"{line}\n\n" for line in evidence_lines(criterion))
-                + (
-                    f"Suggested deduction: "
-                    f"{criterion['possible'] - criterion['earned']:g} points\n\n"
-                    f"{criterion['deduction_comment']}\n\n"
-                    if criterion['possible'] > criterion['earned']
-                    else ""
-                )
-            )
-
-        report += (
-            f"## Student Feedback\n\n{student_feedback}\n\n"
-            f"## Instructor Review Notes\n\n"
-            f"{result['instructor_notes']}\n\n"
-            "All grades are preliminary recommendations "
-            "requiring instructor approval.\n"
-        )
+        report = markdown_report(result)
 
         st.subheader("Download Grading Report")
 
