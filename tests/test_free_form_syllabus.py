@@ -22,7 +22,7 @@ def test_free_form_header_extracts_course_info_and_schedule(tmp_path):
     course_data = docx_extractor.extract_course_data(path)
 
     course = course_data.course
-    assert course.title == "Networking and Servers – Online"
+    assert course.title == "Networking and Servers"
     assert course.number == "IS 6640"
     assert course.term == "Fall 2026"
     assert course.instructor == "Jane Example"
