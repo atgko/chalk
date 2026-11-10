@@ -180,8 +180,10 @@ def term_line_index(lines: list[str], header_lines: list[str]) -> int | None:
 
 def _labeled_fields(lines: list[str]) -> dict:
     fields: dict = {}
-    for line in lines:
-        parsed = parse_labeled_line(line)
+    # A Word paragraph with soft line breaks ("Time: ...↵Location: ...")
+    # holds a labeled line on each line.
+    for part in (part for line in lines for part in line.split("\n")):
+        parsed = parse_labeled_line(part)
         if parsed and parsed[0] not in fields:
             fields[parsed[0]] = parsed[1]
     return fields
