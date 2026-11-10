@@ -89,7 +89,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 **Rollover**
 
-- **P1: Week 1 starts on a Monday whatever the class's first day.** On Rollover, the "New" weeks have the right dates, but each week is shown as starting on a Monday whatever "Starts on" is set to. With Ollama, a Wednesday class still had Week 1 on Monday (the 16-week course did work). Related: the P3 item under Rollover about once-a-week classes.
 - **P1: Let the instructor change the generated dates** when they don't match.
 - **P1: Fix the holidays in the rolled-over syllabus.** In a Fall → Spring rollover, the warnings on Rollover were right, but the new document still listed Labor Day and Fall Break near the end, left out MLK Day and Presidents' Day, and didn't include Spring Break. Fix the document so it matches the warnings. Also decide how an instructor acts on a warning (e.g. a break or holiday): accept or change it in the app before the syllabus is written, or edit the document by hand afterwards.
 - **P1: Change the meeting time everywhere it appears in the syllabus.** The rollover changed it near the top, but not further down.
@@ -106,6 +105,7 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 Each item below was built and covered by automated tests, but needs a person to look at it in the app.
 
 - [ ] Section number and "Class days and time" (fix/section-number): upload Dave's IS 6640-001 syllabus and check Review shows Section 001 and a course title without "-001". Hover the "?" next to Section and Class days and time: are the hints clear to an instructor?
+- [ ] Class day at rollover (fix/rollover-class-day): roll Dave's Wednesday course to Spring 2027. "Class meets on" should start on Wed (from the syllabus, or from the days its rows are dated on), and every week in the preview, including added weeks, should be a Wednesday. Change it to Tue/Thu and check each week moves to its Tuesday.
 
 ## Extraction
 
@@ -127,7 +127,6 @@ Each item below was built and covered by automated tests, but needs a person to 
 - **P3: Break rows in a split (per-module) schedule** are placed by date across all the tables; a break after the last week goes at the end of the last table. This is untested on a real split schedule that has break rows.
 - **P3: When the instructor picked one table from an ambiguous set, the writer still updates every schedule-like table.**
 - **P3: The preview always shows dates as M/D**, even when the syllabus uses "Jan. 6" (the written document keeps the original style).
-- **P3: A once-a-week class's rows stay on the week's start date.** Only a schedule with a row per class meeting is dated on the picked meeting days. A once-a-week class labeled by its class day ("Week 1 (8/25)" for a Tuesday class) rolls over to the new week's first day, as it always has. Changing that would move every existing once-a-week syllabus's dates, so it waits for an instructor to ask.
 - **P2: A PDF rollover that changes the schedule's rows is Word only.** The PDF copy (see Done) can only change text, so a longer or shorter course, or a break that lands after a different week in the new term, gets `syllabus.docx` alone, rebuilt in plain Word styles. Copying a row in a PDF would mean moving everything below it down the page.
 - **P2: The Word file read from a PDF should take the PDF's fonts (UAT of PR #27, Nov 4).** The `(from PDF).docx` and its rolled-over `syllabus.docx` use python-docx's stock template (Calibri, blue headings), so OSC 6660 (black Times New Roman, 12 pt body, 14-16 pt bold headings) looks nothing like its PDF. `syllabus.pdf` keeps the exact layout when it can be written. Fix in `chalk/pdf_import`: read each line's main font, size, bold/italic and colour from pdfplumber's chars, write them as runs, restyle Normal and the Heading styles to the PDF's body font in black, and match the page size and margins. Keep the Heading styles and real tables, since extraction and the Word rollover depend on them. An exact layout match (columns, shading, the logo) isn't the goal: a layout-copying converter (e.g. pdf2docx) writes positioned frames that Chalk can't read back, and its PyMuPDF dependency is AGPL.
 - **P2: Check the PDF copy on more real PDFs.** It's been run on IS 4440 (Word → PrimoPDF) and OSC 6660 (Google Docs). Try a PDF saved straight from Word ("Save as PDF"), one from Mac Preview or Pages, and one with a coloured or shaded schedule header. A PDF it can't change exactly is skipped with a note, so the risk is a missing PDF, not a wrong one.
@@ -153,6 +152,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 ## Done
 
+- 2026-11-10: A schedule with one row per week is dated on the first "Class meets on" day of each week in the new term, added weeks too: a Wednesday class's Week 1 is the first Wednesday, not the term's Monday. "Class meets on" starts from the syllabus's class days, or else the weekday most of the old rows were dated on, so a syllabus with Monday week labels keeps its Monday dates. Leaving it empty keeps the week's start date (Nov 9 UAT).
 - 2026-11-10: The section is read from the course number ("IS 6640-001", "IS 6640 - 001", "IS 6640, Section 001", or a labeled "Course Number: IS 6640-090"), and left out of the title guess. On Review, "Meeting pattern" is now "Class days and time", with an example and a hint saying Rollover uses it; Section has a hint too (Nov 9 UAT).
 - 2026-11-07: Release downloads carry their own Python. `bundle/build_bundle.py` builds a zip for Windows, Apple-silicon Macs, and Intel Macs, with Python 3.14 and every package installed, so the first start downloads and installs nothing. GitHub Actions builds them for tagged releases (as a draft release) and for pull requests that touch the bundle. The launchers use the bundled Python when it's there (sponsor meeting, Oct 15).
 

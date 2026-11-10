@@ -183,7 +183,7 @@ def roll_over_course(
     meeting_plan = _meeting_plan(regular_weeks, meeting_days, course_data.course.term_start, new_term_start)
     if meeting_plan is None:
         general_flags.extend(meeting_count_flags(regular_weeks, meeting_days))
-    new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start, meeting_plan)
+    new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start, meeting_plan, meeting_days)
     if season_changed and syllabus_break_weeks and term_data is not None:
         new_break_weeks, break_changes = _rebuild_break_weeks_for_new_season(target_breaks, new_weeks)
         general_flags.append(
@@ -340,6 +340,17 @@ def _meeting_date(week: Week, week_start: dt.date, meeting_plan: dict[int, int] 
     return week_start + dt.timedelta(days=(new_day - week_start.weekday()) % 7)
 
 
+def _first_class_day(week: Week, week_start: dt.date, meeting_days: tuple[int, ...]) -> dt.date | None:
+    """A row-per-week schedule's date in the new term: the week's first
+    class day (a Wednesday class's Week 1 is the first Wednesday, not the
+    term's Monday; Nov 9 UAT). None for a row per class meeting, which
+    the meeting plan dates, or when no meeting days were picked."""
+    if week.meeting is not None or not meeting_days:
+        return None
+    first_day = days_in_order_from(week_start, meeting_days)[0]
+    return week_start + dt.timedelta(days=(first_day - week_start.weekday()) % 7)
+
+
 def _meeting_plan(
     regular_weeks: list[Week],
     meeting_days: tuple[int, ...],
@@ -377,7 +388,10 @@ def meeting_count_flags(regular_weeks: list[Week], meeting_days: tuple[int, ...]
 
 
 def _shift_regular_weeks(
-    regular_weeks: list[Week], new_term_start: dt.date, meeting_plan: dict[int, int] | None = None
+    regular_weeks: list[Week],
+    new_term_start: dt.date,
+    meeting_plan: dict[int, int] | None = None,
+    meeting_days: tuple[int, ...] = (),
 ) -> tuple[list[Week], list[WeekChange]]:
     new_weeks: list[Week] = []
     changes: list[WeekChange] = []
@@ -386,7 +400,9 @@ def _shift_regular_weeks(
         first_meetings[week.week_number] = min(week.date, first_meetings.get(week.week_number, week.date))
     for week in regular_weeks:
         week_start = new_term_start + dt.timedelta(days=7 * (week.week_number - 1))
-        new_date = _meeting_date(week, week_start, meeting_plan)
+        new_date = _meeting_date(week, week_start, meeting_plan) or _first_class_day(
+            week, week_start, meeting_days
+        )
         if new_date is None:
             days_after_first_meeting = (week.date - first_meetings[week.week_number]).days
             new_date = week_start + dt.timedelta(days=days_after_first_meeting)

@@ -23,6 +23,7 @@ from chalk.rollover.meeting_days import (
     format_meeting_days,
     parse_meeting_days,
     schedule_meeting_days,
+    usual_row_weekday,
 )
 from chalk.rollover.season_change import multi_day_breaks
 from chalk.sessions import (
@@ -158,10 +159,13 @@ def _render_schedule_inputs(
     a schedule with a row per class meeting is dated on them) and which of
     the target term's breaks the class actually takes off."""
     by_meeting = schedule_meeting_days(course_data.weeks)
-    default_days = parse_meeting_days(course_data.course.meeting_pattern) or by_meeting
+    default_days = (
+        parse_meeting_days(course_data.course.meeting_pattern) or by_meeting or usual_row_weekday(course_data.weeks)
+    )
     help_text = (
         "Holiday and break warnings are only shown for weeks where one lands on a class day. "
-        "Leave empty to check each week's start date instead."
+        "A class with one row per week is dated on the first of these days in each week. "
+        "Leave empty to keep each week's start date."
     )
     if by_meeting:
         help_text += (
