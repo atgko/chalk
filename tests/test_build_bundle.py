@@ -78,9 +78,30 @@ def test_download_filename_decodes_the_plus_sign():
 def test_copy_app_makes_mac_launchers_executable(tmp_path):
     stage = tmp_path / "stage"
     build_bundle.copy_app(["Start Chalk.command", "app.py", "no-such-file.txt"], stage)
-    assert (stage / "app.py").exists()
-    assert not (stage / "no-such-file.txt").exists()
+    assert (stage / "app" / "app.py").exists()
+    assert not (stage / "app" / "no-such-file.txt").exists()
     assert os.access(stage / "Start Chalk.command", os.X_OK) or sys.platform == "win32"
+
+
+def test_only_the_launchers_and_a_read_me_sit_at_the_top_of_the_download(tmp_path):
+    # Nov 9 UAT: the instructor should see the launcher, not Chalk's program files.
+    stage = tmp_path / "stage"
+    files = [path for path in build_bundle.app_files() if path in build_bundle.LAUNCHERS or path.count("/") < 2]
+
+    build_bundle.copy_app(files, stage)
+
+    top = sorted(path.name for path in stage.iterdir())
+    assert top == sorted([*build_bundle.LAUNCHERS, build_bundle.READ_ME_NAME, build_bundle.APP_FOLDER])
+    assert (stage / "app" / "chalk" / "launcher.py").is_file()
+    assert "Chalk Courses" in (stage / build_bundle.READ_ME_NAME).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("launcher", ["Start Chalk.bat", "Start Chalk.command"])
+def test_the_launchers_move_into_the_app_folder_when_there_is_one(launcher):
+    text = (build_bundle.REPO_ROOT / launcher).read_text(encoding="utf-8")
+
+    moves = text.index("app") < text.index("chalk.launcher")
+    assert moves and "launcher.py" in text
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")

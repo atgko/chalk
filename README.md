@@ -76,7 +76,7 @@ Every AI call's cost is added to the footer's "Project cost to date" and the Met
 
 ### 2b. Get the code
 
-**Easiest: a release download.** On the [Releases page](https://github.com/atgko/chalk/releases), download the zip for your computer: `windows-x64` for Windows, `macos-arm64` for a Mac with Apple silicon (M1 or later), `macos-x64` for an older Intel Mac. Unzip it (Windows: right-click → **Extract All**). The `Chalk` folder inside has Chalk, its own Python, and everything it needs, so the first start installs nothing and needs no internet. Keep it out of OneDrive, iCloud Drive, or Dropbox.
+**Easiest: a release download.** On the [Releases page](https://github.com/atgko/chalk/releases), download the zip for your computer: `windows-x64` for Windows, `macos-arm64` for a Mac with Apple silicon (M1 or later), `macos-x64` for an older Intel Mac. Unzip it (Windows: right-click → **Extract All**). The `Chalk` folder inside shows only **Start Chalk** (and a demo launcher) and a short "Read me"; Chalk itself, its own Python, and everything it needs are in its `app` folder, so the first start installs nothing and needs no internet. Your courses are saved in Documents/Chalk Courses, not in this folder. Keep it out of OneDrive, iCloud Drive, or Dropbox.
 
 **Or the source code:** download it from GitHub (**Code → Download ZIP**, then unzip it), or clone it. This needs Python (2a), and the first start downloads Chalk's components:
 
