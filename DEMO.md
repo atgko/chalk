@@ -11,7 +11,7 @@ A 10–15 minute walkthrough for a sponsor or faculty audience, using the built-
 
 On the day, double-click **`Start Chalk Demo`**. The browser opens on the demo course. Keep the black console window open (minimizing it is fine). Closing it stops Chalk.
 
-Sample files for live uploads are in **`projects/Chalk-Demo/try-these/`**. Have that folder open in File Explorer or Finder so the file dialog is quick to navigate.
+Sample files for live uploads are in **`Documents/Chalk Courses/Chalk-Demo/try-these/`**. Have that folder open in File Explorer or Finder so the file dialog is quick to navigate.
 
 ## The walkthrough
 

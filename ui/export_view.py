@@ -10,6 +10,7 @@ import streamlit as st
 
 from chalk.errors import ChalkError
 from chalk.generation.specs import SPECS
+from chalk.locations import open_in_file_manager
 from chalk.models import CourseData
 from chalk.pipeline import export_outputs
 from chalk.project import ProjectPaths, list_output_files, zip_outputs
@@ -41,11 +42,26 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             mime="application/zip",
             type="primary",
         )
+        render_saved_location(paths, key_prefix="export")
         render_sections(paths, files, key_prefix="export")
 
     if paths.canvas_html.exists():
         _render_canvas_page(paths.canvas_html.read_text(encoding="utf-8"))
     _render_rebuild(paths, course_data)
+
+
+def render_saved_location(paths: ProjectPaths, *, key_prefix: str) -> None:
+    """Where the files are on this computer, and a button that opens the
+    folder (Nov 9 UAT: instructors got lost looking for their files)."""
+    location_col, button_col = st.columns([4, 1], vertical_alignment="center")
+    location_col.caption(
+        f"Saved on this computer in `{paths.outputs_dir}`. A download button saves another copy "
+        "to your browser's Downloads folder."
+    )
+    if button_col.button("Open the folder", key=f"{key_prefix}-open-outputs") and not open_in_file_manager(
+        paths.outputs_dir
+    ):
+        st.info(f"Open this folder in File Explorer or Finder: `{paths.outputs_dir}`")
 
 
 def output_sections(files: list[Path], paths: ProjectPaths) -> list[tuple[str, list[tuple[str, Path]]]]:

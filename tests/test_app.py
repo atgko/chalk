@@ -19,7 +19,7 @@ from chalk.generation.engine import NO_SOURCES_MESSAGE
 from chalk.pipeline import extract_syllabus, save_reviewed_course
 from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
-from ui import session
+from ui import project_picker, session
 from ui.common import NEEDS_COURSE_MESSAGE
 from ui.session import PendingExtraction, TableChoice
 
@@ -220,7 +220,7 @@ def test_cancelled_browse_keeps_what_was_typed(dialog):
     at = at.run()
 
     assert_no_exception(at)
-    assert _field(at, "Create it inside").endswith("projects")
+    assert _field(at, "Create it inside") == str(project_picker.DEFAULT_PARENT)
     assert not _dialog_note_shown(at)
 
 
@@ -432,7 +432,7 @@ def test_switch_course_goes_back_to_the_projects_list(saved_project):
     at = launch(saved_project, chalk_course_state="kept for this course")
     at = click(at, "All courses")
     assert_no_exception(at)
-    assert "Open a course project" in [h.value for h in at.subheader]
+    assert "Open an existing course" in [h.value for h in at.subheader]
     assert "chalk_course_state" not in at.session_state  # nothing carries over to the next course
     assert session.PROJECT_ROOT_KEY not in at.session_state
 
@@ -1200,10 +1200,12 @@ def test_an_assignment_names_its_missing_required_fields(sourced_project, llm):
 
 @pytest.fixture
 def projects_folder(tmp_path, monkeypatch):
-    """The launch screen's default projects/ folder, empty to start."""
+    """The launch screen's courses folder, empty to start, and no courses
+    left in the app's own projects/ folder."""
     folder = tmp_path / "projects"
     folder.mkdir()
     monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", folder)
+    monkeypatch.setattr("ui.project_picker.LEGACY_PARENT", tmp_path / "no-legacy-projects")
     return folder
 
 
@@ -1437,3 +1439,67 @@ def test_find_ollama_explains_how_to_find_the_address_when_it_isnt_running(tmp_p
 
     assert any(w.startswith("Couldn't find Ollama on this computer.") and "ollama serve" in w for w in texts(at.warning))
     assert widget(at.text_input, "Endpoint URL").value == "http://localhost:11434/v1"
+
+
+# ---- Launch screen: open vs start, and where courses are saved (Nov 9 UAT) ----------------
+
+
+def test_the_launch_screen_separates_opening_a_course_from_starting_one(projects_folder):
+    at = launch()
+
+    headings = [h.value for h in at.subheader]
+    assert "Open an existing course" in headings and "Start a new course" in headings
+    assert "Pick up a course you've already set up in Chalk." in texts(at.caption)
+    assert f"New courses are saved in `{projects_folder}`, so their files are easy to find." in texts(at.caption)
+
+
+def test_courses_still_in_the_app_folder_are_listed_and_labeled(projects_folder, tmp_path, monkeypatch):
+    legacy = tmp_path / "app-projects"
+    monkeypatch.setattr("ui.project_picker.LEGACY_PARENT", legacy)
+    init_project(projects_folder, "IS-6640-Spring-2027")
+    init_project(legacy, "IS-4490-Fall-2026")
+
+    at = launch()
+
+    assert widget(at.selectbox, "Your projects").options == [
+        "IS-6640-Spring-2027",
+        "IS-4490-Fall-2026 (in the Chalk app folder)",
+    ]
+
+
+def test_show_the_courses_folder_opens_it(projects_folder, monkeypatch):
+    opened = []
+    monkeypatch.setattr("ui.project_picker.open_in_file_manager", lambda folder: opened.append(folder) or True)
+    init_project(projects_folder, "IS-6640-Spring-2027")
+
+    click(launch(), "Show the courses folder")
+
+    assert opened == [projects_folder]
+
+
+def test_show_the_courses_folder_names_it_when_it_cant_open(projects_folder, monkeypatch):
+    monkeypatch.setattr("ui.project_picker.open_in_file_manager", lambda folder: False)
+    init_project(projects_folder, "IS-6640-Spring-2027")
+
+    at = click(launch(), "Show the courses folder")
+
+    assert f"Your courses are in `{projects_folder}`." in texts(at.info)
+
+
+def test_export_says_where_the_files_are_saved_and_opens_the_folder(saved_project, monkeypatch):
+    opened = []
+    monkeypatch.setattr("ui.export_view.open_in_file_manager", lambda folder: opened.append(folder) or True)
+    at = launch(saved_project)
+
+    assert any(f"Saved on this computer in `{saved_project.outputs_dir}`" in c for c in texts(at.caption))
+    at = click(at, "Open the folder")
+
+    assert opened == [saved_project.outputs_dir]
+
+
+def test_export_names_the_folder_when_it_cant_be_opened(saved_project, monkeypatch):
+    monkeypatch.setattr("ui.export_view.open_in_file_manager", lambda folder: False)
+
+    at = click(launch(saved_project), "Open the folder")
+
+    assert f"Open this folder in File Explorer or Finder: `{saved_project.outputs_dir}`" in texts(at.info)

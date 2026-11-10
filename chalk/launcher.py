@@ -32,9 +32,11 @@ import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 
+from chalk.locations import default_projects_dir  # standard library only
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = REPO_ROOT / "requirements.txt"
-PROJECTS_DIR = REPO_ROOT / "projects"
+PROJECTS_DIR = default_projects_dir()  # Documents/Chalk Courses (Nov 9 UAT)
 BUNDLED_PYTHON_DIR = REPO_ROOT / "python"
 MIN_PYTHON = (3, 11)
 DEFAULT_PORT = 8501

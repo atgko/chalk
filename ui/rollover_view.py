@@ -101,6 +101,7 @@ def _render_written(paths: ProjectPaths, written: list[Path]) -> None:
     tab (UAT, Nov 4: a list of "Download outputs/..." buttons read as a
     mess). course.json is the project's own data, not a download."""
     outputs = [path for path in written if path.is_relative_to(paths.outputs_dir) and path.exists()]
+    export_view.render_saved_location(paths, key_prefix="rollover")
     export_view.render_sections(paths, outputs, key_prefix="rollover")
     st.caption("These and every other output are also on the Export tab, with a download-everything zip.")
 
