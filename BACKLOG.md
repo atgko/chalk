@@ -79,13 +79,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 - **P1: Make opening a project and creating one look clearly different.** Dave was confused at first on the launch screen. Options: two boxes, each with a line of text explaining it, or fewer fields with plain labels such as "Existing project" and "Create a new project". Pick whichever is clearest to someone new. Related: the P3 item under App / UX about Open Project opening a file browser.
 - **P2: Go straight to Rollover once extraction is done.** Today a successful extraction opens Review (see Done, Oct 8). Decide whether Review still needs to come first, or whether Rollover can come next and Review stay available.
 
-**Ollama setup**
-
-- **P1: Pre-fill the Ollama endpoint and localhost address** with the values in the guide, so instructors don't have to work out what to type.
-- **P2: Find Ollama's address from the page.** Work out how to detect the address Ollama is running on, and let the instructor check it on the page instead of looking in a terminal.
-- **P2: Explain how to find the address when Ollama isn't on the defaults,** so an instructor can change the field themselves.
-- **P2: The Ollama endpoint shouldn't be a clickable link.** Clicking it opens a "page not found" error.
-
 **Rollover**
 
 - **P1: Let the instructor change the generated dates** when they don't match.
@@ -106,6 +99,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 - [ ] Section number and "Class days and time" (fix/section-number): upload Dave's IS 6640-001 syllabus and check Review shows Section 001 and a course title without "-001". Hover the "?" next to Section and Class days and time: are the hints clear to an instructor?
 - [ ] Class day at rollover (fix/rollover-class-day): roll Dave's Wednesday course to Spring 2027. "Class meets on" should start on Wed (from the syllabus, or from the days its rows are dated on), and every week in the preview, including added weeks, should be a Wednesday. Change it to Tue/Thu and check each week moves to its Tuesday.
 - [ ] Required fields (feat/required-fields): on Generate, pick Assignment and Rubric and check the fields marked * and the message naming what's missing; Generate stays greyed out until they're filled in. Upload and Grading Assistant show the * too. Is anything else required that isn't marked?
+- [ ] Ollama setup (feat/ollama-setup): with Ollama running, choose Local model (Ollama) under Settings → AI Provider and click **Find Ollama**: the address fills in and the model list shows what `ollama list` shows. Then quit Ollama, click it again, and check the instructions make sense to an instructor. Check the example address in the provider list is no longer a link.
 
 ## Extraction
 
@@ -152,6 +146,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 ## Done
 
+- 2026-11-10: Ollama setup: the Endpoint URL and Model name fields start at the README's values (`http://localhost:11434/v1`, `llama3.1:70b`) even after switching providers. A **Find Ollama** button checks the typed address, `OLLAMA_HOST`, and localhost for a running Ollama (its `/api/tags` list), fills in the address, and offers the pulled models as a dropdown. If none are pulled it says to run `ollama pull`; if Ollama isn't found it explains how to check with `ollama list`, start it, or type a server's address (also the field's help). The example address in the provider list is code, not a link that opened a "page not found" page (Nov 9 UAT).
 - 2026-11-10: Required fields are marked with a * on Upload, Generate, and the Grading Assistant. Generate shows greyed out under a message naming the empty required fields (e.g. "Assignment name; What should students learn or demonstrate?") instead of disappearing, and unlocks once they're filled in (Nov 9 UAT).
 - 2026-11-10: A schedule with one row per week is dated on the first "Class meets on" day of each week in the new term, added weeks too: a Wednesday class's Week 1 is the first Wednesday, not the term's Monday. "Class meets on" starts from the syllabus's class days, or else the weekday most of the old rows were dated on, so a syllabus with Monday week labels keeps its Monday dates. Leaving it empty keeps the week's start date (Nov 9 UAT).
 - 2026-11-10: The section is read from the course number ("IS 6640-001", "IS 6640 - 001", "IS 6640, Section 001", or a labeled "Course Number: IS 6640-090"), and left out of the title guess. On Review, "Meeting pattern" is now "Class days and time", with an example and a hint saying Rollover uses it; Section has a hint too (Nov 9 UAT).
