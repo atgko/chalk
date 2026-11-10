@@ -587,7 +587,8 @@ def test_review_then_confirm_and_save_writes_course_json_and_brief(project, tmp_
     assert_no_exception(at)
     assert load_course(project).course.duration_weeks == 4
     assert project.course_brief.exists()
-    assert "Saved the course and updated the course brief." in texts(at.success)
+    assert any(s.startswith("Saved the course and updated the course brief. Next, roll it over") for s in texts(at.success))
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Rollover"
 
 
 def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_project, tmp_path):
@@ -1568,3 +1569,12 @@ def test_rollover_offers_to_move_weeks_past_a_break(saved_project):
     box.check()
     at = click(at.run(), "Preview rollover")
     assert_no_exception(at)
+
+
+def test_each_build_tab_says_where_it_sits_in_the_workflow(saved_project):
+    # Nov 9 UAT: make the path through Chalk obvious.
+    captions = texts(launch(saved_project).caption)
+
+    for step in ("Step 1 of 4 · Upload.", "Step 2 of 4 · Review.", "Step 3 of 4 · Rollover.", "Step 4 of 4 · Export."):
+        assert any(step in caption for caption in captions), step
+    assert any("Optional · Generate." in caption for caption in captions)
