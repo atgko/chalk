@@ -155,13 +155,13 @@ def test_rollover_prints_the_preview_then_writes_on_confirm(project, tmp_path):
 
 
 def test_rollover_shows_week_flags(project, tmp_path):
-    # Minimal fixture's Week 2 is 10/19; Fall 2027 Week 2 lands on 8/30, but a
-    # 9-week course's Week 8 (10/11) falls inside Fall Break 2027 (Oct 9-17).
+    # Minimal fixture's Week 2 is 10/19; Fall 2027 Week 2 lands on 8/30, and a
+    # 9-week course's Week 8 (10/11) falls inside Fall Break 2027 (Oct 9-17), so it moves.
     _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
 
     result = run("rollover", "--term", "Fall 2027", "--weeks", "9", "--no-llm", "--project", str(project), "--yes")
 
-    assert "⚠ Fall Break 2027 is Oct 9–17 — confirm Week 8 timing" in result.out
+    assert "covers Week 8's class days, so Week 8 and the weeks after it move a week later" in result.out
     assert "(new week)" in result.out
     assert "Course length changed from 2 to 9 weeks" in result.out
 
@@ -507,12 +507,12 @@ def test_rollover_with_no_input_to_confirm_writes_nothing(project, tmp_path):
     assert not (project / "outputs" / "syllabus.docx").exists()
 
 
-def test_rollover_can_move_weeks_past_a_break(project, tmp_path):
+def test_rollover_moves_weeks_past_a_break(project, tmp_path):
     _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
 
     result = run(
         "rollover", "--term", "Fall 2027", "--weeks", "9", "--no-llm", "--meeting-days", "W",
-        "--move-past-breaks", "--project", str(project), "--yes",
+        "--project", str(project), "--yes",
     )  # fmt: skip
 
     assert result.code == 0

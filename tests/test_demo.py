@@ -37,7 +37,8 @@ def test_demo_rollover_reproduces_the_prd_worked_example(demo):
     plan = preview_rollover(demo, load_course(demo), "Fall 2027", llm_generate_topics=False)
     week1 = next(c for c in plan.preview.week_changes if c.week_number == 1)
     assert week1.new_date.isoformat() == "2027-08-23"
-    assert "Fall Break 2027 is Oct 9–17 — confirm Week 8 timing" in _all_flags(plan)
+    # Week 8 moves past Fall Break 2027 (Nov 10 UAT; the PRD's example only flagged it).
+    assert any("covers Week 8's class days, so Week 8 and the weeks after it move a week later" in flag for flag in _all_flags(plan))
     assert "Labor Day 2027 is Sep 6 — confirm Week 3 timing" in _all_flags(plan)  # DEMO.md step 3
 
 

@@ -18,26 +18,26 @@ from chalk.config import (
     validate_and_save_provider,
 )
 from chalk.errors import ChalkError
-from chalk.links import url_for
 from chalk.ollama import FIND_ADDRESS_HELP, OllamaServer, candidate_hosts, find_ollama
 from chalk.project import ProjectPaths
 
 _LOCAL = "Local model (Ollama)"
 def captions() -> tuple[str, ...]:
-    """Each provider's one-line hint. The key pages come from the links
-    file (chalk/links.py), so a moved page can be fixed without code."""
+    """Each provider's one-line hint. The providers' sites are named, not
+    linked: a link to a page that moves would break, and these aren't in
+    the links file (Nov 10 UAT)."""
     return (
-        f"Paste an API key from [platform.openai.com]({url_for('openai_api_keys')})",
-        f"Paste an API key from [console.anthropic.com]({url_for('anthropic_api_keys')})",
+        "Paste an API key from your OpenAI account (platform.openai.com).",
+        "Paste an API key from your Anthropic account (console.anthropic.com).",
         (
-            f"Paste an API key from [aistudio.google.com]({url_for('gemini_api_keys')}). "
+            "Paste an API key from your Google AI Studio account (aistudio.google.com). "
             "Not approved by the university for student data."
         ),
         # In backticks, so the address isn't a link: opening it in a browser
         # shows a "page not found" error (Nov 9 UAT).
         (
             "Runs on your own computer or a university server. Usually at `http://localhost:11434/v1`; "
-            f"click Find Ollama to check. [Get Ollama]({url_for('ollama_download')})"
+            "click Find Ollama to check. Ollama itself is free from ollama.com."
         ),
     )
 

@@ -115,30 +115,6 @@ def skipped_break_flags(skipped: list[SkippedBreak], added: list[Week]) -> list[
     return flags
 
 
-MOVE_PAST_BREAKS_LABEL = "Move weeks past a break that covers a whole week of class"
-
-
-def move_past_breaks_hints(would_skip: list[SkippedBreak]) -> list[str]:
-    """When moving weeks past breaks is off: which breaks cover a whole
-    week of class, and how to have Chalk move the weeks instead."""
-    return [
-        f"{item.entry['label']} ({_short(item.start)} – {_short(item.end)}) covers all of Week "
-        f"{item.week_number}'s class days. To move Week {item.week_number} and the weeks after it a week "
-        f'later and add a {item.entry["label"]} row, tick "{MOVE_PAST_BREAKS_LABEL}" and preview again.'
-        for item in _first_per_break(would_skip)
-    ]
-
-
-def _first_per_break(skipped: list[SkippedBreak]) -> list[SkippedBreak]:
-    seen, first = set(), []
-    for item in skipped:
-        key = (item.start, item.end)
-        if key not in seen:
-            seen.add(key)
-            first.append(item)
-    return first
-
-
 def past_term_end_flag(weeks: list[Week], term_end: dt.date | None, target_term: str) -> str | None:
     """A flag when the last class now falls after the term ends."""
     dated = [week for week in weeks if not week.is_break and week.date is not None]

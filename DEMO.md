@@ -22,7 +22,7 @@ The IS 6640 Word syllabus was already extracted: course details, four learning o
 
 **3. Next year's syllabus in seconds (3 min). Rollover tab.**
 - The target term defaults to **Fall 2027**. Click **Preview rollover**.
-- Every week moves to its new date (Week 1: Aug 24 → Aug 23), and the preview flags **"Fall Break 2027 is Oct 9–17 — confirm Week 8 timing"**. This is the exact example from the project requirements. It also flags Labor Day landing on Week 3.
+- Every week moves to its new date (Week 1: Aug 24 → Aug 23). Fall Break 2027 (Oct 9–17) covers Week 8, so the preview says Week 8 and the weeks after it move a week later. (The project requirements' example only flagged it; since the Nov 10 UAT Chalk moves the weeks.) It also flags Labor Day landing on Week 3.
 - *"It never renumbers quizzes or exams, and it never writes anything until you confirm."* Click **Confirm rollover**.
 - Download **outputs/syllabus.docx** and open it in Word: the formatting is untouched, and only the dates changed.
 

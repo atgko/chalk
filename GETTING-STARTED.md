@@ -66,7 +66,7 @@ The sample files for uploading are in the demo project's folder at **`Documents/
    ✅ **Check:** 4 learning objectives, 6 grading weights, and 10 weeks plus a Fall Break row in the week-by-week table.
 
 2. **Rollover tab.** Leave the target term on **Fall 2027** and click **Preview rollover**.
-   ✅ **Check:** Week 1 goes from Aug 24 to Aug 23, and two yellow flags appear: *Labor Day 2027 is Sep 6 — confirm Week 3 timing* and *Fall Break 2027 is Oct 9–17 — confirm Week 8 timing*.
+   ✅ **Check:** Week 1 goes from Aug 24 to Aug 23, and two yellow notes appear: *Labor Day 2027 is Sep 6 — confirm Week 3 timing*, and that Fall Break covers Week 8, so Week 8 and the weeks after it move a week later.
    Then click **Confirm rollover**. ✅ **Check:** *"Rollover complete"* with download buttons.
 
 3. **Export tab.** Download **outputs/syllabus.docx** and open it in Word.

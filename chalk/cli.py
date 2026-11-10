@@ -188,12 +188,6 @@ def build_parser() -> argparse.ArgumentParser:
         help='A break the class meets through, e.g. "Fall Break" (repeatable).',
     )
     rollover.add_argument(
-        "--move-past-breaks",
-        action="store_true",
-        help="When a break the class takes off covers a whole week of class, move that week and the later "
-        "ones a week later and add the break to the schedule (default: only flag it).",
-    )
-    rollover.add_argument(
         "--class-time",
         help='Class days and time in the new term, e.g. "Wed 6:00-8:45 pm"; replaces the old one everywhere '
         "in the syllabus (default: unchanged).",
@@ -443,7 +437,6 @@ def _preview_with_week1_fallback(
         "llm_generate_topics": not args.no_llm,
         "meeting_days": args.meeting_days,
         "breaks_not_observed": frozenset(args.no_break),
-        "move_past_breaks": args.move_past_breaks,
         "class_time": args.class_time,
         "location": args.location,
     }

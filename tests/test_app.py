@@ -724,6 +724,9 @@ def test_rollover_preview_then_confirm_writes_files(saved_project):
 
     assert_no_exception(at)
     assert "Rollover complete. Previous versions were archived." in texts(at.success)
+    # Next step: Export, where the Canvas page is ready to copy (Nov 10 UAT).
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Export"
+    assert any("copy the Canvas page from the box under Canvas syllabus page" in s for s in texts(at.success))
     # Grouped and plainly named, as on the Export tab; course.json isn't offered.
     downloads = [el.proto.label for el in at.get("download_button")]
     assert {"Syllabus (Markdown)", "Canvas syllabus page (HTML)", "Course brief"} <= set(downloads)
@@ -763,7 +766,7 @@ def test_lengthening_offers_ai_drafts_and_shows_the_flags(saved_project):
     assert_no_exception(at)
     warnings = texts(at.warning)
     assert any("Course length changed from 2 to 9 weeks" in w for w in warnings)
-    assert any("confirm Week 8 timing" in w for w in warnings)
+    assert any("covers Week 8's class days, so Week 8 and the weeks after it move a week later" in w for w in warnings)
 
 
 def test_a_row_per_meeting_schedule_starts_with_its_own_meeting_days(project, tmp_path):
@@ -1519,6 +1522,18 @@ def test_more_settings_lists_every_link_with_what_its_for(saved_project):
     assert widget(at.button, "Put every link back").disabled
 
 
+def test_more_settings_leaves_out_the_ai_providers_pages(saved_project):
+    # Nov 10 UAT: not linked at all, so nothing to keep current.
+    from ui.provider_form import captions
+
+    assert not any("](" in caption for caption in captions())
+    labels = [box.label for box in launch(saved_project).text_input]
+
+    for name in ("OpenAI API keys", "Anthropic API keys", "Google AI Studio API keys", "Ollama download"):
+        assert name not in labels
+    assert "Canvas student guides" in labels
+
+
 def test_a_changed_link_is_saved_and_used(saved_project, courses_folder):
     from chalk.links import url_for
 
@@ -1538,7 +1553,7 @@ def test_a_changed_link_is_saved_and_used(saved_project, courses_folder):
 
 def test_a_bad_link_is_refused(saved_project, courses_folder):
     at = launch(saved_project)
-    widget(at.text_input, "Ollama download").input("ollama.com")
+    widget(at.text_input, "Canvas student guides").input("community.canvaslms.com")
     at = click(at, "Save links")
 
     assert any("isn't a web address" in e for e in texts(at.error))
@@ -1559,15 +1574,12 @@ def test_rollover_asks_for_the_new_class_time_and_location(saved_project):
     assert any("[class schedule](https://class-schedule.app.utah.edu/)" in c for c in texts(at.caption))
 
 
-def test_rollover_offers_to_move_weeks_past_a_break(saved_project):
-    from chalk.rollover.break_weeks import MOVE_PAST_BREAKS_LABEL
-
+def test_rollover_has_no_option_for_moving_weeks_past_a_break(saved_project):
+    # Nov 10 UAT: it always happens, so there's nothing to tick.
     at = launch(saved_project)
 
-    box = widget(at.checkbox, MOVE_PAST_BREAKS_LABEL)
-    assert box.value is False
-    box.check()
-    at = click(at.run(), "Preview rollover")
+    assert not any("past a break" in box.label for box in at.checkbox)
+    at = click(at, "Preview rollover")
     assert_no_exception(at)
 
 
@@ -1578,3 +1590,30 @@ def test_each_build_tab_says_where_it_sits_in_the_workflow(saved_project):
     for step in ("Step 1 of 4 · Upload.", "Step 2 of 4 · Review.", "Step 3 of 4 · Rollover.", "Step 4 of 4 · Export."):
         assert any(step in caption for caption in captions), step
     assert any("Optional · Generate." in caption for caption in captions)
+
+
+def test_a_rollover_preview_keeps_what_was_typed_while_it_computes(saved_project, monkeypatch):
+    # Nov 10 UAT: with a new location typed, Preview rollover "didn't do
+    # anything" until the third click. The fields were hidden while the
+    # preview computed, so Streamlit forgot them, and the finished preview
+    # no longer matched the inputs.
+    pending = []
+
+    def run_later(fn, *args, **kwargs) -> Future:
+        future: Future = Future()
+        pending.append((future, fn, args, kwargs))
+        return future
+
+    monkeypatch.setattr("ui.background._submit", run_later)
+    at = launch(saved_project)
+    widget(at.text_input, "New location").input("WEB L104")
+    widget(at.number_input, "Duration (weeks)").set_value(load_course(saved_project).course.duration_weeks)
+    at = click(at, "Preview rollover")  # still computing on this run
+
+    future, fn, args, kwargs = pending.pop()
+    future.set_result(fn(*args, **kwargs))
+    at = at.run()
+
+    assert_no_exception(at)
+    assert widget(at.text_input, "New location").value == "WEB L104"
+    assert any(s.startswith("Rollover preview") for s in texts(at.subheader))

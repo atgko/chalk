@@ -22,8 +22,10 @@ _SECTION_NOTES = {
     "Syllabus": "The syllabus as Chalk last wrote it, from Confirm rollover.",
     "Course materials": "Drafts saved from Generate, as Markdown. For Word or PDF, open one on the Drafts tab.",
     "Canvas and course brief": (
-        "Rebuilt whenever you save the course or roll it over. The course brief is the one-page "
-        "summary Chalk gives the AI when it drafts course materials."
+        "To put the Canvas page on Canvas, copy it from the box under Canvas syllabus page on the Export "
+        "tab; the HTML file is the same page, to keep. The course brief is the one-page summary Chalk "
+        "gives the AI when it drafts course materials. Both are rebuilt whenever you save the course or "
+        "roll it over."
     ),
     "Other files": "Files in the outputs folder that Chalk didn't make.",
 }
