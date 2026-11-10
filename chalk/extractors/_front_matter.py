@@ -89,6 +89,11 @@ _FIELD_ALIASES = {
 
 _OPTIONAL_TEXT_FIELDS = ("section", "instructor", "meeting_pattern", "location")
 
+# A bare "Time:" label (Nov 10 demo: "Time: Thursday 6:00 - 10:00 pm") is
+# too generic to trust on its own, so it's the class time only when its
+# value names a weekday and a clock time.
+_BARE_TIME_LABELS = {"time", "times"}
+
 
 def parse_labeled_line(text: str) -> tuple[str, str] | None:
     """If `text` is a "Label: value" line for a recognized field, return
@@ -98,8 +103,11 @@ def parse_labeled_line(text: str) -> tuple[str, str] | None:
     match = _LABELED_LINE_RE.match(text.strip())
     if not match:
         return None
-    field_name = _FIELD_ALIASES.get(match.group(1).strip(_MARKUP_CHARS).lower())
+    label = match.group(1).strip(_MARKUP_CHARS).lower()
     value = match.group(2).strip(_MARKUP_CHARS)
+    if label in _BARE_TIME_LABELS:
+        return ("meeting_pattern", value) if _MEETING_RE.search(value) else None
+    field_name = _FIELD_ALIASES.get(label)
     if not field_name or not value:
         return None
     return field_name, value
@@ -180,8 +188,10 @@ def term_line_index(lines: list[str], header_lines: list[str]) -> int | None:
 
 def _labeled_fields(lines: list[str]) -> dict:
     fields: dict = {}
-    for line in lines:
-        parsed = parse_labeled_line(line)
+    # A Word paragraph with soft line breaks ("Time: ...↵Location: ...")
+    # holds a labeled line on each line.
+    for part in (part for line in lines for part in line.split("\n")):
+        parsed = parse_labeled_line(part)
         if parsed and parsed[0] not in fields:
             fields[parsed[0]] = parsed[1]
     return fields
