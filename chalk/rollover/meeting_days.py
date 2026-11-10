@@ -108,5 +108,5 @@ def meeting_days_changed_flag(meeting_pattern: str, meeting_days: tuple[int, ...
         return None
     return (
         f"The syllabus lists class meetings as \"{meeting_pattern}\", but this rollover checks "
-        f"{format_meeting_days(meeting_days)} — update the meeting pattern in the syllabus by hand."
+        f"{format_meeting_days(meeting_days)} — update the class days and time to match."
     )

@@ -79,9 +79,15 @@ _FIELD_ALIASES = {
     "class time": "meeting_pattern",
     "class times": "meeting_pattern",
     "format": "meeting_pattern",
+    "location": "location",
+    "class location": "location",
+    "meeting location": "location",
+    "room": "location",
+    "classroom": "location",
+    "class room": "location",
 }
 
-_OPTIONAL_TEXT_FIELDS = ("section", "instructor", "meeting_pattern")
+_OPTIONAL_TEXT_FIELDS = ("section", "instructor", "meeting_pattern", "location")
 
 
 def parse_labeled_line(text: str) -> tuple[str, str] | None:

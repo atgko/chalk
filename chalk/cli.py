@@ -181,6 +181,16 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="BREAK",
         help='A break the class meets through, e.g. "Fall Break" (repeatable).',
     )
+    rollover.add_argument(
+        "--class-time",
+        help='Class days and time in the new term, e.g. "Wed 6:00-8:45 pm"; replaces the old one everywhere '
+        "in the syllabus (default: unchanged).",
+    )
+    rollover.add_argument(
+        "--location",
+        help='Room in the new term, e.g. "WEB L104"; replaces the old one everywhere ("" writes TBA; '
+        "default: unchanged).",
+    )
     rollover.add_argument("--yes", action="store_true", help="Write the files without asking for confirmation.")
     rollover.set_defaults(handler=_cmd_rollover)
 
@@ -421,6 +431,8 @@ def _preview_with_week1_fallback(
         "llm_generate_topics": not args.no_llm,
         "meeting_days": args.meeting_days,
         "breaks_not_observed": frozenset(args.no_break),
+        "class_time": args.class_time,
+        "location": args.location,
     }
     try:
         return preview_rollover(paths, course_data, args.term, manual_week1_date=week1_date, **kwargs)

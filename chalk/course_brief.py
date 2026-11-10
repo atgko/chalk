@@ -50,6 +50,7 @@ def _render_overview(course_data: CourseData) -> str:
         ("Duration", f"{course.duration_weeks} weeks"),
         ("Credits", "" if course.credits is None else f"{course.credits:g}"),
         ("Class days and time", course.meeting_pattern),
+        ("Location", course.location),
         ("Instructor", course.instructor),
     ]
     # Details a syllabus didn't state are omitted rather than shown blank.
