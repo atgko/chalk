@@ -287,6 +287,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Settings",
         "AI Provider",
         "Metrics",
+        "More settings",
     ]
     assert "Provider: Not configured" in at.caption[-1].value
 
@@ -1410,9 +1411,9 @@ def test_ollama_fields_start_with_the_readme_defaults(tmp_project, monkeypatch):
 
 def test_the_example_ollama_address_is_not_a_link():
     # Clicking the address opened a "page not found" page; in backticks it's plain code.
-    from ui.provider_form import _CAPTIONS
+    from ui.provider_form import captions
 
-    assert "`http://localhost:11434/v1`" in _CAPTIONS[-1]
+    assert "`http://localhost:11434/v1`" in captions()[-1]
 
 
 def test_find_ollama_fills_the_address_and_lists_the_installed_models(tmp_project, monkeypatch):
@@ -1503,3 +1504,41 @@ def test_export_names_the_folder_when_it_cant_be_opened(saved_project, monkeypat
     at = click(launch(saved_project), "Open the folder")
 
     assert f"Open this folder in File Explorer or Finder: `{saved_project.outputs_dir}`" in texts(at.info)
+
+
+# ---- Settings → More settings: the links Chalk uses (sponsor, Nov 9) ----------------------
+
+
+def test_more_settings_lists_every_link_with_what_its_for(saved_project):
+    at = launch(saved_project)
+
+    calendar = widget(at.text_input, "University of Utah academic calendars")
+    assert calendar.value == "https://registrar.utah.edu/academic-calendars/"
+    assert "calendars.json" in calendar.help
+    assert widget(at.button, "Put every link back").disabled
+
+
+def test_a_changed_link_is_saved_and_used(saved_project, courses_folder):
+    from chalk.links import url_for
+
+    at = launch(saved_project)
+    widget(at.text_input, "University of Utah class schedule").input("https://class-schedule.example.edu/")
+    at = click(at, "Save links")
+
+    assert_no_exception(at)
+    assert "Saved. 1 link(s) differ from Chalk's own." in texts(at.success)
+    assert url_for("class_schedule") == "https://class-schedule.example.edu/"
+    assert (courses_folder / "Chalk links.json").is_file()
+    assert widget(at.text_input, "University of Utah class schedule (changed on this computer)")
+
+    at = click(at, "Put every link back")
+    assert url_for("class_schedule") == "https://class-schedule.app.utah.edu/"
+
+
+def test_a_bad_link_is_refused(saved_project, courses_folder):
+    at = launch(saved_project)
+    widget(at.text_input, "Ollama download").input("ollama.com")
+    at = click(at, "Save links")
+
+    assert any("isn't a web address" in e for e in texts(at.error))
+    assert not (courses_folder / "Chalk links.json").exists()

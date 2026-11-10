@@ -34,6 +34,7 @@ from ui import (
     generate_view,
     grading_view,
     metrics_view,
+    more_settings_view,
     project_picker,
     review_view,
     rollover_view,
@@ -83,7 +84,7 @@ def main(argv: list[str] | None = None) -> None:
     with build_group:
         upload, review, rollover, generate, drafts, export = _sub_tabs("Build")
     with settings_group:
-        settings, metrics = _sub_tabs("Settings")
+        settings, metrics, more_settings = _sub_tabs("Settings")
     with upload:
         _guarded(upload_view.render, paths)
     with review:
@@ -104,6 +105,8 @@ def main(argv: list[str] | None = None) -> None:
         _guarded(grading_view.render, paths)
     with settings:
         _guarded(settings_view.render, paths)
+    with more_settings:
+        _guarded(more_settings_view.render)
     background.render_tab_marks(
         session.TAB_GROUPS,
         session.GROUP_TAB_KEY,
