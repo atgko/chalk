@@ -64,7 +64,13 @@ def render(paths: ProjectPaths, saved_course: CourseData | None) -> None:
             return
         session.set_pending_extraction(None)
         session.set_rollover_plan(None)
-        session.flash("Saved the course and updated the course brief.")
+        # Next step: rolling it over (Nov 9 UAT: "once extraction is done,
+        # maybe we can automatically push to the rollover section").
+        session.go_to_tab("Rollover")
+        session.flash(
+            "Saved the course and updated the course brief. Next, roll it over: pick the new term below "
+            "and click Preview rollover. (Review is still there if you need it.)"
+        )
         st.rerun()
 
 

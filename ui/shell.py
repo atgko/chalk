@@ -44,7 +44,7 @@ from ui import (
     upload_view,
     workflow_search,
 )
-from ui.common import render_header, render_needs_course
+from ui.common import render_header, render_needs_course, render_step
 
 TAB_NAMES = tuple(tab for tabs in session.TAB_GROUPS.values() for tab in tabs)
 # Tabs that work from a saved course: dimmed until there is one. Metrics isn't one:
@@ -86,8 +86,10 @@ def main(argv: list[str] | None = None) -> None:
     with settings_group:
         settings, metrics, more_settings = _sub_tabs("Settings")
     with upload:
+        render_step("Upload")
         _guarded(upload_view.render, paths)
     with review:
+        render_step("Review")
         _guarded(review_view.render, paths, course_data)
     for tab, name, view in (
         (rollover, "Rollover", rollover_view),
@@ -95,9 +97,11 @@ def main(argv: list[str] | None = None) -> None:
         (export, "Export", export_view),
     ):
         with tab:
+            render_step(name)
             _warn_if_unsaved_extraction(course_data)
             _gated(name, course_data, view.render, paths, course_data)
     with drafts:
+        render_step("Drafts")
         _guarded(drafts_view.render, paths)
     with metrics:
         _guarded(metrics_view.render, paths)

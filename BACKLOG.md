@@ -74,8 +74,7 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 **Workflow and UX**
 
-- **P1: Make the whole workflow easier to follow.** Go through each tab as a first-time instructor would: what to do next, what's required, and where the results end up. The items below are the specific problems Dave hit.
-- **P2: Go straight to Rollover once extraction is done.** Today a successful extraction opens Review (see Done, Oct 8). Decide whether Review still needs to come first, or whether Rollover can come next and Review stay available.
+- **P1: Make the whole workflow easier to follow.** Go through each tab as a first-time instructor would: what to do next, what's required, and where the results end up. The items below are the specific problems Dave hit. Done overnight Nov 9–10: required fields marked, step lines on each Build tab, Rollover opened after saving, the clearer launch screen, and where files are saved (see Done). Still worth a usability pass with a first-time instructor, e.g. with the frontend-design-audit skill.
 
 **Rollover**
 
@@ -98,6 +97,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 - [ ] Change a date (feat/override-dates): in a rollover preview, click a week's date under **New**, pick another, and check the note naming the changed week, then Confirm and check the written syllabus has that date. Is it obvious the dates can be clicked? (The automated tests can't click inside Streamlit's table, so this is the first real check of the table itself.)
 - [ ] Breaks and holidays (feat/move-past-breaks): roll Dave's IS 6640 (Fall 2026) to Spring 2027 with Wed picked. Without the new box ticked, the preview should say Spring Break covers Week 9 and how to move it. Tick **Move weeks past a break that covers a whole week of class**, preview again, and check Week 9 is Mar 17 and syllabus.docx has a "Spring Break (3/6 - 3/14) | No class" row before it. With a syllabus that mentions Labor Day or Fall Break in its text, check the preview lists those lines and Spring 2027's holidays. Decide with the team whether the box should be ticked by default (DECISIONS.md, Nov 9).
 - [ ] Tidy download (feat/tidy-download): download the Windows zip from this PR's Bundle run (Actions → the run → Artifacts), unzip it, and check the Chalk folder shows only the Start Chalk launchers, "Read me.txt", and an app folder. Double-click Start Chalk and check it starts as before. Same on a Mac (Start Chalk.command, after Open Anyway).
+- [ ] Guided workflow (feat/guided-workflow): go through Upload → Review → Confirm and save as a first-time instructor. Check Chalk opens Rollover after saving with a "Next, roll it over" message, and that the "Step N of 4" line at the top of each Build tab helps rather than clutters.
 
 ## Extraction
 
@@ -144,6 +144,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 ## Done
 
+- 2026-11-10: Each Build tab starts with its place in the usual path ("Step 1 of 4 · Upload." … "Step 4 of 4 · Export.", and "Optional" for Generate and Drafts). Confirm and save on Review now opens Rollover with a note saying what to do next; Review is still there (Nov 9 UAT).
 - 2026-11-10: The release download shows only the **Start Chalk** launchers (and the demo ones) and a short "Read me.txt" at the top; Chalk's own files and its Python are in an `app` folder, which the launchers move into when they find it. Courses aren't in the download at all (Documents/Chalk Courses). The source download is unchanged (Nov 9 UAT).
 - 2026-11-10: Breaks and holidays at rollover (Nov 9 UAT). A new Rollover option, **Move weeks past a break that covers a whole week of class** (CLI `--move-past-breaks`), moves the covered week and the later ones a week later and adds the break to the schedule, with a "No class" row made from a week row when the syllabus had no break rows; a week pushed past the term's end is flagged. Off (the default, per DECISIONS.md), the warning for a covered week says how to move it. On a season change, the preview lists lines that still name the old term's holidays or breaks ("No class on Labor Day") with the new term's holidays and breaks and their dates. Also: the CLI no longer crashes at the confirm prompt when there's no input.
 - 2026-11-10: The rollover preview's **New** dates can be changed: click a class week's date and pick another. The written syllabus, course.json, and Canvas page use it, and the preview notes which weeks were changed and that their holiday warnings were worked out for the calendar's dates. Break rows keep the calendar's dates (Nov 9 UAT).
