@@ -83,7 +83,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 **Files and packaging**
 
-- **P1: Tidy the release download.** The instructor should see only the launcher (the batch file) and their own work. Put the rest of the app's files in a subfolder they can open if they need to.
 
 **To check by hand (work done overnight Nov 9–10)**
 
@@ -98,6 +97,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 - [ ] Class time and location (feat/class-time-location): roll Dave's syllabus over with a new **New class days and time** and a blank **New location**. In the written syllabus.docx, check the old time is changed everywhere it was repeated and the old room says TBA. Check the preview lists the other lines that mention a day and time (Dave's "Time: Tuesdays 5PM – 6PM" is the webinar, which Chalk doesn't read as the class time, so it should be listed). Does the class schedule link help find the room? Looking the room up automatically was left out: the class schedule pages need the term code and subject, and a scraper would break when the page changes.
 - [ ] Change a date (feat/override-dates): in a rollover preview, click a week's date under **New**, pick another, and check the note naming the changed week, then Confirm and check the written syllabus has that date. Is it obvious the dates can be clicked? (The automated tests can't click inside Streamlit's table, so this is the first real check of the table itself.)
 - [ ] Breaks and holidays (feat/move-past-breaks): roll Dave's IS 6640 (Fall 2026) to Spring 2027 with Wed picked. Without the new box ticked, the preview should say Spring Break covers Week 9 and how to move it. Tick **Move weeks past a break that covers a whole week of class**, preview again, and check Week 9 is Mar 17 and syllabus.docx has a "Spring Break (3/6 - 3/14) | No class" row before it. With a syllabus that mentions Labor Day or Fall Break in its text, check the preview lists those lines and Spring 2027's holidays. Decide with the team whether the box should be ticked by default (DECISIONS.md, Nov 9).
+- [ ] Tidy download (feat/tidy-download): download the Windows zip from this PR's Bundle run (Actions → the run → Artifacts), unzip it, and check the Chalk folder shows only the Start Chalk launchers, "Read me.txt", and an app folder. Double-click Start Chalk and check it starts as before. Same on a Mac (Start Chalk.command, after Open Anyway).
 
 ## Extraction
 
@@ -144,6 +144,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 ## Done
 
+- 2026-11-10: The release download shows only the **Start Chalk** launchers (and the demo ones) and a short "Read me.txt" at the top; Chalk's own files and its Python are in an `app` folder, which the launchers move into when they find it. Courses aren't in the download at all (Documents/Chalk Courses). The source download is unchanged (Nov 9 UAT).
 - 2026-11-10: Breaks and holidays at rollover (Nov 9 UAT). A new Rollover option, **Move weeks past a break that covers a whole week of class** (CLI `--move-past-breaks`), moves the covered week and the later ones a week later and adds the break to the schedule, with a "No class" row made from a week row when the syllabus had no break rows; a week pushed past the term's end is flagged. Off (the default, per DECISIONS.md), the warning for a covered week says how to move it. On a season change, the preview lists lines that still name the old term's holidays or breaks ("No class on Labor Day") with the new term's holidays and breaks and their dates. Also: the CLI no longer crashes at the confirm prompt when there's no input.
 - 2026-11-10: The rollover preview's **New** dates can be changed: click a class week's date and pick another. The written syllabus, course.json, and Canvas page use it, and the preview notes which weeks were changed and that their holiday warnings were worked out for the calendar's dates. Break rows keep the calendar's dates (Nov 9 UAT).
 - 2026-11-10: Rollover asks for the new term's **class days and time** (starting from the old) and **location** (starting blank, with a link to the class schedule). The old text is changed everywhere the Word or markdown syllabus repeats it (body, tables, headers, footers; formatting kept), and a blank location becomes TBA so last term's room isn't kept by mistake. The preview says what changes and lists other lines that mention a day and time to check by hand. The location is read from "Location:"/"Room:"/"Classroom:" lines, editable on Review, and filled into the Canvas page's Classroom line (Nov 9 UAT).

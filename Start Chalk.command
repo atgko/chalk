@@ -2,6 +2,9 @@
 # Double-click (macOS) or run (Linux) to start Chalk.
 # The first run sets everything up (a minute or two).
 cd "$(dirname "$0")" || exit 1
+# A release download keeps Chalk's own files in the "app" folder, so only
+# the launchers show next to this one.
+if [ -f app/chalk/launcher.py ]; then cd app || exit 1; fi
 
 # A release download carries its own Python, packages already installed.
 if [ -x python/bin/python3 ]; then

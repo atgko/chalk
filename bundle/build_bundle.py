@@ -5,8 +5,11 @@
     python bundle/build_bundle.py macos-x64
 
 The result is `dist/Chalk-<version>-<platform>.zip`: a `Chalk` folder with
-the app, the `Start Chalk` launchers, and a `python` folder holding a
-private Python with every package from requirements.txt already installed.
+only the `Start Chalk` launchers and a "Read me" note at the top, and an
+`app` folder holding everything else, including a `python` folder with a
+private Python and every package from requirements.txt already installed
+(Nov 9 UAT: the instructor should see the launcher, not program files).
+Their courses live in Documents/Chalk Courses (chalk/locations.py).
 An instructor unzips it and double-clicks Start Chalk: nothing to install
 and nothing downloaded on first run, which is what managed university
 computers (no admin rights, antivirus watching scripts that download and run
@@ -58,6 +61,22 @@ MAC_ARCHES = {"macos-arm64": "arm64", "macos-x64": "x86_64"}
 
 # Tracked files that an instructor doesn't need in the download.
 EXCLUDED_PREFIXES = (".github/", "bundle/", "tests/")
+# The only files at the top of the download; everything else is in APP_FOLDER.
+LAUNCHERS = ("Start Chalk.bat", "Start Chalk.command", "Start Chalk Demo.bat", "Start Chalk Demo.command")
+APP_FOLDER = "app"
+READ_ME_NAME = "Read me.txt"
+READ_ME = """Chalk
+
+To start Chalk, double-click "Start Chalk" (on a Mac, "Start Chalk.command").
+Your browser opens on Chalk, and a small window stays open while it runs.
+
+Your courses are saved in the "Chalk Courses" folder in your Documents
+folder, not here. Chalk's launch screen has a button that opens it.
+
+The "app" folder holds Chalk's own files. You don't need to open it.
+To update Chalk, replace this whole folder with the new download; your
+courses stay where they are.
+"""
 EXCLUDED_FILES = {"requirements-dev.txt", ".gitattributes", ".gitignore"}
 
 # Imported once with the bundled Python before zipping, to catch a missing
@@ -244,13 +263,17 @@ def is_shipped(path: str) -> bool:
 
 
 def copy_app(files: list[str], stage: Path, repo: Path = REPO_ROOT) -> None:
+    """The launchers and a "Read me" at the top of `stage`, every other
+    file under its `app` folder. The launchers move into `app` when they
+    find it there."""
     for relative in files:
         source = repo / relative
         if not source.exists():  # deleted in the working tree but not yet committed
             continue
-        target = stage / relative
+        target = stage / relative if relative in LAUNCHERS else stage / APP_FOLDER / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
+    (stage / READ_ME_NAME).write_text(READ_ME, encoding="utf-8")
     for launcher in stage.glob("*.command"):
         launcher.chmod(0o755)
 
@@ -336,17 +359,18 @@ def build(platform: str, version: str, out: Path, *, skip_smoke_test: bool = Fal
 
     archives = [fetch(download, out / "cache") for download in RUNTIMES[platform]]
     copy_app(app_files(), stage)
-    python_dir = stage / "python"
+    app = stage / APP_FOLDER
+    python_dir = app / "python"
     unpack_runtime(platform, archives, python_dir)
     python = runtime_python(python_dir, platform)
     if platform in MAC_ARCHES:
         (python_dir / ARCH_FILE).write_text(MAC_ARCHES[platform] + "\n", encoding="utf-8")
-    install_requirements(python, python_dir, stage)
+    install_requirements(python, python_dir, app)
     compile_bytecode(python, stage)
     if not skip_smoke_test:
-        smoke_test(python, stage)
+        smoke_test(python, app)
     # Course projects are never shipped; drop any the smoke test created.
-    shutil.rmtree(stage / "projects", ignore_errors=True)
+    shutil.rmtree(app / "projects", ignore_errors=True)
 
     zip_path = out / f"Chalk-{version}-{platform}.zip"
     log(f"Writing {zip_path}")
