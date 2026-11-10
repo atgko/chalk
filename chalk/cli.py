@@ -89,7 +89,13 @@ class _Console:
         print(f"Error: {text}", file=self.err)
 
     def confirm(self, question: str) -> bool:
-        return self.input_fn(f"{question} [y/N] ").strip().lower() in ("y", "yes")
+        """Yes only for an explicit y/yes. No input at all (a closed or
+        redirected stdin) is a no, not a crash."""
+        try:
+            answer = self.input_fn(f"{question} [y/N] ")
+        except EOFError:
+            return False
+        return answer.strip().lower() in ("y", "yes")
 
 
 def main(
@@ -180,6 +186,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="BREAK",
         help='A break the class meets through, e.g. "Fall Break" (repeatable).',
+    )
+    rollover.add_argument(
+        "--move-past-breaks",
+        action="store_true",
+        help="When a break the class takes off covers a whole week of class, move that week and the later "
+        "ones a week later and add the break to the schedule (default: only flag it).",
     )
     rollover.add_argument(
         "--class-time",
@@ -431,6 +443,7 @@ def _preview_with_week1_fallback(
         "llm_generate_topics": not args.no_llm,
         "meeting_days": args.meeting_days,
         "breaks_not_observed": frozenset(args.no_break),
+        "move_past_breaks": args.move_past_breaks,
         "class_time": args.class_time,
         "location": args.location,
     }

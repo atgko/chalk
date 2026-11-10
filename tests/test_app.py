@@ -1556,3 +1556,15 @@ def test_rollover_asks_for_the_new_class_time_and_location(saved_project):
     assert location.value == ""
     assert "becomes TBA" in location.help
     assert any("[class schedule](https://class-schedule.app.utah.edu/)" in c for c in texts(at.caption))
+
+
+def test_rollover_offers_to_move_weeks_past_a_break(saved_project):
+    from chalk.rollover.break_weeks import MOVE_PAST_BREAKS_LABEL
+
+    at = launch(saved_project)
+
+    box = widget(at.checkbox, MOVE_PAST_BREAKS_LABEL)
+    assert box.value is False
+    box.check()
+    at = click(at.run(), "Preview rollover")
+    assert_no_exception(at)

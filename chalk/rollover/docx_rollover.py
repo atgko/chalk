@@ -206,8 +206,11 @@ def _rewrite_break_rows(
     and other cells, e.g. "No class"); extra breaks get a copy of the
     first one, and surplus rows are removed. A season-change rollover can
     change the number of breaks (chalk.rollover.season_change). A schedule
-    with no break rows is left without them."""
+    with no break rows gets one only for a break the weeks were moved past
+    (chalk.rollover.break_weeks), made from a copy of a week row."""
     if not break_rows:
+        if new_break_weeks and week_rows:
+            _add_break_rows_from_a_week_row(tables, week_rows, new_break_weeks)
         return
     template_row, template_table = break_rows[0]
     template = deepcopy(template_row._tr)
@@ -230,6 +233,28 @@ def _rewrite_break_rows(
         else:
             tables[-1]._tbl.append(tr)
         _set_first_paragraph_text_preserving_format(_Row(tr, template_table).cells[0], week.label)
+
+
+_NO_CLASS = "No class"
+
+
+def _add_break_rows_from_a_week_row(tables: list, week_rows: list[tuple], new_break_weeks: list[Week]) -> None:
+    """A row per break in a schedule that had none: a copy of the first
+    week row (so it keeps the table's formatting) holding the break's
+    label and "No class", placed before the first week after the break."""
+    _first_date, template_row = week_rows[0]
+    template_table = next(table for table in tables if template_row._tr in table._tbl.tr_lst)
+    for week in sorted(new_break_weeks, key=lambda w: w.date_start):
+        row = _Row(deepcopy(template_row._tr), template_table)
+        cells = distinct_cells(row)
+        _fill_cell(cells[0], [week.label] if len(cells) > 1 else [week.label, _NO_CLASS])
+        for index, cell in enumerate(cells[1:]):
+            _fill_cell(cell, [_NO_CLASS] if index == 0 else [])
+        anchor = next((row for new_date, row in week_rows if new_date is not None and new_date > week.date_start), None)
+        if anchor is not None:
+            anchor._tr.addprevious(row._tr)
+        else:
+            tables[-1]._tbl.append(row._tr)
 
 
 def _update_front_matter_term(document, new_term: str) -> None:

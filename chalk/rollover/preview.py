@@ -49,6 +49,14 @@ from chalk.extractors.meetings import week_count
 from chalk.llm_client import complete
 from chalk.models import CourseData, UniversityDate, Week
 from chalk.progress import ProgressCallback, report
+from chalk.rollover.break_weeks import (
+    break_rows_for,
+    has_numbered_break_weeks,
+    move_past_breaks_hints,
+    past_term_end_flag,
+    plan_week_starts,
+    skipped_break_flags,
+)
 from chalk.rollover.flags import (
     duration_change_flags,
     flag_dst_boundary_weeks,
@@ -123,6 +131,7 @@ def roll_over_course(
     llm_generate_topics: bool = True,
     meeting_days: tuple[int, ...] = (),
     breaks_not_observed: frozenset[str] = frozenset(),
+    move_past_breaks: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[CourseData, RolloverPreview]:
     """Compute a rolled-over CourseData and its RolloverPreview.
@@ -148,6 +157,12 @@ def roll_over_course(
     check against each week's start date. `breaks_not_observed` names
     target-calendar breaks (by label, e.g. "Fall Break") the class meets
     through: they're dropped from the schedule and never flagged.
+
+    `move_past_breaks`: when a break the class takes off covers every class
+    day of a week, that week and the later ones move a week later and the
+    break gets a schedule row (chalk/rollover/break_weeks.py). Off, such a
+    week is only flagged, with a note saying how to move it (DECISIONS.md:
+    flag, don't restructure, unless the instructor asks).
 
     `on_progress` (chalk/progress.py) reports each added week whose
     topics the LLM drafts, the only slow part of a rollover.
@@ -183,7 +198,16 @@ def roll_over_course(
     meeting_plan = _meeting_plan(regular_weeks, meeting_days, course_data.course.term_start, new_term_start)
     if meeting_plan is None:
         general_flags.extend(meeting_count_flags(regular_weeks, meeting_days))
-    new_weeks, week_changes = _shift_regular_weeks(regular_weeks, new_term_start, meeting_plan, meeting_days)
+    breaks_taken = [] if has_numbered_break_weeks(regular_weeks) else multi_day_breaks(target_breaks)
+    week_starts, skipped_breaks = plan_week_starts(
+        [week.week_number for week in regular_weeks], new_term_start, breaks_taken, meeting_days
+    )
+    if not move_past_breaks:
+        general_flags.extend(move_past_breaks_hints(skipped_breaks))
+        week_starts, skipped_breaks = None, []
+    new_weeks, week_changes = _shift_regular_weeks(
+        regular_weeks, new_term_start, meeting_plan, meeting_days, week_starts
+    )
     if season_changed and syllabus_break_weeks and term_data is not None:
         new_break_weeks, break_changes = _rebuild_break_weeks_for_new_season(target_breaks, new_weeks)
         general_flags.append(
@@ -206,6 +230,19 @@ def roll_over_course(
                     [break_name(week.label) for week in original_break_weeks],
                 )
             )
+    skipped_rows = break_rows_for(skipped_breaks, new_break_weeks)
+    general_flags.extend(skipped_break_flags(skipped_breaks, skipped_rows))
+    if skipped_breaks and term_data is not None:
+        late = past_term_end_flag(new_weeks, dt.date.fromisoformat(term_data["end"]), target_term)
+        general_flags.extend([late] if late else [])
+    new_break_weeks = [*new_break_weeks, *skipped_rows]
+    break_changes = [
+        *break_changes,
+        *(
+            WeekChange(week_number=None, label=week.label, old_date=None, new_date=week.date_start)
+            for week in skipped_rows
+        ),
+    ]
     new_weeks.extend(new_break_weeks)
     week_changes.extend(break_changes)
 
@@ -392,6 +429,7 @@ def _shift_regular_weeks(
     new_term_start: dt.date,
     meeting_plan: dict[int, int] | None = None,
     meeting_days: tuple[int, ...] = (),
+    week_starts: dict[int, dt.date] | None = None,
 ) -> tuple[list[Week], list[WeekChange]]:
     new_weeks: list[Week] = []
     changes: list[WeekChange] = []
@@ -399,7 +437,9 @@ def _shift_regular_weeks(
     for week in regular_weeks:
         first_meetings[week.week_number] = min(week.date, first_meetings.get(week.week_number, week.date))
     for week in regular_weeks:
-        week_start = new_term_start + dt.timedelta(days=7 * (week.week_number - 1))
+        week_start = (week_starts or {}).get(week.week_number) or new_term_start + dt.timedelta(
+            days=7 * (week.week_number - 1)
+        )
         new_date = _meeting_date(week, week_start, meeting_plan) or _first_class_day(
             week, week_start, meeting_days
         )
