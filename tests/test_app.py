@@ -831,15 +831,16 @@ def test_generate_without_source_materials_asks_for_one(saved_project):
     at = launch(saved_project)
     assert "No source materials added yet" in " ".join(texts(at.caption))
     assert NO_SOURCES_MESSAGE in texts(at.info)
-    assert "Generate" not in {b.label for b in at.button}
+    assert widget(at.button, "Generate").disabled
 
 
 def test_generate_waits_until_a_source_is_selected(sourced_project):
     at = launch(sourced_project)
     assert NO_SOURCES_MESSAGE in texts(at.info)
-    assert "Generate" not in {b.label for b in at.button}
+    assert widget(at.button, "Generate").disabled
+    assert any("at least one source material" in w for w in texts(at.warning))
 
-    widget(at.multiselect, "Source materials to use").set_value(["notes.txt"])
+    widget(at.multiselect, "Source materials to use *").set_value(["notes.txt"])
     at = at.run()
 
     assert any(c.startswith("Estimated cost: up to ~$") for c in texts(at.caption))
@@ -849,7 +850,7 @@ def test_generate_waits_until_a_source_is_selected(sourced_project):
 def test_generate_lists_source_materials_except_the_syllabus(saved_project):
     (saved_project.source_dir / "ch3.txt").write_text("notes", encoding="utf-8")
     at = launch(saved_project)
-    assert widget(at.multiselect, "Source materials to use").options == ["ch3.txt"]
+    assert widget(at.multiselect, "Source materials to use *").options == ["ch3.txt"]
 
 
 def test_generate_review_then_save(sourced_project, llm):
@@ -1012,13 +1013,14 @@ def test_rubric_waits_for_assignment_details(sourced_project, llm):
     at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("rubric")
     at = at.run()
-    assert "A rubric needs an assignment name and a description of the assignment." in texts(
-        at.caption
+    assert (
+        "To generate, fill in the required fields (marked *): Assignment name; Assignment description."
+        in texts(at.warning)
     )
-    assert "Generate" not in {b.label for b in at.button}
+    assert widget(at.button, "Generate").disabled
 
-    widget(at.text_input, "Assignment name").input("Lab 3")
-    widget(at.text_area, "Assignment description").input("Build two VLANs.")
+    widget(at.text_input, "Assignment name *").input("Lab 3")
+    widget(at.text_area, "Assignment description *").input("Build two VLANs.")
     at = click(at.run(), "Generate")
 
     assert_no_exception(at)
@@ -1167,14 +1169,30 @@ def test_an_assignment_can_include_an_ai_use_task(sourced_project, llm):
     at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("assignment")
     at = at.run()
-    widget(at.text_input, "Assignment name").input("Design Brief")
-    widget(at.text_area, "What should students learn or demonstrate?").input("Defend a design.")
+    widget(at.text_input, "Assignment name *").input("Design Brief")
+    widget(at.text_area, "What should students learn or demonstrate? *").input("Defend a design.")
     widget(at.checkbox, "Include a task where students use AI as part of their learning").check()
     at = click(at.run(), "Generate")
 
     assert "AI-USE COMPONENT" in llm[-1]
     # The fake draft has no AI-USE TASK section, so Chalk says so.
     assert any('no "AI-USE TASK" section' in warning for warning in texts(at.warning))
+
+
+def test_an_assignment_names_its_missing_required_fields(sourced_project, llm):
+    # Nov 9 UAT: mark required fields with * and say which are missing.
+    at = launch_with_source(sourced_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+
+    assert any("Assignment name; What should students learn or demonstrate?" in w for w in texts(at.warning))
+    assert widget(at.button, "Generate").disabled
+    assert "* Required" in texts(at.caption)
+
+    widget(at.text_input, "Assignment name *").input("Design Brief")
+    at = at.run()
+    assert any(w.endswith(": What should students learn or demonstrate?.") for w in texts(at.warning))
+    assert llm == []
 
 
 # ---- Launch screen: your projects, and creating one that exists ---------------------------
@@ -1353,3 +1371,17 @@ def test_grading_strictness_starts_at_standard(project):
     [strictness] = [e for e in at.get("button_group") if e.label == "Grading strictness"]
     assert strictness.value == "standard"
     assert list(strictness.options) == ["Lenient", "Standard", "Strict"]
+
+
+def test_upload_and_grading_mark_their_required_fields(saved_project):
+    # Nov 9 UAT: required fields carry a *, and the page says what's missing.
+    at = launch(saved_project)
+    captions = texts(at.caption)
+
+    assert "* Required: choose your syllabus file to extract the course." in captions
+    assert (
+        "Fill in the required fields (marked *) to analyze: the student submission and the instructions "
+        "and rubric." in captions
+    )
+    assert widget(at.button, "Analyze Submission").disabled
+

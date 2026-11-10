@@ -157,8 +157,10 @@ def render(paths: ProjectPaths) -> None:
         _render_consistency_warning(paths, pending)
         return
 
-    uploaded = st.file_uploader("Syllabus (.docx, .md, or .pdf)", type=["docx", "md", "pdf"])
+    uploaded = st.file_uploader("Syllabus (.docx, .md, or .pdf) *", type=["docx", "md", "pdf"])
     st.caption(common.FERPA_NOTICE)
+    if uploaded is None:
+        st.caption("* Required: choose your syllabus file to extract the course.")
     pdf_method: PdfReadMethod = "local"
     can_extract = uploaded is not None
     if uploaded is not None and is_pdf(uploaded.name):

@@ -52,6 +52,15 @@ _JOB = "generate"
 _TAB = "Generate"
 SOURCES_KEY = "generate-sources"
 
+# Required fields are marked with a * (Nov 9 UAT); Generate stays locked
+# until they're filled in, under a message naming what's missing.
+REQUIRED_MARK = " *"
+SOURCES_LABEL = "Source materials to use" + REQUIRED_MARK
+NAME_LABEL = "Assignment name" + REQUIRED_MARK
+GOAL_LABEL = "What should students learn or demonstrate?" + REQUIRED_MARK
+EXISTING_LABEL = "Paste the existing assignment" + REQUIRED_MARK
+DESCRIPTION_LABEL = "Assignment description" + REQUIRED_MARK
+
 
 def render(paths: ProjectPaths, course_data: CourseData) -> None:
     _apply_finished_job()
@@ -81,10 +90,9 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
     ]
     request = _request_form(paths, course_data, spec)
 
-    try:
-        require_source_files(course_data, request)
-    except ChalkError as exc:
-        st.info(exc.user_message)
+    missing = missing_fields(course_data, request)
+    if missing:
+        _render_locked_generate(course_data, request, missing)
         return
     try:
         estimate = estimate_cost(paths, course_data, request)
@@ -101,6 +109,43 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
 
     if st.button("Generate", type="primary", disabled=not confirmed):
         _run(paths, course_data, request)
+
+
+def missing_fields(course_data: CourseData, request: GenerationRequest) -> list[str]:
+    """The required fields still empty, by name (without the *), in the
+    order they appear on the page."""
+    missing = []
+    if request.content_type == "assignment":
+        if not request.assignment_name.strip():
+            missing.append(_plain(NAME_LABEL))
+        if not request.assignment_goal.strip():
+            missing.append(_plain(GOAL_LABEL))
+        if request.assignment_mode == "enhance" and not request.assignment_description.strip():
+            missing.append("the existing assignment (paste or upload it)")
+    elif request.content_type == "rubric":
+        if not request.assignment_name.strip():
+            missing.append(_plain(NAME_LABEL))
+        if not request.assignment_description.strip():
+            missing.append(_plain(DESCRIPTION_LABEL))
+    try:
+        require_source_files(course_data, request)
+    except ChalkError:
+        missing.append("at least one source material")
+    return missing
+
+
+def _plain(label: str) -> str:
+    return label.removesuffix(REQUIRED_MARK)
+
+
+def _render_locked_generate(course_data: CourseData, request: GenerationRequest, missing: list[str]) -> None:
+    """Generate, greyed out, under a message naming what to fill in."""
+    try:
+        require_source_files(course_data, request)
+    except ChalkError as exc:
+        st.info(exc.user_message)
+    st.warning(f"To generate, fill in the required fields (marked *): {'; '.join(missing)}.")
+    st.button("Generate", type="primary", disabled=True, key="generate-locked")
 
 
 def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpec) -> GenerationRequest:
@@ -130,10 +175,11 @@ def _request_form(paths: ProjectPaths, course_data: CourseData, spec: ContentSpe
     syllabus_name = Path(course_data.course.source_file).name
     materials = [name for name in list_source_files(paths) if name != syllabus_name]
     if materials:
-        fields["source_files"] = tuple(st.multiselect("Source materials to use", materials, key=SOURCES_KEY))
+        fields["source_files"] = tuple(st.multiselect(SOURCES_LABEL, materials, key=SOURCES_KEY))
     else:
         st.caption("No source materials added yet. Add a reading, handout, or notes below to generate a draft.")
     _render_source_uploader(paths)
+    st.caption("* Required")
     return GenerationRequest(**fields)
 
 
@@ -224,9 +270,9 @@ def _assignment_fields() -> dict:
         horizontal=True,
     )
     mode = "create" if mode_label.startswith("Create") else "enhance"
-    name = st.text_input("Assignment name", placeholder="Network Design Recommendation")
+    name = st.text_input(NAME_LABEL, placeholder="Network Design Recommendation")
     goal = st.text_area(
-        "What should students learn or demonstrate?",
+        GOAL_LABEL,
         placeholder="Students should apply course concepts to a realistic business problem and defend their recommendation.",
     )
     framework_labels = {
@@ -251,7 +297,7 @@ def _assignment_fields() -> dict:
         )
     description = ""
     if mode == "enhance":
-        description = st.text_area("Paste the existing assignment", height=180)
+        description = st.text_area(EXISTING_LABEL, height=180)
         uploaded = st.file_uploader(
             "...or upload the existing assignment",
             type=["pdf", "docx", "md", "txt"],
@@ -328,8 +374,8 @@ def _assignment_fields() -> dict:
 
 
 def _rubric_fields() -> dict:
-    name = st.text_input("Assignment name", placeholder="Lab 3: VLANs")
-    description = st.text_area("Assignment description")
+    name = st.text_input(NAME_LABEL, placeholder="Lab 3: VLANs")
+    description = st.text_area(DESCRIPTION_LABEL)
     uploaded = st.file_uploader(
         "…or upload the assignment description", type=["pdf", "docx", "md", "txt"], key="rubric-upload"
     )
