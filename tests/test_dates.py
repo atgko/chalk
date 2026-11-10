@@ -58,3 +58,39 @@ def test_a_markdown_fall_syllabus_with_a_january_finals_week_is_extracted_with_t
     weeks = markdown_extractor.extract_course_data(path).weeks
 
     assert next(week for week in weeks if week.week_number == 3).date == dt.date(2027, 1, 4)
+
+
+def test_a_spring_schedule_with_a_december_row_puts_that_row_in_the_year_before():
+    # A Spring 2027 orientation "Week 0 (12/15)" is read with the term's year.
+    weeks = [_week(0, 12, 15, 2027), _week(1, 1, 12, 2027), _week(2, 1, 19, 2027)]
+
+    rolled = roll_dates_past_new_year(weeks, spring_term=True)
+
+    assert [week.date for week in rolled] == [dt.date(2026, 12, 15), dt.date(2027, 1, 12), dt.date(2027, 1, 19)]
+
+
+def test_a_spring_schedule_without_a_december_row_is_unchanged():
+    weeks = [_week(1, 1, 12, 2027), _week(16, 5, 4, 2027)]
+    assert roll_dates_past_new_year(weeks, spring_term=True) == weeks
+
+
+def test_a_markdown_spring_syllabus_with_a_december_week_0_keeps_the_term_year(tmp_path):
+    path = tmp_path / "s.md"
+    path.write_text(
+        "Course: IS 4490 Emerging Technologies\n"
+        "Term: Spring 2027\n"
+        "\n"
+        "| Week | Dates | Topic | Major Work |\n"
+        "| --- | --- | --- | --- |\n"
+        "| 0 | 12/15 - 12/19 | Orientation |  |\n"
+        "| 1 | 1/11 - 1/17 | Course Introduction | Reading 1 Due |\n"
+        "| 2 | 1/18 - 1/24 | Networking Basics | Lab 1 Due |\n",
+        encoding="utf-8",
+    )
+
+    weeks = markdown_extractor.extract_course_data(path).weeks
+
+    by_number = {week.week_number: week.date for week in weeks}
+    assert by_number[0] == dt.date(2026, 12, 15)
+    assert by_number[1] == dt.date(2027, 1, 11)
+    assert by_number[2] == dt.date(2027, 1, 18)

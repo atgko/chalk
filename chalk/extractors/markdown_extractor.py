@@ -25,6 +25,7 @@ from chalk.errors import AmbiguousTableError, ExtractionError
 from chalk.extractors._dates import (
     DATE_RANGE_RE,
     FULL_DATE_RE,
+    is_spring_term,
     roll_dates_past_new_year,
     year_from_term,
 )
@@ -63,7 +64,11 @@ def extract_course_data(md_path, *, schedule_table_index: int | None = None) -> 
 
     tables = _parse_markdown_tables(text)
     schedule_table = _find_schedule_table(tables, schedule_table_index)
-    weeks = with_meetings(roll_dates_past_new_year(_extract_weeks(schedule_table, year)))
+    weeks = with_meetings(
+        roll_dates_past_new_year(
+            _extract_weeks(schedule_table, year), spring_term=is_spring_term(front_matter["term"])
+        )
+    )
 
     course_info = CourseInfo(
         title=front_matter["title"],
