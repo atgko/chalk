@@ -44,6 +44,7 @@ WORKFLOWS = (
     Workflow("grade-submission", "Grade a student submission", "Grading Assistant"),
     Workflow("provider-settings", "Change AI provider settings", "AI Provider"),
     Workflow("view-metrics", "View costs and usage", "Metrics"),
+    Workflow("edit-links", "Update the links Chalk uses (calendars, class schedule)", "More settings"),
 )
 
 _BY_KEY = {workflow.key: workflow for workflow in WORKFLOWS}

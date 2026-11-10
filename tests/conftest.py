@@ -47,6 +47,15 @@ def memory_keyring():
     keyring.set_keyring(previous)
 
 
+@pytest.fixture(autouse=True)
+def courses_folder(tmp_path, monkeypatch):
+    """Every test gets its own empty courses folder, so nothing reads or
+    writes the real Documents/Chalk Courses (e.g. changed links)."""
+    folder = tmp_path / "chalk-courses"
+    monkeypatch.setenv("CHALK_PROJECTS_DIR", str(folder))
+    return folder
+
+
 @pytest.fixture
 def tmp_project(tmp_path):
     """A freshly `init`-ed course project under tmp_path, seeded from the

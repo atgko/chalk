@@ -18,21 +18,28 @@ from chalk.config import (
     validate_and_save_provider,
 )
 from chalk.errors import ChalkError
+from chalk.links import url_for
 from chalk.ollama import FIND_ADDRESS_HELP, OllamaServer, candidate_hosts, find_ollama
 from chalk.project import ProjectPaths
 
 _LOCAL = "Local model (Ollama)"
-_CAPTIONS = (
-    "Paste an API key from platform.openai.com",
-    "Paste an API key from console.anthropic.com",
-    "Paste an API key from aistudio.google.com. Not approved by the university for student data.",
-    # In backticks, so the address isn't a link: opening it in a browser
-    # shows a "page not found" error (Nov 9 UAT).
-    (
-        "Runs on your own computer or a university server. Usually at `http://localhost:11434/v1`; "
-        "click Find Ollama to check."
-    ),
-)
+def captions() -> tuple[str, ...]:
+    """Each provider's one-line hint. The key pages come from the links
+    file (chalk/links.py), so a moved page can be fixed without code."""
+    return (
+        f"Paste an API key from [platform.openai.com]({url_for('openai_api_keys')})",
+        f"Paste an API key from [console.anthropic.com]({url_for('anthropic_api_keys')})",
+        (
+            f"Paste an API key from [aistudio.google.com]({url_for('gemini_api_keys')}). "
+            "Not approved by the university for student data."
+        ),
+        # In backticks, so the address isn't a link: opening it in a browser
+        # shows a "page not found" error (Nov 9 UAT).
+        (
+            "Runs on your own computer or a university server. Usually at `http://localhost:11434/v1`; "
+            f"click Find Ollama to check. [Get Ollama]({url_for('ollama_download')})"
+        ),
+    )
 
 
 SAVED_EVERYWHERE = "Connected. Your key is saved on this computer for all your courses."
@@ -52,7 +59,7 @@ def render(paths: ProjectPaths, *, submit_label: str, key: str) -> str | None:
         "LLM provider",
         PROVIDER_CHOICES,
         index=PROVIDER_CHOICES.index(saved_choice),
-        captions=_CAPTIONS,
+        captions=captions(),
         key=f"{key}-choice",
     )
     is_saved_choice = bool(env) and choice == saved_choice

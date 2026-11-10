@@ -17,7 +17,7 @@ def state(monkeypatch):
 
 def test_every_tab_is_in_exactly_one_group():
     tabs = [tab for group in session.TAB_GROUPS.values() for tab in group]
-    assert len(tabs) == len(set(tabs)) == 9
+    assert len(tabs) == len(set(tabs)) == 10
     assert session.group_of("Generate") == "Build"
     assert session.group_of("Metrics") == "Settings"
 
