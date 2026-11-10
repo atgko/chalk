@@ -18,6 +18,7 @@ from chalk.config import (
     validate_and_save_provider,
 )
 from chalk.errors import ChalkError
+from chalk.ollama import FIND_ADDRESS_HELP, OllamaServer, candidate_hosts, find_ollama
 from chalk.project import ProjectPaths
 
 _LOCAL = "Local model (Ollama)"
@@ -25,7 +26,12 @@ _CAPTIONS = (
     "Paste an API key from platform.openai.com",
     "Paste an API key from console.anthropic.com",
     "Paste an API key from aistudio.google.com. Not approved by the university for student data.",
-    "Enter your endpoint URL (e.g. http://localhost:11434/v1) and model name",
+    # In backticks, so the address isn't a link: opening it in a browser
+    # shows a "page not found" error (Nov 9 UAT).
+    (
+        "Runs on your own computer or a university server. Usually at `http://localhost:11434/v1`; "
+        "click Find Ollama to check."
+    ),
 )
 
 
@@ -52,16 +58,7 @@ def render(paths: ProjectPaths, *, submit_label: str, key: str) -> str | None:
     is_saved_choice = bool(env) and choice == saved_choice
 
     if choice == _LOCAL:
-        base_url = st.text_input(
-            "Endpoint URL",
-            value=env.get("LLM_BASE_URL", "") if is_saved_choice else DEFAULT_OLLAMA_URL,
-            key=f"{key}-url",
-        )
-        model = st.text_input(
-            "Model name",
-            value=env.get("LLM_MODEL", "") if is_saved_choice else DEFAULT_OLLAMA_MODEL,
-            key=f"{key}-local-model",
-        )
+        base_url, model = _local_model_fields(env if is_saved_choice else {}, key)
         api_key = env.get("LLM_API_KEY", "") if is_saved_choice else ""
     else:
         base_url = ""
@@ -95,3 +92,42 @@ def render(paths: ProjectPaths, *, submit_label: str, key: str) -> str | None:
         st.error(exc.user_message)
         return None
     return SAVED_EVERYWHERE if saved_everywhere else SAVED_HERE
+
+
+def _local_model_fields(saved_env: dict[str, str], key: str) -> tuple[str, str]:
+    """Ollama's address and model, pre-filled with the saved values or the
+    defaults from the README, plus a Find Ollama button that checks the
+    likely addresses and lists the models pulled there (Nov 9 UAT)."""
+    url_key, model_key, found_key = f"{key}-url", f"{key}-local-model", f"{key}-ollama-found"
+    st.session_state.setdefault(url_key, saved_env.get("LLM_BASE_URL") or DEFAULT_OLLAMA_URL)
+    st.session_state.setdefault(model_key, saved_env.get("LLM_MODEL") or DEFAULT_OLLAMA_MODEL)
+    base_url = st.text_input("Endpoint URL", key=url_key, help=FIND_ADDRESS_HELP)
+    st.button("Find Ollama", key=f"{key}-find", on_click=_find_ollama, args=(url_key, model_key, found_key))
+
+    found: OllamaServer | None | bool = st.session_state.get(found_key, False)
+    if found is None:
+        st.warning("Couldn't find Ollama on this computer. " + FIND_ADDRESS_HELP)
+    elif found and found.models:
+        st.success(f"Found Ollama at `{found.base_url}` with {len(found.models)} model(s).")
+        current = st.session_state[model_key]
+        options = list(found.models) if current in found.models else [current, *found.models]
+        return base_url, st.selectbox("Model name", options, key=model_key)
+    elif found:
+        st.warning(
+            f"Found Ollama at `{found.base_url}`, but no models are installed yet. In a terminal, run "
+            f"`ollama pull {DEFAULT_OLLAMA_MODEL}` (or a smaller model such as `llama3.1:8b`), then "
+            "click Find Ollama again."
+        )
+    model = st.text_input("Model name", key=model_key, help="The name `ollama list` shows, e.g. `llama3.1:8b`.")
+    return base_url, model
+
+
+def _find_ollama(url_key: str, model_key: str, found_key: str) -> None:
+    """Button callback, so the fields can still be changed before they're drawn."""
+    found = find_ollama(candidate_hosts(typed_url=st.session_state.get(url_key, "")))
+    st.session_state[found_key] = found
+    if found is None:
+        return
+    st.session_state[url_key] = found.base_url
+    if found.models and st.session_state.get(model_key) not in found.models:
+        st.session_state[model_key] = found.models[0]

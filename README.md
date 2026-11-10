@@ -279,6 +279,8 @@ for structured tasks like quizzes and rubrics.
 
 ### 8c. University-hosted local model (Ollama)
 
+In the app, choose **Local model (Ollama)** under Settings → AI Provider. The fields start at Ollama's usual address, `http://localhost:11434/v1`, and `llama3.1:70b`. Click **Find Ollama** to check the likely addresses (the one typed, `OLLAMA_HOST`, then localhost): if Ollama answers, Chalk fills in its address and lists the models pulled there to pick from. If it isn't found, the page explains how to check with `ollama list`, start it with `ollama serve`, or type a server's address.
+
 ```
 Requirements:
   - A VM with an NVIDIA GPU (24GB+ VRAM recommended for useful quality)

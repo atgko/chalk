@@ -1385,3 +1385,55 @@ def test_upload_and_grading_mark_their_required_fields(saved_project):
     )
     assert widget(at.button, "Analyze Submission").disabled
 
+
+# ---- Ollama: pre-filled address and Find Ollama (Nov 9 UAT) -------------------------
+
+
+def _choose_ollama(tmp_project, monkeypatch, found):
+    from chalk.ollama import OllamaServer
+
+    monkeypatch.setattr("ui.provider_form.find_ollama", lambda hosts: found and OllamaServer(*found))
+    at = launch(tmp_project)
+    at.radio[0].set_value("Local model (Ollama)")
+    return at.run()
+
+
+def test_ollama_fields_start_with_the_readme_defaults(tmp_project, monkeypatch):
+    at = _choose_ollama(tmp_project, monkeypatch, None)
+
+    assert widget(at.text_input, "Endpoint URL").value == "http://localhost:11434/v1"
+    assert widget(at.text_input, "Model name").value == "llama3.1:70b"
+    assert "ollama list" in widget(at.text_input, "Endpoint URL").help
+
+
+def test_the_example_ollama_address_is_not_a_link():
+    # Clicking the address opened a "page not found" page; in backticks it's plain code.
+    from ui.provider_form import _CAPTIONS
+
+    assert "`http://localhost:11434/v1`" in _CAPTIONS[-1]
+
+
+def test_find_ollama_fills_the_address_and_lists_the_installed_models(tmp_project, monkeypatch):
+    at = _choose_ollama(tmp_project, monkeypatch, ("http://127.0.0.1:11434/v1", ("gemma3:4b", "llama3.1:8b")))
+
+    at = click(at, "Find Ollama")
+
+    assert_no_exception(at)
+    assert widget(at.text_input, "Endpoint URL").value == "http://127.0.0.1:11434/v1"
+    assert widget(at.selectbox, "Model name").options == ["gemma3:4b", "llama3.1:8b"]
+    assert widget(at.selectbox, "Model name").value == "gemma3:4b"
+    assert any("Found Ollama at" in s for s in texts(at.success))
+
+
+def test_find_ollama_says_how_to_pull_a_model_when_none_is_installed(tmp_project, monkeypatch):
+    at = click(_choose_ollama(tmp_project, monkeypatch, ("http://localhost:11434/v1", ())), "Find Ollama")
+
+    assert any("no models are installed yet" in w and "ollama pull" in w for w in texts(at.warning))
+    assert widget(at.text_input, "Model name").value == "llama3.1:70b"
+
+
+def test_find_ollama_explains_how_to_find_the_address_when_it_isnt_running(tmp_project, monkeypatch):
+    at = click(_choose_ollama(tmp_project, monkeypatch, None), "Find Ollama")
+
+    assert any(w.startswith("Couldn't find Ollama on this computer.") and "ollama serve" in w for w in texts(at.warning))
+    assert widget(at.text_input, "Endpoint URL").value == "http://localhost:11434/v1"
