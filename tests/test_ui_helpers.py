@@ -94,7 +94,7 @@ def test_preview_rows_mark_flags_and_new_weeks(tmp_project):
     rows = {row["Week"]: row for row in tables.preview_rows(plan.preview)}
     assert rows["Week 1"] == {"Week": "Week 1", "Current": "Aug 24 (8/24)", "New": "Aug 23 (8/23)", "Check": "✓"}
     assert rows["Week 11"]["Current"] == "(new week)"
-    assert rows["Week 8"]["Check"].startswith("⚠ Fall Break 2027 is Oct 9–17")
+    assert rows["Week 8"]["New"] == "Oct 18 (10/18)"  # moved past Fall Break 2027 (Oct 9-17)
     assert rows["Fall Break"]["New"] == "Oct 9 (10/9)"
 
 

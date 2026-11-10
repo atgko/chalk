@@ -34,6 +34,13 @@ def test_the_bundled_file_lists_every_link_chalk_uses():
         assert link.url.startswith("https://") and link.label and link.used_for
 
 
+def test_the_ai_providers_pages_arent_linked():
+    # Nov 10 UAT: a link to a provider's page that moves would break.
+    keys = {link.key for link in links.load_links(overrides=links.LINKS_FILE.parent / "missing.json")}
+
+    assert not keys & {"openai_api_keys", "anthropic_api_keys", "gemini_api_keys", "ollama_download"}
+
+
 def test_links_come_from_the_bundled_file_until_changed(files):
     assert links.url_for("schedule", **files) == "https://schedule.example.edu/"
     assert not any(link.is_changed for link in links.load_links(**files))

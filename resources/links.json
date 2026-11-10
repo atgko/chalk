@@ -24,30 +24,6 @@
       "label": "Center for Disability & Access",
       "url": "https://disability.utah.edu/",
       "used_for": "Linked from the accessibility section of the Canvas syllabus page Chalk writes."
-    },
-    {
-      "key": "openai_api_keys",
-      "label": "OpenAI API keys",
-      "url": "https://platform.openai.com/api-keys",
-      "used_for": "Where an instructor gets an OpenAI key (Settings -> AI Provider)."
-    },
-    {
-      "key": "anthropic_api_keys",
-      "label": "Anthropic API keys",
-      "url": "https://console.anthropic.com/settings/keys",
-      "used_for": "Where an instructor gets an Anthropic key (Settings -> AI Provider)."
-    },
-    {
-      "key": "gemini_api_keys",
-      "label": "Google AI Studio API keys",
-      "url": "https://aistudio.google.com/apikey",
-      "used_for": "Where an instructor gets a Gemini key (Settings -> AI Provider)."
-    },
-    {
-      "key": "ollama_download",
-      "label": "Ollama download",
-      "url": "https://ollama.com/download",
-      "used_for": "For running a model on this computer or a university server instead of a paid provider."
     }
   ]
 }

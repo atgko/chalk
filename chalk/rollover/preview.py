@@ -52,7 +52,6 @@ from chalk.progress import ProgressCallback, report
 from chalk.rollover.break_weeks import (
     break_rows_for,
     has_numbered_break_weeks,
-    move_past_breaks_hints,
     past_term_end_flag,
     plan_week_starts,
     skipped_break_flags,
@@ -131,7 +130,6 @@ def roll_over_course(
     llm_generate_topics: bool = True,
     meeting_days: tuple[int, ...] = (),
     breaks_not_observed: frozenset[str] = frozenset(),
-    move_past_breaks: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> tuple[CourseData, RolloverPreview]:
     """Compute a rolled-over CourseData and its RolloverPreview.
@@ -158,11 +156,9 @@ def roll_over_course(
     target-calendar breaks (by label, e.g. "Fall Break") the class meets
     through: they're dropped from the schedule and never flagged.
 
-    `move_past_breaks`: when a break the class takes off covers every class
-    day of a week, that week and the later ones move a week later and the
-    break gets a schedule row (chalk/rollover/break_weeks.py). Off, such a
-    week is only flagged, with a note saying how to move it (DECISIONS.md:
-    flag, don't restructure, unless the instructor asks).
+    When a break the class takes off covers every class day of a week,
+    that week and the later ones move a week later and the break gets a
+    schedule row (chalk/rollover/break_weeks.py; Nov 10 UAT: always).
 
     `on_progress` (chalk/progress.py) reports each added week whose
     topics the LLM drafts, the only slow part of a rollover.
@@ -202,9 +198,6 @@ def roll_over_course(
     week_starts, skipped_breaks = plan_week_starts(
         [week.week_number for week in regular_weeks], new_term_start, breaks_taken, meeting_days
     )
-    if not move_past_breaks:
-        general_flags.extend(move_past_breaks_hints(skipped_breaks))
-        week_starts, skipped_breaks = None, []
     new_weeks, week_changes = _shift_regular_weeks(
         regular_weeks, new_term_start, meeting_plan, meeting_days, week_starts
     )

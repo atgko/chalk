@@ -291,7 +291,6 @@ def preview_rollover(
     breaks_not_observed: frozenset[str] = frozenset(),
     class_time: str | None = None,
     location: str | None = None,
-    move_past_breaks: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> RolloverPlan:
     """Compute a rollover without writing anything. `on_progress` follows
@@ -317,7 +316,6 @@ def preview_rollover(
         llm_generate_topics=llm_generate_topics,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
-        move_past_breaks=move_past_breaks,
         on_progress=on_progress,
     )
     text_changes, class_notes = class_detail_changes(course_data.course, class_time, location)

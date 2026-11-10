@@ -14,7 +14,6 @@ from chalk.pipeline import (
     save_reviewed_course,
 )
 from chalk.rollover.break_weeks import (
-    MOVE_PAST_BREAKS_LABEL,
     SkippedBreak,
     break_rows_for,
     has_numbered_break_weeks,
@@ -93,16 +92,9 @@ def _rolled(**kwargs):
     return roll_over_course(_is6640_ten_week_course(), target_term="Fall 2027", calendars=CALENDARS, **kwargs)
 
 
-def test_off_by_default_the_week_is_only_flagged_with_how_to_move_it():
+def test_the_weeks_move_past_a_break_that_covers_a_whole_week():
+    # Nov 10 UAT: always, not an option ("can't we assume this will always be the case?").
     course, preview = _rolled(meeting_days=(WED,))
-
-    week8 = next(week for week in course.weeks if week.week_number == 8)
-    assert week8.date == dt.date(2027, 10, 13)  # inside Fall Break 2027 (Oct 9-17)
-    assert any(MOVE_PAST_BREAKS_LABEL in flag and "covers all of Week 8" in flag for flag in preview.general_flags)
-
-
-def test_ticked_the_weeks_move_past_the_break():
-    course, preview = _rolled(meeting_days=(WED,), move_past_breaks=True)
 
     dates = {week.week_number: week.date for week in course.weeks if not week.is_break}
     assert dates[7] == dt.date(2027, 10, 6) and dates[8] == dt.date(2027, 10, 20)
@@ -111,7 +103,7 @@ def test_ticked_the_weeks_move_past_the_break():
 
 
 def test_a_break_the_class_meets_through_never_moves_weeks():
-    course, _ = _rolled(meeting_days=(WED,), move_past_breaks=True, breaks_not_observed=frozenset({"Fall Break"}))
+    course, _ = _rolled(meeting_days=(WED,), breaks_not_observed=frozenset({"Fall Break"}))
 
     assert next(week for week in course.weeks if week.week_number == 8).date == dt.date(2027, 10, 13)
 
@@ -139,7 +131,7 @@ def test_a_schedule_with_no_break_rows_gets_one_for_the_break_it_moved_past(tmp_
     save_reviewed_course(tmp_project, course_data)
 
     plan = preview_rollover(
-        tmp_project, course_data, "Spring 2027", llm_generate_topics=False, meeting_days=(WED,), move_past_breaks=True
+        tmp_project, course_data, "Spring 2027", llm_generate_topics=False, meeting_days=(WED,)
     )
     confirm_rollover(tmp_project, plan)
 
