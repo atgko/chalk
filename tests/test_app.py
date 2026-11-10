@@ -629,6 +629,17 @@ def test_review_lets_the_instructor_fill_in_missing_details(project, tmp_path):
     assert (course.section, course.credits, course.instructor) == ("001", 3, "Matt Pecsok")
 
 
+def test_review_explains_the_section_and_class_time_fields(project, tmp_path):
+    # Nov 9 UAT: "Meeting pattern - what is that?"
+    _save_course_missing_details(project, tmp_path)
+    at = launch(project)
+
+    class_time = widget(at.text_input, "Class days and time")
+    assert class_time.placeholder.startswith("e.g.")
+    assert "Class meets on" in class_time.help
+    assert "IS 6640-001" in widget(at.text_input, "Section").help
+
+
 def test_review_rejects_non_numeric_credits(project, tmp_path):
     _save_course_missing_details(project, tmp_path)
     at = launch(project)

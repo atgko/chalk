@@ -74,8 +74,23 @@ _DETAIL_FIELDS = (
     ("section", "Section"),
     ("credits", "Credits"),
     ("instructor", "Instructor"),
-    ("meeting_pattern", "Meeting pattern"),
+    ("meeting_pattern", "Class days and time"),
 )
+
+# Placeholder and help per field, so a blank field says what belongs in it
+# (Nov 9 UAT: "Meeting pattern - what is that?").
+_DETAIL_HINTS = {
+    "number": ("e.g. IS 6640", None),
+    "section": ("e.g. 001", "The section number, like the 001 in IS 6640-001."),
+    "credits": ("e.g. 3", None),
+    "meeting_pattern": (
+        "e.g. Wed 6:00-8:45 pm",
+        (
+            "When the class meets. Rollover uses the days to pre-select \"Class meets on\". "
+            "Leave it blank for an online class with no set meeting time."
+        ),
+    ),
+}
 
 
 def _render_course_details(course_data: CourseData) -> dict:
@@ -91,7 +106,10 @@ def _render_course_details(course_data: CourseData) -> dict:
     columns = st.columns(3)
     for index, (name, label) in enumerate(_DETAIL_FIELDS):
         value = "" if current[name] is None else (f"{current[name]:g}" if name == "credits" else str(current[name]))
-        details[name] = columns[index % 3].text_input(label, value=value).strip()
+        placeholder, help_text = _DETAIL_HINTS.get(name, (None, None))
+        details[name] = (
+            columns[index % 3].text_input(label, value=value, placeholder=placeholder, help=help_text).strip()
+        )
     details["title"] = details["title"] or course.title  # never save a blank title
     return details
 

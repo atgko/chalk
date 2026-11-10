@@ -66,6 +66,7 @@ Chalk should make the instructor's work easier and keep a human in the loop, not
 The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chalk running after December.
 
 - **P1: Write down what the sponsor needs to keep Chalk running.** Security, maintenance, and documentation are all required. Cover who updates the academic calendar and model prices each term, how to update Python and the packages, where to report problems, and what an API key costs per term.
+- **P1: Keep every outside link in one settings file (Dave, Nov 9).** To keep Chalk alive after the handover, everything it links to outside itself (the U's academic calendars, the class schedule that lists rooms, the Canvas template, provider sign-up pages) should live in one config file instead of in the code, so a maintainer can update a link without touching Python. Show them in the app too, e.g. a "More settings" button under Settings that lists the links and lets the instructor change them.
 - **P1: A how-to manual alongside the Best Practices Guide and Catalog of Tools.** A step-by-step guide for instructors, with screenshots. README.md, GETTING-STARTED.md, and DEMO.md are the starting point, but they're written partly for developers.
 
 ## UAT with Dave (Nov 9)
@@ -86,11 +87,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 - **P2: Explain how to find the address when Ollama isn't on the defaults,** so an instructor can change the field themselves.
 - **P2: The Ollama endpoint shouldn't be a clickable link.** Clicking it opens a "page not found" error.
 
-**Extraction**
-
-- **P1: Read the section number.** In "IS 6640-001", the "-001" is the section, and Chalk doesn't pick it up.
-- **P2: Meeting pattern wasn't picked up, and Dave didn't know what it meant.** Either make it obvious (a clearer label, a hint, an example) or remove the field. Related: the P3 item under Extraction about labeled "Time:" lines.
-
 **Rollover**
 
 - **P1: Week 1 starts on a Monday whatever the class's first day.** On Rollover, the "New" weeks have the right dates, but each week is shown as starting on a Monday whatever "Starts on" is set to. With Ollama, a Wednesday class still had Week 1 on Monday (the 16-week course did work). Related: the P3 item under Rollover about once-a-week classes.
@@ -104,6 +100,12 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 - **P1: Save projects and exports somewhere instructors look for them,** such as a Chalk folder in Documents on Windows, instead of inside the app folder among its program files. At least show where each file was saved.
 - **P1: Tidy the release download.** The instructor should see only the launcher (the batch file) and their own work. Put the rest of the app's files in a subfolder they can open if they need to.
+
+**To check by hand (work done overnight Nov 9–10)**
+
+Each item below was built and covered by automated tests, but needs a person to look at it in the app.
+
+- [ ] Section number and "Class days and time" (fix/section-number): upload Dave's IS 6640-001 syllabus and check Review shows Section 001 and a course title without "-001". Hover the "?" next to Section and Class days and time: are the hints clear to an instructor?
 
 ## Extraction
 
@@ -151,6 +153,7 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 ## Done
 
+- 2026-11-10: The section is read from the course number ("IS 6640-001", "IS 6640 - 001", "IS 6640, Section 001", or a labeled "Course Number: IS 6640-090"), and left out of the title guess. On Review, "Meeting pattern" is now "Class days and time", with an example and a hint saying Rollover uses it; Section has a hint too (Nov 9 UAT).
 - 2026-11-07: Release downloads carry their own Python. `bundle/build_bundle.py` builds a zip for Windows, Apple-silicon Macs, and Intel Macs, with Python 3.14 and every package installed, so the first start downloads and installs nothing. GitHub Actions builds them for tagged releases (as a draft release) and for pull requests that touch the bundle. The launchers use the bundled Python when it's there (sponsor meeting, Oct 15).
 
 - 2026-11-06: Grading is grounded in the submission. It asks for temperature 0 (except Gemini; a model that refuses it is asked again at its default), and every score comes with a word-for-word quote from the submission that Chalk checks is there. A quote that isn't found, or credit without one, is flagged on the criterion and in the Instructor Review Notes, never scored down. The quotes appear in the app and in the Word, PDF, and Markdown reports. Also fixed: the Markdown grading report had literal "\n" text in place of line breaks.

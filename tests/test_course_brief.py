@@ -116,5 +116,5 @@ def test_details_the_syllabus_did_not_state_are_omitted():
     brief = render_course_brief(course_data.model_copy(update={"course": blank}))
 
     assert "- **Course:** IS 6640\n" in brief
-    for label in ("Section", "Credits", "Meeting pattern", "Instructor"):
+    for label in ("Section", "Credits", "Class days and time", "Instructor"):
         assert label not in brief.split("## ")[0]

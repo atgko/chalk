@@ -151,3 +151,40 @@ def test_replace_term_text_swaps_only_the_season_and_year():
         replace_term_text("Semester: Fall Semester 2026", "Spring 2027") == "Semester: Spring 2027"
     )
     assert replace_term_text("No term here", "Spring 2027") is None
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "IS 6640-001 Networking and Servers",
+        "IS 6640 - 001: Networking and Servers",
+        "IS 6640, Section 001 — Networking and Servers",
+        "IS 6640 Sec. 001 Networking and Servers",
+    ],
+)
+def test_section_suffix_on_the_course_number_is_read(header):
+    # Nov 9 UAT: in "IS 6640-001", the 001 is the section.
+    fields = extract_front_matter([header, "Fall 2026"])
+
+    assert fields["number"] == "IS 6640"
+    assert fields["section"] == "001"
+    assert fields["title"] == "Networking and Servers"
+
+
+def test_section_suffix_on_a_labeled_course_number_is_split_off():
+    fields = extract_front_matter(["Course Number: IS 6640-090", "Term: Fall 2026"])
+
+    assert fields["number"] == "IS 6640"
+    assert fields["section"] == "090"
+
+
+def test_a_labeled_section_wins_over_the_suffix():
+    fields = extract_front_matter(["IS 6640-001 Networking", "Section: 002", "Fall 2026"])
+
+    assert fields["section"] == "002"
+
+
+def test_a_year_range_after_the_number_is_not_a_section():
+    fields = extract_front_matter(["IS 6640 2026-2027 Networking", "Fall 2026"])
+
+    assert fields["section"] == ""

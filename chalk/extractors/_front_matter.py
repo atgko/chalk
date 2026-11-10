@@ -31,6 +31,11 @@ _SEASON_YEAR_RE = re.compile(
     r"\b(fall|spring|summer)\s+(?:semester\s+|term\s+)?(\d{4})\b", re.IGNORECASE
 )
 _COURSE_NUMBER_RE = re.compile(r"\b(?!(?:FALL|SPRING|SUMMER)\b)([A-Z]{2,5})[ -]?(\d{4})\b")
+# A section written straight after the course number: "IS 6640-001",
+# "IS 6640 - 001", "IS 6640, Section 001", "IS 6640 Sec. 001" (Nov 9 UAT).
+_SECTION_SUFFIX_RE = re.compile(
+    r"^(?:\s*-\s*|,?\s*(?:section|sec\.?)\s*)(\d{1,3})\b(?!-)", re.IGNORECASE
+)
 _FIRST_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 _CREDITS_RE = re.compile(r"\b(\d{1,2}(?:\.\d{1,2})?)\s+credit(?:\s+hours?)?\b", re.IGNORECASE)
 _MEETING_RE = re.compile(
@@ -112,7 +117,12 @@ def extract_front_matter(lines: list[str], *, header_lines: list[str] | None = N
     header = header[:_HEADER_LINE_COUNT]
 
     fields.setdefault("term", _guess_term(header))
+    if fields.get("number"):
+        fields["number"], labeled_section = _split_section(fields["number"])
+        if labeled_section:
+            fields.setdefault("section", labeled_section)
     fields.setdefault("number", _guess_number(header))
+    fields.setdefault("section", _guess_section(header))
     fields.setdefault("title", _guess_title(header))
     fields.setdefault("credits", _guess_credits(header))
     fields.setdefault("meeting_pattern", _guess_meeting_pattern(header))
@@ -189,6 +199,40 @@ def _guess_number(header: list[str]) -> str | None:
     return None
 
 
+def _split_section(number: str) -> tuple[str, str | None]:
+    """ "IS 6640-001" -> ("IS 6640", "001"); a number without a section
+    suffix comes back unchanged with None."""
+    match = _COURSE_NUMBER_RE.search(number)
+    if not match:
+        return number, None
+    suffix = _SECTION_SUFFIX_RE.match(number[match.end() :])
+    if not suffix:
+        return number, None
+    return f"{match.group(1)} {match.group(2)}", suffix.group(1)
+
+
+def _guess_section(header: list[str]) -> str | None:
+    """The section suffix on the first course number in the header."""
+    for line in header:
+        if parse_labeled_line(line):
+            continue
+        match = _COURSE_NUMBER_RE.search(line)
+        if match:
+            return _split_section(match.group(0) + line[match.end() :])[1]
+    return None
+
+
+def _remove_number_and_section(text: str) -> str:
+    match = _COURSE_NUMBER_RE.search(text)
+    if not match:
+        return text
+    rest = text[match.end() :]
+    suffix = _SECTION_SUFFIX_RE.match(rest)
+    if suffix:
+        rest = rest[suffix.end() :]
+    return text[: match.start()] + rest
+
+
 def _guess_title(header: list[str]) -> str | None:
     """The first header line that isn't a recognized "Label: value" line,
     with any course number, term, and the word "syllabus" removed."""
@@ -196,7 +240,7 @@ def _guess_title(header: list[str]) -> str | None:
         if parse_labeled_line(line):
             continue
         cleaned = line.strip(_MARKUP_CHARS)
-        cleaned = _COURSE_NUMBER_RE.sub("", cleaned, count=1)
+        cleaned = _remove_number_and_section(cleaned)
         cleaned = _SEASON_YEAR_RE.sub("", cleaned, count=1)
         cleaned = _TITLE_NOISE_RE.sub("", cleaned)
         cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(_TITLE_EDGE_CHARS)
