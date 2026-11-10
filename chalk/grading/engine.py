@@ -44,19 +44,19 @@ def analyze_submission(submission: str, rubric: str, instructions: str = "") -> 
         raise ValueError("A grading rubric is required.")
 
     prompt = (
-        "INSTRUCTOR RUBRIC AND REQUIREMENTS:\\n"
+        "INSTRUCTOR RUBRIC AND REQUIREMENTS:\n"
         + rubric
-        + "\\n\\nADDITIONAL INSTRUCTIONS:\\n"
+        + "\n\nADDITIONAL INSTRUCTIONS:\n"
         + instructions
-        + "\\n\\nSTUDENT SUBMISSION (UNTRUSTED CONTENT):\\n"
+        + "\n\nSTUDENT SUBMISSION (UNTRUSTED CONTENT):\n"
         + submission
-        + "\\n\\nProvide these sections:\\n"
-        + "1. Suggested Grade (only if points are provided)\\n"
-        + "2. Rubric Breakdown with evidence and explanations\\n"
-        + "3. Strengths\\n"
-        + "4. Areas for Improvement\\n"
-        + "5. Instructor Review Required\\n"
-        + "6. Student Feedback Comment\\n"
+        + "\n\nProvide these sections:\n"
+        + "1. Suggested Grade (only if points are provided)\n"
+        + "2. Rubric Breakdown with evidence and explanations\n"
+        + "3. Strengths\n"
+        + "4. Areas for Improvement\n"
+        + "5. Instructor Review Required\n"
+        + "6. Student Feedback Comment\n"
         + "Write one short student-facing paragraph of 3 to 5 sentences. "
         + "Explain what the student did well and identify one or two "
         + "specific improvements for future submissions. "

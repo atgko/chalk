@@ -13,6 +13,7 @@ import streamlit as st
 from chalk.config import describe_provider
 from chalk.costs import format_cost
 from chalk.errors import ChalkError
+from chalk.generation.assignment_quality import review_assignment_draft
 from chalk.generation.course_level import (
     AI_TASK_HEADING,
     COURSE_LEVELS,
@@ -228,6 +229,26 @@ def _assignment_fields() -> dict:
         "What should students learn or demonstrate?",
         placeholder="Students should apply course concepts to a realistic business problem and defend their recommendation.",
     )
+    framework_labels = {
+        "none": "None (existing behavior)",
+        "backward_design": "Backward Design (UbD)",
+        "fink": "Fink's Taxonomy of Significant Learning",
+        "constructive_alignment": "Constructive Alignment",
+    }
+    framework = st.selectbox(
+        "Educational framework (optional)",
+        list(framework_labels),
+        format_func=framework_labels.get,
+        key="assignment-educational-framework",
+        help="Aligns assignment tasks with instructor-provided learning goals.",
+    )
+    evidence = ""
+    if framework != "none":
+        evidence = st.text_area(
+            "Evidence of learning (optional)",
+            placeholder="How should students demonstrate what they learned?",
+            key="assignment-learning-evidence",
+        )
     description = ""
     if mode == "enhance":
         description = st.text_area("Paste the existing assignment", height=180)
@@ -293,6 +314,8 @@ def _assignment_fields() -> dict:
         "assignment_mode": mode,
         "assignment_name": name,
         "assignment_goal": goal,
+        "educational_framework": framework,
+        "learning_evidence": evidence,
         "assignment_description": description,
         "assignment_requirements": requirements,
         "assignment_scenario": scenario,
@@ -361,6 +384,16 @@ def _render_draft(paths: ProjectPaths, course_data: CourseData, draft: Generated
     else:
         with st.container(border=True):
             st.markdown(draft.text)
+    if draft.request.content_type == "assignment":
+        issues = review_assignment_draft(draft.text, draft.request)
+        if issues:
+            st.warning(
+                "Assignment quality review found possible issues. "
+                "Check before saving or sharing."
+            )
+            for issue in issues:
+                st.markdown(f"- {issue}")
+
     if draft.request.include_ai_component and not has_ai_task_section(draft.text):
         st.warning(
             f"This draft has no \"{AI_TASK_HEADING}\" section, so the AI-use task may be hard to "
