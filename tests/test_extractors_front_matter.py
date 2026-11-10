@@ -39,18 +39,10 @@ def test_parse_labeled_line_accepts_common_label_variants(line, expected):
     assert parse_labeled_line(line) == expected
 
 
-@pytest.mark.parametrize(
-    ("line", "expected"),
-    [
-        ("Time:\t\tThursday 6:00 - 10:00 pm (start 10/1)", ("meeting_pattern", "Thursday 6:00 - 10:00 pm (start 10/1)")),
-        ("Times: Tue/Thu 9:10 am - 10:30 am", ("meeting_pattern", "Tue/Thu 9:10 am - 10:30 am")),
-        # A bare "Time:" that isn't a weekday and clock time is something else.
-        ("Time: 24-hour turnaround on email", None),
-        ("Time: TBA", None),
-    ],
-)
-def test_a_bare_time_label_is_the_class_time_only_with_a_day_and_time(line, expected):
-    assert parse_labeled_line(line) == expected
+def test_a_bare_time_label_is_not_the_class_time():
+    # Deliberate (BACKLOG.md): in the online IS 6640, "Time:" is the
+    # webinar, not the class.
+    assert parse_labeled_line("Time:\t\tTuesdays 5PM – 6PM") is None
 
 
 def test_labeled_lines_split_by_a_soft_line_break_are_each_read():
@@ -64,8 +56,8 @@ def test_labeled_lines_split_by_a_soft_line_break_are_each_read():
         ]
     )
 
-    assert fields["meeting_pattern"] == "Thursday 6:00 - 10:00 pm (start 10/1)"
     assert fields["location"] == "SFEBB 5130"
+    assert fields["meeting_pattern"] == ""
 
 
 def test_labeled_lines_still_extract_every_field():
