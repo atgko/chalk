@@ -6,6 +6,7 @@ calls the AI and shouldn't stop if the instructor switches tabs."""
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, missing_pdf_note, preview_rollover
 from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
+from chalk.rollover.date_overrides import override_week_dates
 from chalk.rollover.meeting_days import (
     DAY_ABBREVIATIONS,
     format_meeting_days,
@@ -275,9 +277,38 @@ def _apply_finished_job() -> None:
         return
     session.set_rollover_plan(stored)
     session.set_rollover_written([])
+    st.session_state.pop(_DATES_KEY, None)  # a new preview starts from its own dates
     if elsewhere:
         background.finished_elsewhere(_TAB, f"The rollover preview for {stored.inputs[0]} is ready on the Rollover tab.")
         st.rerun()
+
+
+_DATES_KEY = "rollover-new-dates"
+
+
+def _render_editable_dates(plan: RolloverPlan) -> RolloverPlan:
+    """The preview table, with each class week's new date editable (Nov 9
+    UAT: instructors should be able to override a date that doesn't fit
+    their class). Returns the plan with the instructor's dates applied."""
+    edited = st.data_editor(
+        tables.preview_date_rows(plan.preview),
+        hide_index=True,
+        disabled=("Week", "Current", "Check"),
+        column_config={
+            "New": st.column_config.DateColumn(
+                "New",
+                format="ddd MMM D",
+                help="Click a date to change it. Break rows follow the calendar.",
+            )
+        },
+        key=_DATES_KEY,
+    )
+    st.caption("To use a different date for a week, click its date under New and pick another.")
+    rolled_over, preview = override_week_dates(plan.rolled_over, plan.preview, tables.edited_dates(edited))
+    if preview is plan.preview:
+        return plan
+    st.info(preview.general_flags[-1])
+    return dataclasses.replace(plan, rolled_over=rolled_over, preview=preview)
 
 
 def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
@@ -294,7 +325,7 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
         st.warning(flag)
     for flag in preview.week_flags():
         st.warning(flag)
-    st.dataframe(tables.preview_rows(preview), hide_index=True)
+    plan = _render_editable_dates(plan)
     st.markdown(
         "**Files to be written:**  \n"
         + "  \n".join(
