@@ -492,3 +492,28 @@ def test_generate_without_a_source_explains_how_to_add_one(project, tmp_path, ll
     assert "Choose at least one of your own source materials" in result.err
     assert "pass it with --source <file name>" in result.err
     assert not llm
+
+
+def test_rollover_with_no_input_to_confirm_writes_nothing(project, tmp_path):
+    def closed_stdin(_prompt):
+        raise EOFError
+
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+    out, err = io.StringIO(), io.StringIO()
+
+    code = main(["rollover", "--term", "Fall 2027", "--no-llm", "--project", str(project)], input_fn=closed_stdin, out=out, err=err)
+
+    assert code != 0 or "Wrote" not in out.getvalue()
+    assert not (project / "outputs" / "syllabus.docx").exists()
+
+
+def test_rollover_can_move_weeks_past_a_break(project, tmp_path):
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+
+    result = run(
+        "rollover", "--term", "Fall 2027", "--weeks", "9", "--no-llm", "--meeting-days", "W",
+        "--move-past-breaks", "--project", str(project), "--yes",
+    )  # fmt: skip
+
+    assert result.code == 0
+    assert "so Week 8 and the weeks after it move a week later" in result.out

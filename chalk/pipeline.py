@@ -57,9 +57,11 @@ from chalk.rollover.class_details import (
     updated_course_details,
 )
 from chalk.rollover.docx_rollover import write_rolled_over_docx
+from chalk.rollover.holiday_mentions import stale_holiday_flag
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
 from chalk.rollover.pdf_rollover import PdfRolloverError, keeps_pdf_layout, write_rolled_over_pdf
 from chalk.rollover.preview import RolloverPreview, roll_over_course
+from chalk.rollover.season_change import is_season_change
 
 # The metrics/report label for an AI read of a PDF syllabus.
 PDF_READING_CONTENT_TYPE = "pdf_syllabus_reading"
@@ -289,6 +291,7 @@ def preview_rollover(
     breaks_not_observed: frozenset[str] = frozenset(),
     class_time: str | None = None,
     location: str | None = None,
+    move_past_breaks: bool = False,
     on_progress: ProgressCallback | None = None,
 ) -> RolloverPlan:
     """Compute a rollover without writing anything. `on_progress` follows
@@ -314,6 +317,7 @@ def preview_rollover(
         llm_generate_topics=llm_generate_topics,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
+        move_past_breaks=move_past_breaks,
         on_progress=on_progress,
     )
     text_changes, class_notes = class_detail_changes(course_data.course, class_time, location)
@@ -327,9 +331,12 @@ def preview_rollover(
     ]
     flags = [_duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)]
     flags += change_flags(text_changes) + class_notes
+    season_changed = is_season_change(course_data.course.term, target_term)
+    lines = _syllabus_lines(paths, course_data) if class_time is not None or season_changed else []
     if class_time is not None:
-        lines = _syllabus_lines(paths, course_data)
         flags.append(mentions_flag(other_time_mentions(lines, text_changes, course_data.course)))
+    if season_changed:
+        flags.append(stale_holiday_flag(lines, course_data, target_term, calendars))
     if is_converted_from_pdf(course_data.course.source_file):
         pdf_flag = _pdf_copy_flag(paths, course_data, rolled_over)
         if pdf_flag is None:

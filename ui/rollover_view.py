@@ -20,6 +20,7 @@ from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, missing_pdf_note, preview_rollover
 from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
+from chalk.rollover.break_weeks import MOVE_PAST_BREAKS_LABEL
 from chalk.rollover.date_overrides import override_week_dates
 from chalk.rollover.meeting_days import (
     DAY_ABBREVIATIONS,
@@ -72,6 +73,13 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             value=env_is_configured(paths.env),
         )
     meeting_days, breaks_not_observed = _render_schedule_inputs(paths, course_data, term)
+    move_past_breaks = st.checkbox(
+        MOVE_PAST_BREAKS_LABEL,
+        key="rollover-move-past-breaks",
+        help="Ticked: when a break the class takes off covers every class day of a week, that week and the "
+        "later ones move a week later, and the break gets a row in the schedule. Unticked, such a week "
+        "is only flagged in the preview.",
+    )
     class_time, location = _render_class_details(course_data, term)
 
     inputs = (
@@ -83,6 +91,7 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         breaks_not_observed,
         class_time,
         location,
+        move_past_breaks,
         course_data.course.term,
         course_data.course.extracted_at,
     )
@@ -245,7 +254,7 @@ def _compute_plan(
     paths: ProjectPaths, course_data: CourseData, inputs: tuple, *, on_progress: ProgressCallback
 ) -> StoredPlan:
     """Runs on the background thread, so no Streamlit calls here."""
-    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed, class_time, location = inputs[:8]
+    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed, class_time, location, move = inputs[:9]
     plan = preview_rollover(
         paths,
         course_data,
@@ -257,6 +266,7 @@ def _compute_plan(
         breaks_not_observed=breaks_not_observed,
         class_time=class_time,
         location=location,
+        move_past_breaks=move,
         on_progress=on_progress,
     )
     return StoredPlan(inputs, plan)

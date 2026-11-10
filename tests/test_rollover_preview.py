@@ -224,7 +224,8 @@ def test_no_duration_change_means_no_general_flag():
         course_data, target_term="Fall 2027", calendars=CALENDARS
     )
 
-    assert preview.general_flags == []
+    # The only note is how to move Week 8 past Fall Break 2027, which covers it.
+    assert [flag for flag in preview.general_flags if "covers all of Week" not in flag] == []
 
 
 def test_shrinking_duration_drops_trailing_weeks():

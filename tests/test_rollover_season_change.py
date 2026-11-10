@@ -203,7 +203,7 @@ def test_season_change_to_a_term_not_in_the_calendar_flags_the_stale_break():
 def test_same_season_rollover_has_no_break_replacement_flag():
     _, preview = roll_over_course(_fall_2026_course(), target_term="Fall 2027", calendars=CALENDARS)
 
-    assert not any("break" in flag.lower() for flag in preview.general_flags)
+    assert not any("breaks come from the" in flag for flag in preview.general_flags)
 
 
 def test_fall_to_spring_renames_the_break_in_university_dates_and_keeps_order():
