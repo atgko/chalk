@@ -60,7 +60,7 @@ The welcome screen asks for an AI provider.
 
 Do these in order. They're the same steps we show the sponsor. [DEMO.md](DEMO.md) has the talking points that go with each one.
 
-The sample files for uploading are in the project folder at **`projects/Chalk-Demo/try-these/`**. Open that folder in File Explorer or Finder now so it's easy to find.
+The sample files for uploading are in the demo project's folder at **`Documents/Chalk Courses/Chalk-Demo/try-these/`**. Open that folder in File Explorer or Finder now so it's easy to find.
 
 1. **Review tab.** The sample syllabus (IS 6640 Networking and Servers) is already loaded.
    ✅ **Check:** 4 learning objectives, 6 grading weights, and 10 weeks plus a Fall Break row in the week-by-week table.
@@ -93,7 +93,7 @@ To put the demo back to its original state: close the browser tab, stop Chalk (c
 When the team pushes changes:
 
 - **Git:** in the folder, run `git pull`.
-- **ZIP:** download and unzip the new version. To keep your demo progress, copy the `projects` folder across.
+- **ZIP:** download and unzip the new version. Your courses are in Documents/Chalk Courses, outside the app folder, so they carry over. (Courses made before Nov 2026 in the old version's `projects` folder: copy that folder across to keep them listed.)
 
 Then start Chalk as usual. It notices new requirements and installs them automatically.
 

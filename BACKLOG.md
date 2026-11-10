@@ -76,7 +76,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 **Workflow and UX**
 
 - **P1: Make the whole workflow easier to follow.** Go through each tab as a first-time instructor would: what to do next, what's required, and where the results end up. The items below are the specific problems Dave hit.
-- **P1: Make opening a project and creating one look clearly different.** Dave was confused at first on the launch screen. Options: two boxes, each with a line of text explaining it, or fewer fields with plain labels such as "Existing project" and "Create a new project". Pick whichever is clearest to someone new. Related: the P3 item under App / UX about Open Project opening a file browser.
 - **P2: Go straight to Rollover once extraction is done.** Today a successful extraction opens Review (see Done, Oct 8). Decide whether Review still needs to come first, or whether Rollover can come next and Review stay available.
 
 **Rollover**
@@ -89,7 +88,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 **Files and packaging**
 
-- **P1: Save projects and exports somewhere instructors look for them,** such as a Chalk folder in Documents on Windows, instead of inside the app folder among its program files. At least show where each file was saved.
 - **P1: Tidy the release download.** The instructor should see only the launcher (the batch file) and their own work. Put the rest of the app's files in a subfolder they can open if they need to.
 
 **To check by hand (work done overnight Nov 9–10)**
@@ -100,6 +98,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 - [ ] Class day at rollover (fix/rollover-class-day): roll Dave's Wednesday course to Spring 2027. "Class meets on" should start on Wed (from the syllabus, or from the days its rows are dated on), and every week in the preview, including added weeks, should be a Wednesday. Change it to Tue/Thu and check each week moves to its Tuesday.
 - [ ] Required fields (feat/required-fields): on Generate, pick Assignment and Rubric and check the fields marked * and the message naming what's missing; Generate stays greyed out until they're filled in. Upload and Grading Assistant show the * too. Is anything else required that isn't marked?
 - [ ] Ollama setup (feat/ollama-setup): with Ollama running, choose Local model (Ollama) under Settings → AI Provider and click **Find Ollama**: the address fills in and the model list shows what `ollama list` shows. Then quit Ollama, click it again, and check the instructions make sense to an instructor. Check the example address in the provider list is no longer a link.
+- [ ] Courses folder and launch screen (feat/courses-folder): start Chalk and check the launch screen's two boxes, "Open an existing course" and "Start a new course", read clearly to someone new. Create a course and check it lands in Documents\Chalk Courses (on a OneDrive-synced PC, the Documents folder OneDrive uses). Existing courses in the app's projects folder should still be listed, marked "(in the Chalk app folder)". On Export, check the saved-in path and **Open the folder**. Also try it on a Mac.
 
 ## Extraction
 
@@ -146,6 +145,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 ## Done
 
+- 2026-11-10: New courses are saved in a **Chalk Courses** folder in Documents (Windows' real Documents folder, wherever OneDrive moved it; `CHALK_PROJECTS_DIR` overrides), including the demo course. Courses already in the app's `projects` folder are still listed, marked "(in the Chalk app folder)". The launch screen has two boxes, **Open an existing course** and **Start a new course**, each saying what it's for; the save location moved under **Save it somewhere else**, and **Show the courses folder** opens it. Export (and the files a rollover just wrote) says where the files are saved, with an **Open the folder** button (Nov 9 UAT).
 - 2026-11-10: Ollama setup: the Endpoint URL and Model name fields start at the README's values (`http://localhost:11434/v1`, `llama3.1:70b`) even after switching providers. A **Find Ollama** button checks the typed address, `OLLAMA_HOST`, and localhost for a running Ollama (its `/api/tags` list), fills in the address, and offers the pulled models as a dropdown. If none are pulled it says to run `ollama pull`; if Ollama isn't found it explains how to check with `ollama list`, start it, or type a server's address (also the field's help). The example address in the provider list is code, not a link that opened a "page not found" page (Nov 9 UAT).
 - 2026-11-10: Required fields are marked with a * on Upload, Generate, and the Grading Assistant. Generate shows greyed out under a message naming the empty required fields (e.g. "Assignment name; What should students learn or demonstrate?") instead of disappearing, and unlocks once they're filled in (Nov 9 UAT).
 - 2026-11-10: A schedule with one row per week is dated on the first "Class meets on" day of each week in the new term, added weeks too: a Wednesday class's Week 1 is the first Wednesday, not the term's Monday. "Class meets on" starts from the syllabus's class days, or else the weekday most of the old rows were dated on, so a syllabus with Monday week labels keeps its Monday dates. Leaving it empty keeps the week's start date (Nov 9 UAT).

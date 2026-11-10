@@ -46,6 +46,7 @@ from chalk.generation.specs import (
     QUIZ_FORMATS,
     SPECS,
 )
+from chalk.locations import default_projects_dir
 from chalk.models import CourseData
 from chalk.pdf_import import PDF_READ_METHODS
 from chalk.pipeline import (
@@ -126,7 +127,9 @@ def build_parser() -> argparse.ArgumentParser:
     init.set_defaults(handler=_cmd_init)
 
     demo = commands.add_parser("demo", help="Create (or reopen) the demo course with a sample syllabus loaded.")
-    demo.add_argument("--dir", type=Path, default=Path.cwd() / "projects", help="Where to put it (default: ./projects).")
+    demo.add_argument(
+        "--dir", type=Path, default=default_projects_dir(), help="Where to put it (default: Documents/Chalk Courses)."
+    )
     demo.add_argument("--reset", action="store_true", help="Rebuild it from scratch (keeps its .env).")
     demo.set_defaults(handler=_cmd_demo)
 
