@@ -6,6 +6,7 @@ calls the AI and shouldn't stop if the instructor switches tabs."""
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from pathlib import Path
 
@@ -14,15 +15,18 @@ import streamlit as st
 from chalk.calendar_data import find_term, load_calendars, suggest_target_term
 from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
+from chalk.links import url_for
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, missing_pdf_note, preview_rollover
 from chalk.progress import ProgressCallback
 from chalk.project import ProjectPaths
+from chalk.rollover.date_overrides import override_week_dates
 from chalk.rollover.meeting_days import (
     DAY_ABBREVIATIONS,
     format_meeting_days,
     parse_meeting_days,
     schedule_meeting_days,
+    usual_row_weekday,
 )
 from chalk.rollover.season_change import multi_day_breaks
 from chalk.sessions import (
@@ -50,9 +54,10 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
     error = background.pop_error(_TAB)
     if error:
         st.error(error)
-    if background.is_running(_JOB):
-        background.render_progress(_JOB)
-        return
+    # The fields stay on screen while the preview computes: Streamlit
+    # forgets a field that isn't drawn, so hiding them lost a typed
+    # location, and the finished preview no longer matched (Nov 10 UAT).
+    running = background.is_running(_JOB)
 
     term, week1_date = _render_term_inputs(paths, course_data)
     default_duration = course_data.course.duration_weeks
@@ -68,6 +73,7 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             value=env_is_configured(paths.env),
         )
     meeting_days, breaks_not_observed = _render_schedule_inputs(paths, course_data, term)
+    class_time, location = _render_class_details(course_data, term)
 
     inputs = (
         term,
@@ -76,9 +82,14 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         use_llm,
         meeting_days,
         breaks_not_observed,
+        class_time,
+        location,
         course_data.course.term,
         course_data.course.extracted_at,
     )
+    if running:
+        background.render_progress(_JOB)
+        return
     if st.button("Preview rollover", type="primary", disabled=not term):
         _preview(paths, course_data, inputs)
 
@@ -100,6 +111,7 @@ def _render_written(paths: ProjectPaths, written: list[Path]) -> None:
     tab (UAT, Nov 4: a list of "Download outputs/..." buttons read as a
     mess). course.json is the project's own data, not a download."""
     outputs = [path for path in written if path.is_relative_to(paths.outputs_dir) and path.exists()]
+    export_view.render_saved_location(paths, key_prefix="rollover")
     export_view.render_sections(paths, outputs, key_prefix="rollover")
     st.caption("These and every other output are also on the Export tab, with a download-everything zip.")
 
@@ -158,10 +170,13 @@ def _render_schedule_inputs(
     a schedule with a row per class meeting is dated on them) and which of
     the target term's breaks the class actually takes off."""
     by_meeting = schedule_meeting_days(course_data.weeks)
-    default_days = parse_meeting_days(course_data.course.meeting_pattern) or by_meeting
+    default_days = (
+        parse_meeting_days(course_data.course.meeting_pattern) or by_meeting or usual_row_weekday(course_data.weeks)
+    )
     help_text = (
         "Holiday and break warnings are only shown for weeks where one lands on a class day. "
-        "Leave empty to check each week's start date instead."
+        "A class with one row per week is dated on the first of these days in each week. "
+        "Leave empty to keep each week's start date."
     )
     if by_meeting:
         help_text += (
@@ -185,10 +200,37 @@ def _render_schedule_inputs(
             f"Class takes {entry['label']} off ({_short_range(entry)})",
             value=True,
             key=f"observe-break-{term}-{entry['label']}",
-            help="Turn off if the class meets through this break (common in some graduate programs).",
+            help="Turn off if the class meets through this break (common in some graduate programs). Left on, "
+            "a week of class the break covers moves a week later, and the break gets a row in the schedule.",
         )
     )
     return meeting_days, not_observed
+
+
+def _render_class_details(course_data: CourseData, term: str) -> tuple[str, str]:
+    """The new term's class days and time (starting from the old ones) and
+    location (starting blank: rooms are assigned each term). Rollover
+    changes them wherever the syllabus repeats them (Nov 9 UAT)."""
+    course = course_data.course
+    st.markdown(f"**Class time and place{' in ' + term if term else ''}**")
+    time_col, place_col = st.columns(2)
+    class_time = time_col.text_input(
+        "New class days and time",
+        value=course.meeting_pattern,
+        placeholder="e.g. Wed 6:00-8:45 pm",
+        key=f"rollover-class-time-{course.extracted_at.isoformat()}",
+        help="Changed everywhere the syllabus repeats the old class time. Other lines that mention a "
+        "day and time are listed in the preview to check by hand.",
+    )
+    location = place_col.text_input(
+        "New location",
+        placeholder=f"Was: {course.location}" if course.location else "e.g. WEB L104, or Online",
+        key=f"rollover-location-{course.extracted_at.isoformat()}",
+        help="Rooms are assigned each term, so this starts blank. Left blank, the old location in the "
+        "syllabus becomes TBA.",
+    )
+    st.caption(f"Find the new room and time in the [class schedule]({url_for('class_schedule')}).")
+    return class_time, location
 
 
 def _short_range(entry: dict) -> str:
@@ -208,7 +250,7 @@ def _compute_plan(
     paths: ProjectPaths, course_data: CourseData, inputs: tuple, *, on_progress: ProgressCallback
 ) -> StoredPlan:
     """Runs on the background thread, so no Streamlit calls here."""
-    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed = inputs[:6]
+    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed, class_time, location = inputs[:8]
     plan = preview_rollover(
         paths,
         course_data,
@@ -218,6 +260,8 @@ def _compute_plan(
         llm_generate_topics=use_llm,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
+        class_time=class_time,
+        location=location,
         on_progress=on_progress,
     )
     return StoredPlan(inputs, plan)
@@ -238,9 +282,38 @@ def _apply_finished_job() -> None:
         return
     session.set_rollover_plan(stored)
     session.set_rollover_written([])
+    st.session_state.pop(_DATES_KEY, None)  # a new preview starts from its own dates
     if elsewhere:
         background.finished_elsewhere(_TAB, f"The rollover preview for {stored.inputs[0]} is ready on the Rollover tab.")
         st.rerun()
+
+
+_DATES_KEY = "rollover-new-dates"
+
+
+def _render_editable_dates(plan: RolloverPlan) -> RolloverPlan:
+    """The preview table, with each class week's new date editable (Nov 9
+    UAT: instructors should be able to override a date that doesn't fit
+    their class). Returns the plan with the instructor's dates applied."""
+    edited = st.data_editor(
+        tables.preview_date_rows(plan.preview),
+        hide_index=True,
+        disabled=("Week", "Current", "Check"),
+        column_config={
+            "New": st.column_config.DateColumn(
+                "New",
+                format="ddd MMM D",
+                help="Click a date to change it. Break rows follow the calendar.",
+            )
+        },
+        key=_DATES_KEY,
+    )
+    st.caption("To use a different date for a week, click its date under New and pick another.")
+    rolled_over, preview = override_week_dates(plan.rolled_over, plan.preview, tables.edited_dates(edited))
+    if preview is plan.preview:
+        return plan
+    st.info(preview.general_flags[-1])
+    return dataclasses.replace(plan, rolled_over=rolled_over, preview=preview)
 
 
 def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
@@ -257,7 +330,7 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
         st.warning(flag)
     for flag in preview.week_flags():
         st.warning(flag)
-    st.dataframe(tables.preview_rows(preview), hide_index=True)
+    plan = _render_editable_dates(plan)
     st.markdown(
         "**Files to be written:**  \n"
         + "  \n".join(
@@ -275,7 +348,15 @@ def _render_plan(paths: ProjectPaths, plan: RolloverPlan) -> None:
             st.error(exc.user_message)
             return
         session.set_rollover_plan(None)
-        session.set_rollover_written(written, missing_pdf_note(plan, written))
+        note = missing_pdf_note(plan, written)
+        session.set_rollover_written(written, note)
+        # Next step: the new files, and the Canvas page to copy into Canvas
+        # (Nov 10 UAT: the Canvas HTML file opened as code, not something to paste).
+        session.go_to_tab("Export")
+        session.flash(
+            "Rollover complete. Previous versions were archived. Download the new syllabus below, and copy "
+            "the Canvas page from the box under Canvas syllabus page." + (f" {note}" if note else "")
+        )
         st.rerun()
     if cancel_col.button("Cancel", key="cancel-rollover"):
         session.set_rollover_plan(None)

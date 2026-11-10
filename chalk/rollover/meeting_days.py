@@ -66,6 +66,21 @@ def schedule_meeting_days(weeks: Iterable[Week]) -> tuple[int, ...]:
     return full_weeks.most_common(1)[0][0]
 
 
+_USUAL_DAY_SHARE = 0.75
+
+
+def usual_row_weekday(weeks: Iterable[Week]) -> tuple[int, ...]:
+    """For a schedule with one row per week, the weekday most of its rows
+    are dated on ("Week 1 (8/26)", "Week 2 (9/2)" -> Wed), as a guess at
+    the class day when the syllabus doesn't say. Empty when the rows don't
+    mostly share one weekday, or the schedule has a row per meeting."""
+    dates = [week.date for week in weeks if not week.is_break and week.meeting is None and week.date is not None]
+    if not dates:
+        return ()
+    day, count = Counter(date.weekday() for date in dates).most_common(1)[0]
+    return (day,) if count >= _USUAL_DAY_SHARE * len(dates) else ()
+
+
 def days_in_order_from(start: dt.date, days: Iterable[int]) -> list[int]:
     """`days` in the order they come in a week that begins on `start`'s
     weekday: from a Wednesday, Mon/Wed is (Wed, Mon)."""
@@ -93,5 +108,5 @@ def meeting_days_changed_flag(meeting_pattern: str, meeting_days: tuple[int, ...
         return None
     return (
         f"The syllabus lists class meetings as \"{meeting_pattern}\", but this rollover checks "
-        f"{format_meeting_days(meeting_days)} — update the meeting pattern in the syllabus by hand."
+        f"{format_meeting_days(meeting_days)} — update the class days and time to match."
     )

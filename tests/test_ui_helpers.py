@@ -1,6 +1,7 @@
 """Unit tests for the UI's Streamlit-free helpers (upload handling, table
 row builders, argv parsing) and the term-suggestion used by Rollover."""
 
+import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -93,8 +94,28 @@ def test_preview_rows_mark_flags_and_new_weeks(tmp_project):
     rows = {row["Week"]: row for row in tables.preview_rows(plan.preview)}
     assert rows["Week 1"] == {"Week": "Week 1", "Current": "Aug 24 (8/24)", "New": "Aug 23 (8/23)", "Check": "✓"}
     assert rows["Week 11"]["Current"] == "(new week)"
-    assert rows["Week 8"]["Check"].startswith("⚠ Fall Break 2027 is Oct 9–17")
+    assert rows["Week 8"]["New"] == "Oct 18 (10/18)"  # moved past Fall Break 2027 (Oct 9-17)
     assert rows["Fall Break"]["New"] == "Oct 9 (10/9)"
+
+
+def test_preview_date_rows_hold_real_dates_for_editing(tmp_project):
+    plan = preview_rollover(tmp_project, build_sample_course_data(), "Fall 2027", llm_generate_topics=False)
+
+    rows = tables.preview_date_rows(plan.preview)
+
+    assert rows[0] == {"Week": "Week 1", "Current": "Aug 24 (8/24)", "New": dt.date(2027, 8, 23), "Check": "✓"}
+    assert len(rows) == len(plan.preview.week_changes)
+
+
+def test_edited_dates_accept_dates_and_datetimes_and_blank_cells():
+    rows = [
+        {"New": dt.date(2027, 8, 25)},
+        {"New": dt.datetime(2027, 9, 1, 0, 0)},
+        {"New": None},
+        {"New": "not a date"},
+    ]
+
+    assert tables.edited_dates(rows) == [dt.date(2027, 8, 25), dt.date(2027, 9, 1), None, None]
 
 
 def test_regular_week_count_ignores_breaks():

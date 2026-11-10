@@ -4,14 +4,14 @@ A 10–15 minute walkthrough for a sponsor or faculty audience, using the built-
 
 ## Before the meeting (5 minutes, the day before)
 
-1. **Start it once.** Double-click **`Start Chalk Demo.bat`** (Windows) or **`Start Chalk Demo.command`** (macOS). The first run installs everything, which takes a couple of minutes and needs internet. Later starts take a few seconds.
+1. **Start it once.** Double-click **`Start Chalk Demo.bat`** (Windows) or **`Start Chalk Demo.command`** (macOS; the first time, approve it under System Settings → Privacy & Security → **Open Anyway**, see [GETTING-STARTED.md](GETTING-STARTED.md#3-start-the-demo)). The first run installs everything, which takes a couple of minutes and needs internet. Later starts take a few seconds.
 2. **Connect an AI provider** on the welcome screen if you'll show generation. The key is saved only in the demo project, and it survives a demo reset. With no key, click **Skip for now**: everything except step 6 below still works.
 3. **Do one practice generation** so you know the provider works from the meeting network.
 4. **Reset the demo** so you start clean: on the launch screen click **Reset the demo course**, or run `Start Chalk.bat --reset-demo`.
 
 On the day, double-click **`Start Chalk Demo`**. The browser opens on the demo course. Keep the black console window open (minimizing it is fine). Closing it stops Chalk.
 
-Sample files for live uploads are in **`projects/Chalk-Demo/try-these/`**. Have that folder open in File Explorer or Finder so the file dialog is quick to navigate.
+Sample files for live uploads are in **`Documents/Chalk Courses/Chalk-Demo/try-these/`**. Have that folder open in File Explorer or Finder so the file dialog is quick to navigate.
 
 ## The walkthrough
 
@@ -22,7 +22,7 @@ The IS 6640 Word syllabus was already extracted: course details, four learning o
 
 **3. Next year's syllabus in seconds (3 min). Rollover tab.**
 - The target term defaults to **Fall 2027**. Click **Preview rollover**.
-- Every week moves to its new date (Week 1: Aug 24 → Aug 23), and the preview flags **"Fall Break 2027 is Oct 9–17 — confirm Week 8 timing"**. This is the exact example from the project requirements. It also flags Labor Day landing on Week 3.
+- Every week moves to its new date (Week 1: Aug 24 → Aug 23). Fall Break 2027 (Oct 9–17) covers Week 8, so the preview says Week 8 and the weeks after it move a week later. (The project requirements' example only flagged it; since the Nov 10 UAT Chalk moves the weeks.) It also flags Labor Day landing on Week 3.
 - *"It never renumbers quizzes or exams, and it never writes anything until you confirm."* Click **Confirm rollover**.
 - Download **outputs/syllabus.docx** and open it in Word: the formatting is untouched, and only the dates changed.
 

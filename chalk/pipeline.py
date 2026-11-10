@@ -16,6 +16,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from docx import Document
+
 from chalk import costs, metrics
 from chalk.calendar_data import find_term, load_calendars
 from chalk.canvas_export import write_canvas_html
@@ -45,10 +47,21 @@ from chalk.pdf_import.docx_writer import write_docx
 from chalk.pdf_import.layout import read_pdf_blocks
 from chalk.progress import CHARS_PER_TOKEN, ProgressCallback, report, within, writing_progress
 from chalk.project import ProjectPaths, copy_into_source, load_course, save_course
+from chalk.rollover.class_details import (
+    TextChange,
+    change_flags,
+    class_detail_changes,
+    document_lines,
+    mentions_flag,
+    other_time_mentions,
+    updated_course_details,
+)
 from chalk.rollover.docx_rollover import write_rolled_over_docx
+from chalk.rollover.holiday_mentions import stale_holiday_flag
 from chalk.rollover.markdown_rollover import write_rolled_over_markdown
 from chalk.rollover.pdf_rollover import PdfRolloverError, keeps_pdf_layout, write_rolled_over_pdf
 from chalk.rollover.preview import RolloverPreview, roll_over_course
+from chalk.rollover.season_change import is_season_change
 
 # The metrics/report label for an AI read of a PDF syllabus.
 PDF_READING_CONTENT_TYPE = "pdf_syllabus_reading"
@@ -70,6 +83,9 @@ class RolloverPlan:
     rolled_over: CourseData
     preview: RolloverPreview
     files_to_write: list[Path]
+    # The class time and location, changed everywhere the syllabus repeats
+    # them (chalk/rollover/class_details.py).
+    text_changes: tuple[TextChange, ...] = ()
 
 
 # ---- Extraction --------------------------------------------------------------
@@ -273,10 +289,15 @@ def preview_rollover(
     llm_generate_topics: bool = True,
     meeting_days: tuple[int, ...] = (),
     breaks_not_observed: frozenset[str] = frozenset(),
+    class_time: str | None = None,
+    location: str | None = None,
     on_progress: ProgressCallback | None = None,
 ) -> RolloverPlan:
     """Compute a rollover without writing anything. `on_progress` follows
     chalk/progress.py.
+
+    `class_time` and `location` are the new term's (None: leave them as
+    they are); the old ones are changed wherever the syllabus repeats them.
 
     Raises TermNotInCalendarError if `target_term` isn't in the project's
     calendars.json and no manual Week 1 date was given — the caller then
@@ -297,12 +318,23 @@ def preview_rollover(
         breaks_not_observed=breaks_not_observed,
         on_progress=on_progress,
     )
+    text_changes, class_notes = class_detail_changes(course_data.course, class_time, location)
+    details = updated_course_details(course_data.course, class_time, location)
+    if details:
+        rolled_over = rolled_over.model_copy(update={"course": rolled_over.course.model_copy(update=details)})
     files_to_write = [
         paths.syllabus_output(course_data.course.source_format),
         paths.canvas_html,
         paths.course_brief,
     ]
     flags = [_duration_mismatch_flag(course_data, rolled_over.course.duration_weeks)]
+    flags += change_flags(text_changes) + class_notes
+    season_changed = is_season_change(course_data.course.term, target_term)
+    lines = _syllabus_lines(paths, course_data) if class_time is not None or season_changed else []
+    if class_time is not None:
+        flags.append(mentions_flag(other_time_mentions(lines, text_changes, course_data.course)))
+    if season_changed:
+        flags.append(stale_holiday_flag(lines, course_data, target_term, calendars))
     if is_converted_from_pdf(course_data.course.source_file):
         pdf_flag = _pdf_copy_flag(paths, course_data, rolled_over)
         if pdf_flag is None:
@@ -317,7 +349,20 @@ def preview_rollover(
         rolled_over=rolled_over,
         preview=preview,
         files_to_write=files_to_write,
+        text_changes=tuple(text_changes),
     )
+
+
+def _syllabus_lines(paths: ProjectPaths, course_data: CourseData) -> list[str]:
+    """The syllabus's text, line by line, to look for other mentions of a
+    class time; empty if the file is gone (confirming says so)."""
+    try:
+        source = _resolve_source_file(paths, course_data)
+        if course_data.course.source_format == "word":
+            return document_lines(Document(str(source)))
+        return source.read_text(encoding="utf-8").splitlines()
+    except (ChalkError, OSError, ValueError):
+        return []
 
 
 def _pdf_copy_flag(paths: ProjectPaths, course_data: CourseData, rolled_over: CourseData) -> str | None:
@@ -370,7 +415,13 @@ def confirm_rollover(paths: ProjectPaths, plan: RolloverPlan) -> list[Path]:
         if plan.original.course.source_format == "word"
         else write_rolled_over_markdown
     )
-    writer(source_syllabus, plan.rolled_over, syllabus_output, eval_log_path=paths.eval_log)
+    writer(
+        source_syllabus,
+        plan.rolled_over,
+        syllabus_output,
+        eval_log_path=paths.eval_log,
+        text_changes=list(plan.text_changes),
+    )
     pdf_copy = _write_pdf_copy(paths, plan, source_syllabus, syllabus_output)
 
     written = [

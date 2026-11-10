@@ -32,6 +32,9 @@ class CourseInfo(BaseModel):
     term_end: dt.date
     duration_weeks: int = Field(gt=0)
     meeting_pattern: str = ""
+    # Where the class meets ("WEB L104", "Online"), read from a
+    # "Location:"/"Room:" line; rollover can change it (Nov 9 UAT).
+    location: str = ""
     instructor: str = ""
     source_format: Literal["word", "markdown"]
     source_file: str

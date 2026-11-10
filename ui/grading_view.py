@@ -1,4 +1,4 @@
-from chalk.grading.export import export_pdf, export_word
+from chalk.grading.export import evidence_lines, export_pdf, export_word
 
 """AI Grading Assistant interface."""
 
@@ -16,6 +16,41 @@ from chalk.config import (
 from chalk.grading.eval_log import grade_and_log
 from chalk.grading.strictness import STANDARD, STRICTNESS_LABELS, STRICTNESS_LEVELS
 from chalk.llm_client import LLMProviderError
+
+
+def markdown_report(result):
+    """Build the downloadable Markdown grading report."""
+    report = (
+        f"# AI Grading Recommendations\n\n"
+        f"Suggested Grade: {result['earned_total']:g}/{result['possible_total']:g} "
+        f"({result['percentage']:.1f}%)\n\n"
+        "## Rubric Breakdown\n\n"
+    )
+
+    for criterion in result["criteria"]:
+        report += (
+            f"### {criterion['name']}\n"
+            f"Score: {criterion['earned']:g}/"
+            f"{criterion['possible']:g}\n\n"
+            f"{criterion['reasoning']}\n\n"
+            + "".join(f"{line}\n\n" for line in evidence_lines(criterion))
+            + (
+                f"Suggested deduction: "
+                f"{criterion['possible'] - criterion['earned']:g} points\n\n"
+                f"{criterion['deduction_comment']}\n\n"
+                if criterion['possible'] > criterion['earned']
+                else ""
+            )
+        )
+
+    report += (
+        f"## Student Feedback\n\n{result['student_feedback']}\n\n"
+        f"## Instructor Review Notes\n\n"
+        f"{result['instructor_notes']}\n\n"
+        "All grades are preliminary recommendations "
+        "requiring instructor approval.\n"
+    )
+    return report
 
 
 def extract_submission(uploaded_file):
@@ -84,13 +119,13 @@ def render(paths):
         return
 
     uploaded_file = st.file_uploader(
-        "Upload student submission",
+        "Upload student submission *",
         type=["pdf", "docx", "txt"],
         key="grading_submission",
     )
 
     rubric = st.text_area(
-        "Assignment instructions and grading rubric",
+        "Assignment instructions and grading rubric *",
         height=200,
         placeholder="Paste the assignment requirements and rubric here...",
         key="grading_rubric",
@@ -114,7 +149,17 @@ def render(paths):
         "the rubric. Standard grades as before.",
     ) or STANDARD
 
-    ready = uploaded_file is not None and bool(rubric.strip())
+    missing = [
+        name
+        for name, filled in (
+            ("the student submission", uploaded_file is not None),
+            ("the instructions and rubric", bool(rubric.strip())),
+        )
+        if not filled
+    ]
+    ready = not missing
+    if missing:
+        st.caption(f"Fill in the required fields (marked *) to analyze: {' and '.join(missing)}.")
 
     if st.button(
         "Analyze Submission",
@@ -186,6 +231,12 @@ def render(paths):
             )
             st.progress(min(1.0, score / maximum))
             st.write(criterion["reasoning"])
+            # Plain text: a quote is the student's own words, so it isn't
+            # read as Markdown (no links, images, or formatting).
+            for quote in criterion.get("evidence", []):
+                st.text(f'Evidence: "{quote}"')
+            if criterion.get("evidence_note"):
+                st.warning(criterion["evidence_note"])
 
             deduction = maximum - score
             comment = criterion.get("deduction_comment", "")
@@ -217,35 +268,7 @@ def render(paths):
         st.subheader("Instructor Review Notes")
         st.write(result["instructor_notes"] or "No additional notes provided.")
 
-        report = (
-            f"# AI Grading Recommendations\\n\\n"
-            f"Suggested Grade: {earned:g}/{possible:g} "
-            f"({percentage:.1f}%)\\n\\n"
-            "## Rubric Breakdown\\n\\n"
-        )
-
-        for criterion in result["criteria"]:
-            report += (
-                f"### {criterion['name']}\\n"
-                f"Score: {criterion['earned']:g}/"
-                f"{criterion['possible']:g}\\n\\n"
-                f"{criterion['reasoning']}\\n\\n"
-                + (
-                    f"Suggested deduction: "
-                    f"{criterion['possible'] - criterion['earned']:g} points\\n\\n"
-                    f"{criterion['deduction_comment']}\\n\\n"
-                    if criterion['possible'] > criterion['earned']
-                    else ""
-                )
-            )
-
-        report += (
-            f"## Student Feedback\\n\\n{student_feedback}\\n\\n"
-            f"## Instructor Review Notes\\n\\n"
-            f"{result['instructor_notes']}\\n\\n"
-            "All grades are preliminary recommendations "
-            "requiring instructor approval.\\n"
-        )
+        report = markdown_report(result)
 
         st.subheader("Download Grading Report")
 

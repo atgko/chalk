@@ -117,6 +117,10 @@ def calculate_scores(criteria):
             "deduction_comment": (
                 deduction_comment.strip() if earned < possible else ""
             ),
+            # Quotes from the submission behind the score, and a note when
+            # they don't support it (chalk/grading/grounding.py).
+            "evidence": list(criterion.get("evidence", [])),
+            "evidence_note": criterion.get("evidence_note", ""),
         })
 
         earned_total += earned

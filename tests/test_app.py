@@ -19,7 +19,7 @@ from chalk.generation.engine import NO_SOURCES_MESSAGE
 from chalk.pipeline import extract_syllabus, save_reviewed_course
 from chalk.project import ProjectPaths, init_project, load_course, save_course
 from tests.fixtures import docx_builder, md_builder
-from ui import session
+from ui import project_picker, session
 from ui.common import NEEDS_COURSE_MESSAGE
 from ui.session import PendingExtraction, TableChoice
 
@@ -220,7 +220,7 @@ def test_cancelled_browse_keeps_what_was_typed(dialog):
     at = at.run()
 
     assert_no_exception(at)
-    assert _field(at, "Create it inside").endswith("projects")
+    assert _field(at, "Create it inside") == str(project_picker.DEFAULT_PARENT)
     assert not _dialog_note_shown(at)
 
 
@@ -287,6 +287,7 @@ def test_first_run_setup_can_be_skipped(tmp_project):
         "Settings",
         "AI Provider",
         "Metrics",
+        "More settings",
     ]
     assert "Provider: Not configured" in at.caption[-1].value
 
@@ -432,7 +433,7 @@ def test_switch_course_goes_back_to_the_projects_list(saved_project):
     at = launch(saved_project, chalk_course_state="kept for this course")
     at = click(at, "All courses")
     assert_no_exception(at)
-    assert "Open a course project" in [h.value for h in at.subheader]
+    assert "Open an existing course" in [h.value for h in at.subheader]
     assert "chalk_course_state" not in at.session_state  # nothing carries over to the next course
     assert session.PROJECT_ROOT_KEY not in at.session_state
 
@@ -586,7 +587,8 @@ def test_review_then_confirm_and_save_writes_course_json_and_brief(project, tmp_
     assert_no_exception(at)
     assert load_course(project).course.duration_weeks == 4
     assert project.course_brief.exists()
-    assert "Saved the course and updated the course brief." in texts(at.success)
+    assert any(s.startswith("Saved the course and updated the course brief. Next, roll it over") for s in texts(at.success))
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Rollover"
 
 
 def test_discard_drops_the_unsaved_extraction_and_keeps_the_saved_course(saved_project, tmp_path):
@@ -627,6 +629,17 @@ def test_review_lets_the_instructor_fill_in_missing_details(project, tmp_path):
     assert_no_exception(at)
     course = load_course(project).course
     assert (course.section, course.credits, course.instructor) == ("001", 3, "Matt Pecsok")
+
+
+def test_review_explains_the_section_and_class_time_fields(project, tmp_path):
+    # Nov 9 UAT: "Meeting pattern - what is that?"
+    _save_course_missing_details(project, tmp_path)
+    at = launch(project)
+
+    class_time = widget(at.text_input, "Class days and time")
+    assert class_time.placeholder.startswith("e.g.")
+    assert "Class meets on" in class_time.help
+    assert "IS 6640-001" in widget(at.text_input, "Section").help
 
 
 def test_review_rejects_non_numeric_credits(project, tmp_path):
@@ -711,6 +724,9 @@ def test_rollover_preview_then_confirm_writes_files(saved_project):
 
     assert_no_exception(at)
     assert "Rollover complete. Previous versions were archived." in texts(at.success)
+    # Next step: Export, where the Canvas page is ready to copy (Nov 10 UAT).
+    assert at.session_state[session.ACTIVE_TAB_KEY] == "Export"
+    assert any("copy the Canvas page from the box under Canvas syllabus page" in s for s in texts(at.success))
     # Grouped and plainly named, as on the Export tab; course.json isn't offered.
     downloads = [el.proto.label for el in at.get("download_button")]
     assert {"Syllabus (Markdown)", "Canvas syllabus page (HTML)", "Course brief"} <= set(downloads)
@@ -750,7 +766,7 @@ def test_lengthening_offers_ai_drafts_and_shows_the_flags(saved_project):
     assert_no_exception(at)
     warnings = texts(at.warning)
     assert any("Course length changed from 2 to 9 weeks" in w for w in warnings)
-    assert any("confirm Week 8 timing" in w for w in warnings)
+    assert any("covers Week 8's class days, so Week 8 and the weeks after it move a week later" in w for w in warnings)
 
 
 def test_a_row_per_meeting_schedule_starts_with_its_own_meeting_days(project, tmp_path):
@@ -820,15 +836,16 @@ def test_generate_without_source_materials_asks_for_one(saved_project):
     at = launch(saved_project)
     assert "No source materials added yet" in " ".join(texts(at.caption))
     assert NO_SOURCES_MESSAGE in texts(at.info)
-    assert "Generate" not in {b.label for b in at.button}
+    assert widget(at.button, "Generate").disabled
 
 
 def test_generate_waits_until_a_source_is_selected(sourced_project):
     at = launch(sourced_project)
     assert NO_SOURCES_MESSAGE in texts(at.info)
-    assert "Generate" not in {b.label for b in at.button}
+    assert widget(at.button, "Generate").disabled
+    assert any("at least one source material" in w for w in texts(at.warning))
 
-    widget(at.multiselect, "Source materials to use").set_value(["notes.txt"])
+    widget(at.multiselect, "Source materials to use *").set_value(["notes.txt"])
     at = at.run()
 
     assert any(c.startswith("Estimated cost: up to ~$") for c in texts(at.caption))
@@ -838,7 +855,7 @@ def test_generate_waits_until_a_source_is_selected(sourced_project):
 def test_generate_lists_source_materials_except_the_syllabus(saved_project):
     (saved_project.source_dir / "ch3.txt").write_text("notes", encoding="utf-8")
     at = launch(saved_project)
-    assert widget(at.multiselect, "Source materials to use").options == ["ch3.txt"]
+    assert widget(at.multiselect, "Source materials to use *").options == ["ch3.txt"]
 
 
 def test_generate_review_then_save(sourced_project, llm):
@@ -1001,13 +1018,14 @@ def test_rubric_waits_for_assignment_details(sourced_project, llm):
     at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("rubric")
     at = at.run()
-    assert "A rubric needs an assignment name and a description of the assignment." in texts(
-        at.caption
+    assert (
+        "To generate, fill in the required fields (marked *): Assignment name; Assignment description."
+        in texts(at.warning)
     )
-    assert "Generate" not in {b.label for b in at.button}
+    assert widget(at.button, "Generate").disabled
 
-    widget(at.text_input, "Assignment name").input("Lab 3")
-    widget(at.text_area, "Assignment description").input("Build two VLANs.")
+    widget(at.text_input, "Assignment name *").input("Lab 3")
+    widget(at.text_area, "Assignment description *").input("Build two VLANs.")
     at = click(at.run(), "Generate")
 
     assert_no_exception(at)
@@ -1179,8 +1197,8 @@ def test_an_assignment_can_include_an_ai_use_task(sourced_project, llm):
     at = launch_with_source(sourced_project)
     widget(at.selectbox, "Content type").set_value("assignment")
     at = at.run()
-    widget(at.text_input, "Assignment name").input("Design Brief")
-    widget(at.text_area, "What should students learn or demonstrate?").input("Defend a design.")
+    widget(at.text_input, "Assignment name *").input("Design Brief")
+    widget(at.text_area, "What should students learn or demonstrate? *").input("Defend a design.")
     widget(at.checkbox, "Include a task where students use AI as part of their learning").check()
     at = click(at.run(), "Generate")
 
@@ -1189,15 +1207,33 @@ def test_an_assignment_can_include_an_ai_use_task(sourced_project, llm):
     assert any('no "AI-USE TASK" section' in warning for warning in texts(at.warning))
 
 
+def test_an_assignment_names_its_missing_required_fields(sourced_project, llm):
+    # Nov 9 UAT: mark required fields with * and say which are missing.
+    at = launch_with_source(sourced_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+
+    assert any("Assignment name; What should students learn or demonstrate?" in w for w in texts(at.warning))
+    assert widget(at.button, "Generate").disabled
+    assert "* Required" in texts(at.caption)
+
+    widget(at.text_input, "Assignment name *").input("Design Brief")
+    at = at.run()
+    assert any(w.endswith(": What should students learn or demonstrate?.") for w in texts(at.warning))
+    assert llm == []
+
+
 # ---- Launch screen: your projects, and creating one that exists ---------------------------
 
 
 @pytest.fixture
 def projects_folder(tmp_path, monkeypatch):
-    """The launch screen's default projects/ folder, empty to start."""
+    """The launch screen's courses folder, empty to start, and no courses
+    left in the app's own projects/ folder."""
     folder = tmp_path / "projects"
     folder.mkdir()
     monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", folder)
+    monkeypatch.setattr("ui.project_picker.LEGACY_PARENT", tmp_path / "no-legacy-projects")
     return folder
 
 
@@ -1376,7 +1412,7 @@ def test_grading_says_student_work_goes_to_the_hosted_provider(project):
 
     assert_no_exception(at)
     assert any("is sent to OpenAI" in note for note in _grading_notes(at))
-    assert any(u.label == "Upload student submission" for u in at.get("file_uploader"))
+    assert any(u.label == "Upload student submission *" for u in at.get("file_uploader"))
 
 
 def test_grading_with_a_local_model_says_student_work_stays_here(tmp_project):
@@ -1400,7 +1436,7 @@ def test_grading_is_off_for_a_provider_not_approved_for_student_data(tmp_project
 
     assert_no_exception(at)
     assert any("Google Gemini isn't approved" in note for note in texts(at.error))
-    assert not any(u.label == "Upload student submission" for u in at.get("file_uploader"))
+    assert not any(u.label == "Upload student submission *" for u in at.get("file_uploader"))
 
 
 def test_grading_asks_for_a_provider_before_any_upload(tmp_project):
@@ -1409,4 +1445,243 @@ def test_grading_asks_for_a_provider_before_any_upload(tmp_project):
 
     assert_no_exception(at)
     assert any("to use the Grading Assistant" in note for note in texts(at.info))
-    assert not any(u.label == "Upload student submission" for u in at.get("file_uploader"))
+    assert not any(u.label == "Upload student submission *" for u in at.get("file_uploader"))
+
+
+def test_upload_and_grading_mark_their_required_fields(saved_project):
+    # Nov 9 UAT: required fields carry a *, and the page says what's missing.
+    at = launch(saved_project)
+    captions = texts(at.caption)
+
+    assert "* Required: choose your syllabus file to extract the course." in captions
+    assert (
+        "Fill in the required fields (marked *) to analyze: the student submission and the instructions "
+        "and rubric." in captions
+    )
+    assert widget(at.button, "Analyze Submission").disabled
+
+
+# ---- Ollama: pre-filled address and Find Ollama (Nov 9 UAT) -------------------------
+
+
+def _choose_ollama(tmp_project, monkeypatch, found):
+    from chalk.ollama import OllamaServer
+
+    monkeypatch.setattr("ui.provider_form.find_ollama", lambda hosts: found and OllamaServer(*found))
+    at = launch(tmp_project)
+    at.radio[0].set_value("Local model (Ollama)")
+    return at.run()
+
+
+def test_ollama_fields_start_with_the_readme_defaults(tmp_project, monkeypatch):
+    at = _choose_ollama(tmp_project, monkeypatch, None)
+
+    assert widget(at.text_input, "Endpoint URL").value == "http://localhost:11434/v1"
+    assert widget(at.text_input, "Model name").value == "llama3.1:70b"
+    assert "ollama list" in widget(at.text_input, "Endpoint URL").help
+
+
+def test_the_example_ollama_address_is_not_a_link():
+    # Clicking the address opened a "page not found" page; in backticks it's plain code.
+    from ui.provider_form import captions
+
+    assert "`http://localhost:11434/v1`" in captions()[-1]
+
+
+def test_find_ollama_fills_the_address_and_lists_the_installed_models(tmp_project, monkeypatch):
+    at = _choose_ollama(tmp_project, monkeypatch, ("http://127.0.0.1:11434/v1", ("gemma3:4b", "llama3.1:8b")))
+
+    at = click(at, "Find Ollama")
+
+    assert_no_exception(at)
+    assert widget(at.text_input, "Endpoint URL").value == "http://127.0.0.1:11434/v1"
+    assert widget(at.selectbox, "Model name").options == ["gemma3:4b", "llama3.1:8b"]
+    assert widget(at.selectbox, "Model name").value == "gemma3:4b"
+    assert any("Found Ollama at" in s for s in texts(at.success))
+
+
+def test_find_ollama_says_how_to_pull_a_model_when_none_is_installed(tmp_project, monkeypatch):
+    at = click(_choose_ollama(tmp_project, monkeypatch, ("http://localhost:11434/v1", ())), "Find Ollama")
+
+    assert any("no models are installed yet" in w and "ollama pull" in w for w in texts(at.warning))
+    assert widget(at.text_input, "Model name").value == "llama3.1:70b"
+
+
+def test_find_ollama_explains_how_to_find_the_address_when_it_isnt_running(tmp_project, monkeypatch):
+    at = click(_choose_ollama(tmp_project, monkeypatch, None), "Find Ollama")
+
+    assert any(w.startswith("Couldn't find Ollama on this computer.") and "ollama serve" in w for w in texts(at.warning))
+    assert widget(at.text_input, "Endpoint URL").value == "http://localhost:11434/v1"
+
+
+# ---- Launch screen: open vs start, and where courses are saved (Nov 9 UAT) ----------------
+
+
+def test_the_launch_screen_separates_opening_a_course_from_starting_one(projects_folder):
+    at = launch()
+
+    headings = [h.value for h in at.subheader]
+    assert "Open an existing course" in headings and "Start a new course" in headings
+    assert "Pick up a course you've already set up in Chalk." in texts(at.caption)
+    assert f"New courses are saved in `{projects_folder}`, so their files are easy to find." in texts(at.caption)
+
+
+def test_courses_still_in_the_app_folder_are_listed_and_labeled(projects_folder, tmp_path, monkeypatch):
+    legacy = tmp_path / "app-projects"
+    monkeypatch.setattr("ui.project_picker.LEGACY_PARENT", legacy)
+    init_project(projects_folder, "IS-6640-Spring-2027")
+    init_project(legacy, "IS-4490-Fall-2026")
+
+    at = launch()
+
+    assert widget(at.selectbox, "Your projects").options == [
+        "IS-6640-Spring-2027",
+        "IS-4490-Fall-2026 (in the Chalk app folder)",
+    ]
+
+
+def test_show_the_courses_folder_opens_it(projects_folder, monkeypatch):
+    opened = []
+    monkeypatch.setattr("ui.project_picker.open_in_file_manager", lambda folder: opened.append(folder) or True)
+    init_project(projects_folder, "IS-6640-Spring-2027")
+
+    click(launch(), "Show the courses folder")
+
+    assert opened == [projects_folder]
+
+
+def test_show_the_courses_folder_names_it_when_it_cant_open(projects_folder, monkeypatch):
+    monkeypatch.setattr("ui.project_picker.open_in_file_manager", lambda folder: False)
+    init_project(projects_folder, "IS-6640-Spring-2027")
+
+    at = click(launch(), "Show the courses folder")
+
+    assert f"Your courses are in `{projects_folder}`." in texts(at.info)
+
+
+def test_export_says_where_the_files_are_saved_and_opens_the_folder(saved_project, monkeypatch):
+    opened = []
+    monkeypatch.setattr("ui.export_view.open_in_file_manager", lambda folder: opened.append(folder) or True)
+    at = launch(saved_project)
+
+    assert any(f"Saved on this computer in `{saved_project.outputs_dir}`" in c for c in texts(at.caption))
+    at = click(at, "Open the folder")
+
+    assert opened == [saved_project.outputs_dir]
+
+
+def test_export_names_the_folder_when_it_cant_be_opened(saved_project, monkeypatch):
+    monkeypatch.setattr("ui.export_view.open_in_file_manager", lambda folder: False)
+
+    at = click(launch(saved_project), "Open the folder")
+
+    assert f"Open this folder in File Explorer or Finder: `{saved_project.outputs_dir}`" in texts(at.info)
+
+
+# ---- Settings → More settings: the links Chalk uses (sponsor, Nov 9) ----------------------
+
+
+def test_more_settings_lists_every_link_with_what_its_for(saved_project):
+    at = launch(saved_project)
+
+    calendar = widget(at.text_input, "University of Utah academic calendars")
+    assert calendar.value == "https://registrar.utah.edu/academic-calendars/"
+    assert "calendars.json" in calendar.help
+    assert widget(at.button, "Put every link back").disabled
+
+
+def test_more_settings_leaves_out_the_ai_providers_pages(saved_project):
+    # Nov 10 UAT: not linked at all, so nothing to keep current.
+    from ui.provider_form import captions
+
+    assert not any("](" in caption for caption in captions())
+    labels = [box.label for box in launch(saved_project).text_input]
+
+    for name in ("OpenAI API keys", "Anthropic API keys", "Google AI Studio API keys", "Ollama download"):
+        assert name not in labels
+    assert "Canvas student guides" in labels
+
+
+def test_a_changed_link_is_saved_and_used(saved_project, courses_folder):
+    from chalk.links import url_for
+
+    at = launch(saved_project)
+    widget(at.text_input, "University of Utah class schedule").input("https://class-schedule.example.edu/")
+    at = click(at, "Save links")
+
+    assert_no_exception(at)
+    assert "Saved. 1 link(s) differ from Chalk's own." in texts(at.success)
+    assert url_for("class_schedule") == "https://class-schedule.example.edu/"
+    assert (courses_folder / "Chalk links.json").is_file()
+    assert widget(at.text_input, "University of Utah class schedule (changed on this computer)")
+
+    at = click(at, "Put every link back")
+    assert url_for("class_schedule") == "https://class-schedule.app.utah.edu/"
+
+
+def test_a_bad_link_is_refused(saved_project, courses_folder):
+    at = launch(saved_project)
+    widget(at.text_input, "Canvas student guides").input("community.canvaslms.com")
+    at = click(at, "Save links")
+
+    assert any("isn't a web address" in e for e in texts(at.error))
+    assert not (courses_folder / "Chalk links.json").exists()
+
+
+# ---- Rollover: the new term's class time and place (Nov 9 UAT) --------------------------
+
+
+def test_rollover_asks_for_the_new_class_time_and_location(saved_project):
+    at = launch(saved_project)
+
+    class_time = widget(at.text_input, "New class days and time")
+    location = widget(at.text_input, "New location")
+    assert class_time.value == load_course(saved_project).course.meeting_pattern
+    assert location.value == ""
+    assert "becomes TBA" in location.help
+    assert any("[class schedule](https://class-schedule.app.utah.edu/)" in c for c in texts(at.caption))
+
+
+def test_rollover_has_no_option_for_moving_weeks_past_a_break(saved_project):
+    # Nov 10 UAT: it always happens, so there's nothing to tick.
+    at = launch(saved_project)
+
+    assert not any("past a break" in box.label for box in at.checkbox)
+    at = click(at, "Preview rollover")
+    assert_no_exception(at)
+
+
+def test_each_build_tab_says_where_it_sits_in_the_workflow(saved_project):
+    # Nov 9 UAT: make the path through Chalk obvious.
+    captions = texts(launch(saved_project).caption)
+
+    for step in ("Step 1 of 4 · Upload.", "Step 2 of 4 · Review.", "Step 3 of 4 · Rollover.", "Step 4 of 4 · Export."):
+        assert any(step in caption for caption in captions), step
+    assert any("Optional · Generate." in caption for caption in captions)
+
+
+def test_a_rollover_preview_keeps_what_was_typed_while_it_computes(saved_project, monkeypatch):
+    # Nov 10 UAT: with a new location typed, Preview rollover "didn't do
+    # anything" until the third click. The fields were hidden while the
+    # preview computed, so Streamlit forgot them, and the finished preview
+    # no longer matched the inputs.
+    pending = []
+
+    def run_later(fn, *args, **kwargs) -> Future:
+        future: Future = Future()
+        pending.append((future, fn, args, kwargs))
+        return future
+
+    monkeypatch.setattr("ui.background._submit", run_later)
+    at = launch(saved_project)
+    widget(at.text_input, "New location").input("WEB L104")
+    widget(at.number_input, "Duration (weeks)").set_value(load_course(saved_project).course.duration_weeks)
+    at = click(at, "Preview rollover")  # still computing on this run
+
+    future, fn, args, kwargs = pending.pop()
+    future.set_result(fn(*args, **kwargs))
+    at = at.run()
+
+    assert_no_exception(at)
+    assert widget(at.text_input, "New location").value == "WEB L104"
+    assert any(s.startswith("Rollover preview") for s in texts(at.subheader))

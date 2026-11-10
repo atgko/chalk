@@ -29,6 +29,7 @@ from pathlib import Path
 
 from chalk import branding
 from chalk.archiving import archive_before_write
+from chalk.links import url_for
 from chalk.models import CourseData, CourseInfo, Week
 from chalk.rollover.preview import break_name
 
@@ -42,7 +43,7 @@ _SCHEDULE_COLUMNS = ("Week", "Dates", "Topics", "Assignments")
 _TECHNICAL_ISSUES = (
     f'<p style="{_INDENT_STYLE}">You can get help with Canvas by using the Help menu on the left-side global '
     "navigation bar. From the help menu, you could "
-    '<a href="https://community.canvaslms.com/t5/Student-Guide/tkb-p/student">search canvas guides</a>, '
+    '<a href="{canvas_student_guides}">search canvas guides</a>, '
     "report a problem, or contact 24/7 Canvas Support.</p>\n"
     f'<p style="{_INDENT_STYLE}">You can also contact Utah TLT help desk by phone: 801-581-6112 during business '
     'hours or by email at <a href="mailto:classhelp@utah.edu">classhelp@utah.edu</a>.</p>'
@@ -50,10 +51,18 @@ _TECHNICAL_ISSUES = (
 _ACCESSIBILITY = (
     f'<p style="{_INDENT_STYLE}">The University of Utah seeks to provide equal access to its programs, services, '
     "and activities for people with disabilities. If you will need accommodations in the class, reasonable "
-    'prior notice needs to be given to the <a href="https://disability.utah.edu/">Center for Disability '
+    'prior notice needs to be given to the <a href="{disability_center}">Center for Disability '
     "Services</a>, 162 Union Building, 581-5020 (V/TDD). CDS will work with you and the instructor to make "
     "arrangements for accommodations.</p>"
 )
+
+
+def _with_links(html: str) -> str:
+    """Fill in the links the standard sections use, from the links file
+    (chalk/links.py), so they can be updated without changing code."""
+    for key in ("canvas_student_guides", "disability_center"):
+        html = html.replace("{" + key + "}", escape(url_for(key), quote=True))
+    return html
 
 
 def render_canvas_html(course_data: CourseData) -> str:
@@ -61,8 +70,8 @@ def render_canvas_html(course_data: CourseData) -> str:
     sections = [
         ("Instructor", _instructor(course_data.course)),
         ("Detailed Syllabus", _detailed_syllabus(course_data)),
-        ("Technical Issues", _TECHNICAL_ISSUES),
-        ("Americans with Disabilities Act", _ACCESSIBILITY),
+        ("Technical Issues", _with_links(_TECHNICAL_ISSUES)),
+        ("Americans with Disabilities Act", _with_links(_ACCESSIBILITY)),
     ]
     lines = [
         (
@@ -119,7 +128,7 @@ def _instructor(course: CourseInfo) -> str:
             _paragraph(f"<strong>{escape(course.instructor or 'Instructor goes here')}</strong>"),
             _labelled("Email", "Insert email here"),
             _labelled("Office Hours", "Insert office hours here"),
-            _labelled("Classroom", "TBA"),
+            _labelled("Classroom", course.location or "TBA"),
             _labelled("Time", course.meeting_pattern or "Insert class days and times here"),
             _labelled("TA", "Insert TA name here"),
             _labelled("TA email", "Insert TA email here"),

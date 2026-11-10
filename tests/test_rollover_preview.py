@@ -109,10 +109,10 @@ def test_reproduces_the_prd_worked_example_exactly():
     assert changes_by_week[3].new_date == dt.date(2027, 9, 6)
     assert changes_by_week[7].new_date == dt.date(2027, 10, 4)
 
-    week8_flags = changes_by_week[8].flags
-    assert len(week8_flags) == 1
-    assert "Fall Break 2027 is Oct 9–17" in week8_flags[0]
-    assert "confirm Week 8 timing" in week8_flags[0]
+    # Fall Break 2027 (Oct 9-17) covers Week 8, so it moves a week later
+    # (Nov 10 UAT; the PRD's example only flagged it).
+    assert changes_by_week[8].new_date == dt.date(2027, 10, 18)
+    assert any("covers Week 8's class days, so Week 8 and the weeks after it move a week later" in flag for flag in preview.general_flags)
 
     # Week 9's rolled-over date (Oct 18) falls just outside the Oct 9-17
     # break window.
@@ -224,7 +224,8 @@ def test_no_duration_change_means_no_general_flag():
         course_data, target_term="Fall 2027", calendars=CALENDARS
     )
 
-    assert preview.general_flags == []
+    # The only note is that Week 8 moved past Fall Break 2027, which covers it.
+    assert [flag for flag in preview.general_flags if "covers Week 8's class days" not in flag] == []
 
 
 def test_shrinking_duration_drops_trailing_weeks():
@@ -366,7 +367,7 @@ def test_weeks_added_by_expansion_have_no_old_date_in_the_preview():
     assert changes_by_week[10].old_date == dt.date(2026, 10, 26)
     assert changes_by_week[11].old_date is None
     assert changes_by_week[12].old_date is None
-    assert changes_by_week[12].new_date == dt.date(2027, 11, 8)
+    assert changes_by_week[12].new_date == dt.date(2027, 11, 15)  # a week later, past Fall Break
 
 
 def test_drafting_topics_for_added_weeks_reports_each_week(monkeypatch):

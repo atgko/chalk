@@ -176,6 +176,18 @@ def test_keeps_the_templates_standard_help_and_accessibility_text():
     assert '<a href="https://disability.utah.edu/">Center for Disability Services</a>' in html
 
 
+def test_the_help_links_come_from_the_links_file():
+    # Sponsor, Nov 9: outside links live in one file a maintainer can update.
+    from chalk.links import save_links
+
+    save_links({"disability_center": "https://cda.example.edu/", "canvas_student_guides": "https://guides.example.edu/?a=1&b=2"})
+
+    html = render_canvas_html(build_sample_course_data())
+
+    assert '<a href="https://cda.example.edu/">Center for Disability Services</a>' in html
+    assert '<a href="https://guides.example.edu/?a=1&amp;b=2">search canvas guides</a>' in html
+
+
 def test_write_creates_the_file_and_archives_the_previous_version(tmp_path):
     output_path = tmp_path / "outputs" / "canvas.html"
     log_path = tmp_path / "eval-log.json"

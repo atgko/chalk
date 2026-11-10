@@ -33,7 +33,12 @@ Pick one:
 **Windows:** double-click **`Start Chalk Demo.bat`**.
 - If a blue **"Windows protected your PC"** box appears, click **More info → Run anyway**. It appears because the file came from the internet.
 
-**Mac:** right-click **`Start Chalk Demo.command`** → **Open** → **Open** again. You only need to right-click the first time, to get past Gatekeeper.
+**Mac:** double-click **`Start Chalk Demo.command`**. The first time, macOS says *"Start Chalk Demo.command" Not Opened*, because the file came from the internet:
+1. Click **Done** (not Move to Trash).
+2. Open **System Settings → Privacy & Security** and scroll down to **Security**.
+3. Next to *"Start Chalk Demo.command" was blocked*, click **Open Anyway**, confirm with your password or Touch ID, and click **Open Anyway** again.
+
+You only do this once per launcher (Start Chalk needs its own approval the first time you use it). Right-click → Open no longer gets past this on current macOS.
 - If you downloaded the ZIP and nothing happens, open Terminal in the folder and run `chmod +x "Start Chalk.command" "Start Chalk Demo.command"`, then try again.
 
 A console window opens. **The first start takes a few minutes** while it installs components; you'll see `Installing Chalk's components...`. Later starts take seconds.
@@ -55,13 +60,13 @@ The welcome screen asks for an AI provider.
 
 Do these in order. They're the same steps we show the sponsor. [DEMO.md](DEMO.md) has the talking points that go with each one.
 
-The sample files for uploading are in the project folder at **`projects/Chalk-Demo/try-these/`**. Open that folder in File Explorer or Finder now so it's easy to find.
+The sample files for uploading are in the demo project's folder at **`Documents/Chalk Courses/Chalk-Demo/try-these/`**. Open that folder in File Explorer or Finder now so it's easy to find.
 
 1. **Review tab.** The sample syllabus (IS 6640 Networking and Servers) is already loaded.
    ✅ **Check:** 4 learning objectives, 6 grading weights, and 10 weeks plus a Fall Break row in the week-by-week table.
 
 2. **Rollover tab.** Leave the target term on **Fall 2027** and click **Preview rollover**.
-   ✅ **Check:** Week 1 goes from Aug 24 to Aug 23, and two yellow flags appear: *Labor Day 2027 is Sep 6 — confirm Week 3 timing* and *Fall Break 2027 is Oct 9–17 — confirm Week 8 timing*.
+   ✅ **Check:** Week 1 goes from Aug 24 to Aug 23, and two yellow notes appear: *Labor Day 2027 is Sep 6 — confirm Week 3 timing*, and that Fall Break covers Week 8, so Week 8 and the weeks after it move a week later.
    Then click **Confirm rollover**. ✅ **Check:** *"Rollover complete"* with download buttons.
 
 3. **Export tab.** Download **outputs/syllabus.docx** and open it in Word.
@@ -88,7 +93,7 @@ To put the demo back to its original state: close the browser tab, stop Chalk (c
 When the team pushes changes:
 
 - **Git:** in the folder, run `git pull`.
-- **ZIP:** download and unzip the new version. To keep your demo progress, copy the `projects` folder across.
+- **ZIP:** download and unzip the new version. Your courses are in Documents/Chalk Courses, outside the app folder, so they carry over. (Courses made before Nov 2026 in the old version's `projects` folder: copy that folder across to keep them listed.)
 
 Then start Chalk as usual. It notices new requirements and installs them automatically.
 

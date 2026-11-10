@@ -33,7 +33,7 @@ def test_docx_fall_to_spring_relabels_and_moves_the_break_row(tmp_path):
     labels = _schedule_labels(output)
     assert not any("Fall Break" in label for label in labels)
     assert labels.index("Week 8 (3/1)") + 1 == labels.index("Spring Break (3/6 - 3/14)")
-    assert labels.index("Spring Break (3/6 - 3/14)") + 1 == labels.index("Week 9 (3/8)")
+    assert labels.index("Spring Break (3/6 - 3/14)") + 1 == labels.index("Week 9 (3/15)")
 
 
 def test_docx_break_row_keeps_its_other_cell_content(tmp_path):
@@ -65,7 +65,8 @@ def test_docx_spring_to_fall_adds_a_row_for_each_new_break(tmp_path):
 
     labels = _schedule_labels(output)
     assert labels.index("Week 7 (10/4)") + 1 == labels.index("Fall Break (10/9 - 10/17)")
-    assert labels.index("Week 14 (11/22)") + 1 == labels.index("Thanksgiving Break (11/25 - 11/28)")
+    assert labels.index("Fall Break (10/9 - 10/17)") + 1 == labels.index("Week 8 (10/18)")  # moved past it
+    assert labels.index("Week 13 (11/22)") + 1 == labels.index("Thanksgiving Break (11/25 - 11/28)")
     assert len(labels) == 18
 
 

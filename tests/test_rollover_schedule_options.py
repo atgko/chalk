@@ -12,6 +12,7 @@ from chalk.rollover.meeting_days import (
     format_meeting_days,
     meeting_days_changed_flag,
     parse_meeting_days,
+    usual_row_weekday,
 )
 from chalk.rollover.preview import roll_over_course
 from tests.test_rollover_preview import CALENDARS, _is6640_ten_week_course, _with_university_dates
@@ -91,28 +92,36 @@ def test_a_mon_wed_class_is_warned_about_a_monday_holiday():
     assert any("Labor Day 2027 is Sep 6" in flag for flag in _flags_by_week(preview)[3])
 
 
-def test_a_break_covering_a_class_day_mid_week_is_flagged():
-    # Week 8 starts Mon Oct 11; Fall Break 2027 runs Sat Oct 9 – Sun Oct 17.
+def test_a_break_covering_a_thursday_class_mid_week_moves_the_week():
+    # Week 8 starts Mon Oct 11; Fall Break 2027 runs Sat Oct 9 – Sun Oct 17,
+    # so it covers the Thursday class and Week 8 moves past it.
     _, preview = roll_over_course(
         _is6640_ten_week_course(), target_term="Fall 2027", calendars=CALENDARS, meeting_days=(THU,)
     )
 
-    flags = _flags_by_week(preview)
-    assert any("Fall Break" in flag and "Week 8" in flag for flag in flags[8])
-    assert flags[7] == [] and flags[9] == []
+    assert any("covers Week 8's class days, so Week 8 and the weeks after it move a week later" in flag for flag in preview.general_flags)
+    assert not any("Fall Break" in flag for flags in _flags_by_week(preview).values() for flag in flags)
 
 
-def test_thanksgiving_is_caught_for_a_thursday_class_even_though_the_week_starts_monday():
+def test_thanksgiving_is_caught_for_a_tue_thu_class_even_though_the_week_starts_monday():
     fall_course = _course(term="Fall 2026", term_start=dt.date(2026, 8, 24), weeks_count=16, breaks=[])
 
-    _, without_days = roll_over_course(fall_course, target_term="Fall 2027", calendars=SEASON_CALENDARS)
-    _, thursdays = roll_over_course(
-        fall_course, target_term="Fall 2027", calendars=SEASON_CALENDARS, meeting_days=(THU,)
+    # Meeting through Fall Break, so the weeks stay where they are.
+    through = frozenset({"Fall Break"})
+    _, without_days = roll_over_course(
+        fall_course, target_term="Fall 2027", calendars=SEASON_CALENDARS, breaks_not_observed=through
+    )
+    _, tue_thu = roll_over_course(
+        fall_course,
+        target_term="Fall 2027",
+        calendars=SEASON_CALENDARS,
+        meeting_days=(TUE, THU),  # Tuesday still meets, so the week stays and is flagged
+        breaks_not_observed=through,
     )
 
     # Week 14 starts Mon Nov 22, 2027; Thanksgiving Break is Thu Nov 25 – Sun Nov 28.
     assert not any("Thanksgiving" in flag for flag in _flags_by_week(without_days)[14])
-    assert any("Thanksgiving" in flag for flag in _flags_by_week(thursdays)[14])
+    assert any("Thanksgiving" in flag for flag in _flags_by_week(tue_thu)[14])
 
 
 def test_picking_days_that_differ_from_the_syllabus_adds_a_reminder():
@@ -188,3 +197,69 @@ def test_season_change_only_adds_the_breaks_the_class_observes():
     assert [week.label for week in new_course_data.weeks if week.is_break] == [
         "Thanksgiving Break (11/25 - 11/28)"
     ]
+
+
+# ---- a once-a-week class is dated on its meeting day (Nov 9 UAT) ---------------
+
+
+def _new_dates(course, **kwargs) -> dict[int, dt.date]:
+    new_course, _ = roll_over_course(course, target_term="Fall 2027", calendars=CALENDARS, **kwargs)
+    return {week.week_number: week.date for week in new_course.weeks if not week.is_break}
+
+
+def test_a_wednesday_class_with_a_row_per_week_is_dated_on_wednesdays():
+    # Fall 2027 starts Mon Aug 23; Dave's Wednesday class had Week 1 on that Monday.
+    dates = _new_dates(_is6640_ten_week_course(), meeting_days=(WED,))
+
+    assert dates[1] == dt.date(2027, 8, 25)
+    assert dates[10] == dt.date(2027, 11, 3)  # Weeks 8-10 a week later, past Fall Break
+    assert all(day.weekday() == WED for day in dates.values())
+
+
+def test_added_weeks_are_dated_on_the_meeting_day_too():
+    dates = _new_dates(_is6640_ten_week_course(), meeting_days=(WED,), target_duration_weeks=12)
+
+    assert dates[11] == dt.date(2027, 11, 10)
+    assert dates[12] == dt.date(2027, 11, 17)
+
+
+def test_a_row_per_week_with_two_meeting_days_is_dated_on_the_first_one():
+    dates = _new_dates(_is6640_ten_week_course(), meeting_days=(TUE, THU))
+
+    assert dates[1] == dt.date(2027, 8, 24)
+
+
+def test_without_meeting_days_a_row_per_week_stays_on_the_week_start():
+    dates = _new_dates(_is6640_ten_week_course())
+
+    assert dates[1] == dt.date(2027, 8, 23)
+
+
+def test_the_new_label_carries_the_meeting_day_date():
+    new_course, _ = roll_over_course(
+        _is6640_ten_week_course(), target_term="Fall 2027", calendars=CALENDARS, meeting_days=(WED,)
+    )
+
+    assert new_course.weeks[0].label == "Week 1 (8/25)"
+
+
+def test_the_usual_row_weekday_guesses_the_class_day():
+    course = _is6640_ten_week_course()  # rows on Mondays
+    wednesdays = [
+        week.model_copy(update={"date": week.date + dt.timedelta(days=2)}) if not week.is_break else week
+        for week in course.weeks
+    ]
+
+    assert usual_row_weekday(course.weeks) == (MON,)
+    assert usual_row_weekday(wednesdays) == (WED,)
+    assert usual_row_weekday([]) == ()
+
+
+def test_the_usual_row_weekday_is_empty_when_the_rows_disagree():
+    weeks = [
+        week.model_copy(update={"date": week.date + dt.timedelta(days=week.week_number % 3)})
+        for week in _is6640_ten_week_course().weeks
+        if not week.is_break
+    ]
+
+    assert usual_row_weekday(weeks) == ()

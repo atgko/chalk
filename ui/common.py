@@ -77,3 +77,21 @@ def export_buttons(text: str, *, content_type: str, subject: str, base_name: str
         mime=mime,
         key=f"{key}-download",
     )
+
+
+# Where each Build tab sits in the usual path through Chalk, shown at the
+# top of the tab (Nov 9 UAT: "direct them" so the workflow is obvious).
+WORKFLOW_STEPS = {
+    "Upload": "**Step 1 of 4 · Upload.** Choose your current syllabus. Chalk reads its schedule and course details.",
+    "Review": "**Step 2 of 4 · Review.** Check what Chalk read, fix anything blank or wrong, then click Confirm and save.",
+    "Rollover": "**Step 3 of 4 · Rollover.** Pick the new term, preview every date change, then confirm.",
+    "Export": "**Step 4 of 4 · Export.** Download the new syllabus and the Canvas page.",
+    "Generate": "**Optional · Generate.** Draft quizzes, assignments, and more from your own source materials.",
+    "Drafts": "**Optional · Drafts.** Everything you saved from Generate.",
+}
+
+
+def render_step(tab: str) -> None:
+    """The tab's place in the workflow, as a one-line caption."""
+    if tab in WORKFLOW_STEPS:
+        st.caption(WORKFLOW_STEPS[tab])

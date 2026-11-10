@@ -10,6 +10,7 @@ import streamlit as st
 
 from chalk.errors import ChalkError
 from chalk.generation.specs import SPECS
+from chalk.locations import open_in_file_manager
 from chalk.models import CourseData
 from chalk.pipeline import export_outputs
 from chalk.project import ProjectPaths, list_output_files, zip_outputs
@@ -21,8 +22,10 @@ _SECTION_NOTES = {
     "Syllabus": "The syllabus as Chalk last wrote it, from Confirm rollover.",
     "Course materials": "Drafts saved from Generate, as Markdown. For Word or PDF, open one on the Drafts tab.",
     "Canvas and course brief": (
-        "Rebuilt whenever you save the course or roll it over. The course brief is the one-page "
-        "summary Chalk gives the AI when it drafts course materials."
+        "To put the Canvas page on Canvas, copy it from the box under Canvas syllabus page on the Export "
+        "tab; the HTML file is the same page, to keep. The course brief is the one-page summary Chalk "
+        "gives the AI when it drafts course materials. Both are rebuilt whenever you save the course or "
+        "roll it over."
     ),
     "Other files": "Files in the outputs folder that Chalk didn't make.",
 }
@@ -41,11 +44,26 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             mime="application/zip",
             type="primary",
         )
+        render_saved_location(paths, key_prefix="export")
         render_sections(paths, files, key_prefix="export")
 
     if paths.canvas_html.exists():
         _render_canvas_page(paths.canvas_html.read_text(encoding="utf-8"))
     _render_rebuild(paths, course_data)
+
+
+def render_saved_location(paths: ProjectPaths, *, key_prefix: str) -> None:
+    """Where the files are on this computer, and a button that opens the
+    folder (Nov 9 UAT: instructors got lost looking for their files)."""
+    location_col, button_col = st.columns([4, 1], vertical_alignment="center")
+    location_col.caption(
+        f"Saved on this computer in `{paths.outputs_dir}`. A download button saves another copy "
+        "to your browser's Downloads folder."
+    )
+    if button_col.button("Open the folder", key=f"{key_prefix}-open-outputs") and not open_in_file_manager(
+        paths.outputs_dir
+    ):
+        st.info(f"Open this folder in File Explorer or Finder: `{paths.outputs_dir}`")
 
 
 def output_sections(files: list[Path], paths: ProjectPaths) -> list[tuple[str, list[tuple[str, Path]]]]:

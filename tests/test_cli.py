@@ -155,13 +155,13 @@ def test_rollover_prints_the_preview_then_writes_on_confirm(project, tmp_path):
 
 
 def test_rollover_shows_week_flags(project, tmp_path):
-    # Minimal fixture's Week 2 is 10/19; Fall 2027 Week 2 lands on 8/30, but a
-    # 9-week course's Week 8 (10/11) falls inside Fall Break 2027 (Oct 9-17).
+    # Minimal fixture's Week 2 is 10/19; Fall 2027 Week 2 lands on 8/30, and a
+    # 9-week course's Week 8 (10/11) falls inside Fall Break 2027 (Oct 9-17), so it moves.
     _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
 
     result = run("rollover", "--term", "Fall 2027", "--weeks", "9", "--no-llm", "--project", str(project), "--yes")
 
-    assert "⚠ Fall Break 2027 is Oct 9–17 — confirm Week 8 timing" in result.out
+    assert "covers Week 8's class days, so Week 8 and the weeks after it move a week later" in result.out
     assert "(new week)" in result.out
     assert "Course length changed from 2 to 9 weeks" in result.out
 
@@ -178,6 +178,22 @@ def test_rollover_meeting_days_and_skipped_break_narrow_the_flags(project, tmp_p
     assert result.code == 0
     assert "confirm Week 8 timing" not in result.out
     assert "meets through Fall Break" in result.out
+
+
+def test_rollover_changes_the_class_time_everywhere(project, tmp_path):
+    from docx import Document
+
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+
+    result = run(
+        "rollover", "--term", "Fall 2027", "--no-llm", "--class-time", "Wed 6-8:45 pm",
+        "--project", str(project), "--yes",
+    )  # fmt: skip
+
+    assert result.code == 0
+    assert 'The class time "Online async" becomes "Wed 6-8:45 pm"' in result.out
+    text = " | ".join(p.text for p in Document(str(project / "outputs" / "syllabus.docx")).paragraphs)
+    assert "Meeting Pattern: Wed 6-8:45 pm" in text
 
 
 def test_rollover_rejects_meeting_days_that_name_no_day(project):
@@ -476,3 +492,28 @@ def test_generate_without_a_source_explains_how_to_add_one(project, tmp_path, ll
     assert "Choose at least one of your own source materials" in result.err
     assert "pass it with --source <file name>" in result.err
     assert not llm
+
+
+def test_rollover_with_no_input_to_confirm_writes_nothing(project, tmp_path):
+    def closed_stdin(_prompt):
+        raise EOFError
+
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+    out, err = io.StringIO(), io.StringIO()
+
+    code = main(["rollover", "--term", "Fall 2027", "--no-llm", "--project", str(project)], input_fn=closed_stdin, out=out, err=err)
+
+    assert code != 0 or "Wrote" not in out.getvalue()
+    assert not (project / "outputs" / "syllabus.docx").exists()
+
+
+def test_rollover_moves_weeks_past_a_break(project, tmp_path):
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+
+    result = run(
+        "rollover", "--term", "Fall 2027", "--weeks", "9", "--no-llm", "--meeting-days", "W",
+        "--project", str(project), "--yes",
+    )  # fmt: skip
+
+    assert result.code == 0
+    assert "so Week 8 and the weeks after it move a week later" in result.out

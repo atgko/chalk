@@ -400,6 +400,86 @@ def test_provider_text_is_hidden_when_details_are_switched_off(monkeypatch):
     assert exc_info.value.user_message == "OpenAI returned an error (status 400)."
 
 
+# ---- Temperature (grading consistency, BACKLOG.md) ------------------------
+
+
+def test_temperature_is_left_to_the_provider_unless_asked_for(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    instances = patch_openai(monkeypatch, [openai_response()])
+
+    complete("prompt")
+
+    assert "temperature" not in instances[0].chat.completions.calls[0]
+
+
+def test_openai_sends_the_requested_temperature(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    instances = patch_openai(monkeypatch, [openai_response()])
+
+    complete("prompt", temperature=0.0)
+
+    assert instances[0].chat.completions.calls[0]["temperature"] == 0.0
+
+
+def test_anthropic_sends_the_requested_temperature(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    instances = patch_anthropic(monkeypatch, [anthropic_response()])
+
+    complete("prompt", temperature=0.0)
+
+    assert instances[0].messages.calls[0]["temperature"] == 0.0
+
+
+def test_gemini_keeps_its_default_temperature(monkeypatch):
+    # Google advises leaving Gemini 3 at its default; lower values can loop.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    instances = patch_openai(monkeypatch, [openai_response()])
+
+    complete("prompt", temperature=0.0)
+
+    assert "temperature" not in instances[0].chat.completions.calls[0]
+
+
+def test_a_model_that_refuses_a_temperature_is_asked_again_without_one(monkeypatch):
+    # e.g. OpenAI's reasoning models accept only their default temperature.
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    refusal = openai_status_error(
+        openai.BadRequestError, 400, "Unsupported value: 'temperature' does not support 0 with this model."
+    )
+    instances = patch_openai(monkeypatch, [refusal, openai_response(text="graded")])
+
+    result = complete("prompt", temperature=0.0)
+
+    assert result["text"] == "graded"
+    first, second = instances[0].chat.completions.calls + instances[1].chat.completions.calls
+    assert first["temperature"] == 0.0
+    assert "temperature" not in second
+
+
+def test_anthropic_refusing_a_temperature_is_asked_again_without_one(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    refusal = anthropic.BadRequestError(
+        "Error code: 400",
+        response=httpx.Response(400, request=_request("https://api.anthropic.com/v1/messages")),
+        body={"error": {"message": "temperature is not supported for this model."}},
+    )
+    instances = patch_anthropic(monkeypatch, [refusal, anthropic_response(text="graded")])
+
+    assert complete("prompt", temperature=0.0)["text"] == "graded"
+    assert "temperature" not in instances[1].messages.calls[0]
+
+
+def test_other_bad_requests_are_not_retried_without_the_temperature(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    instances = patch_openai(monkeypatch, [openai_status_error(openai.BadRequestError, 400, "bad param")])
+
+    with pytest.raises(LLMProviderError, match="status 400"):
+        complete("prompt", temperature=0.0)
+
+    assert len(instances) == 1
+
+
 # ---- Retry / backoff (DECISIONS.md) --------------------------------------
 
 

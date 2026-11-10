@@ -46,6 +46,7 @@ from chalk.generation.specs import (
     QUIZ_FORMATS,
     SPECS,
 )
+from chalk.locations import default_projects_dir
 from chalk.models import CourseData
 from chalk.pdf_import import PDF_READ_METHODS
 from chalk.pipeline import (
@@ -88,7 +89,13 @@ class _Console:
         print(f"Error: {text}", file=self.err)
 
     def confirm(self, question: str) -> bool:
-        return self.input_fn(f"{question} [y/N] ").strip().lower() in ("y", "yes")
+        """Yes only for an explicit y/yes. No input at all (a closed or
+        redirected stdin) is a no, not a crash."""
+        try:
+            answer = self.input_fn(f"{question} [y/N] ")
+        except EOFError:
+            return False
+        return answer.strip().lower() in ("y", "yes")
 
 
 def main(
@@ -126,7 +133,9 @@ def build_parser() -> argparse.ArgumentParser:
     init.set_defaults(handler=_cmd_init)
 
     demo = commands.add_parser("demo", help="Create (or reopen) the demo course with a sample syllabus loaded.")
-    demo.add_argument("--dir", type=Path, default=Path.cwd() / "projects", help="Where to put it (default: ./projects).")
+    demo.add_argument(
+        "--dir", type=Path, default=default_projects_dir(), help="Where to put it (default: Documents/Chalk Courses)."
+    )
     demo.add_argument("--reset", action="store_true", help="Rebuild it from scratch (keeps its .env).")
     demo.set_defaults(handler=_cmd_demo)
 
@@ -177,6 +186,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="BREAK",
         help='A break the class meets through, e.g. "Fall Break" (repeatable).',
+    )
+    rollover.add_argument(
+        "--class-time",
+        help='Class days and time in the new term, e.g. "Wed 6:00-8:45 pm"; replaces the old one everywhere '
+        "in the syllabus (default: unchanged).",
+    )
+    rollover.add_argument(
+        "--location",
+        help='Room in the new term, e.g. "WEB L104"; replaces the old one everywhere ("" writes TBA; '
+        "default: unchanged).",
     )
     rollover.add_argument("--yes", action="store_true", help="Write the files without asking for confirmation.")
     rollover.set_defaults(handler=_cmd_rollover)
@@ -418,6 +437,8 @@ def _preview_with_week1_fallback(
         "llm_generate_topics": not args.no_llm,
         "meeting_days": args.meeting_days,
         "breaks_not_observed": frozenset(args.no_break),
+        "class_time": args.class_time,
+        "location": args.location,
     }
     try:
         return preview_rollover(paths, course_data, args.term, manual_week1_date=week1_date, **kwargs)

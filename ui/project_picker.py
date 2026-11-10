@@ -17,11 +17,16 @@ from chalk import branding
 from chalk.config import env_is_configured
 from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
+from chalk.locations import LEGACY_PROJECTS_DIR, default_projects_dir, open_in_file_manager
 from chalk.project import ProjectPaths, init_project, list_projects, open_project
 from ui import folder_picker, session
 from ui.common import render_header
 
-DEFAULT_PARENT = Path.cwd() / "projects"
+# New courses go in Documents/Chalk Courses (Nov 9 UAT: projects inside
+# the app folder were hard to find); ones made earlier in the app's own
+# projects/ folder are still listed.
+DEFAULT_PARENT = default_projects_dir()
+LEGACY_PARENT = LEGACY_PROJECTS_DIR
 _FOLDER_KEY = "chalk_open_folder"
 _PARENT_KEY = "chalk_create_parent"
 # An open Browse… dialog: (field key, process). The page polls it.
@@ -50,12 +55,14 @@ def render() -> None:
         "Keep your syllabus current from term to term and draft course materials from it. "
         "Everything stays in one course project folder on this computer."
     )
+    # Two boxes side by side, each saying what it's for (Nov 9 UAT: the
+    # sponsor wasn't sure at first which side opened a course and which
+    # made one). Forms read the fields on click: typing doesn't rerun (and
+    # grey out) the page, and Enter in a field submits.
     open_col, create_col = st.columns(2)
-
-    # Forms read the fields on click: typing doesn't rerun (and grey out)
-    # the page, and Enter in a field submits.
-    with open_col:
-        st.subheader("Open a course project")
+    with open_col, st.container(border=True):
+        st.subheader("Open an existing course")
+        st.caption("Pick up a course you've already set up in Chalk.")
         _your_projects()
         with st.form("open-project", border=False):
             folder = _folder_field(
@@ -67,14 +74,17 @@ def render() -> None:
             if st.form_submit_button("Open project"):
                 _open(folder.strip())
 
-    with create_col:
+    with create_col, st.container(border=True):
+        st.subheader("Start a new course")
+        st.caption("Set up a course for the first time: give it a name, then upload its syllabus.")
         with st.form("create-project", border=False):
-            st.subheader("Create a new one")
-            st.session_state.setdefault(_PARENT_KEY, str(DEFAULT_PARENT))
-            parent = _folder_field("Create it inside", _PARENT_KEY, "Choose where to create the project")
             name = st.text_input("Project name", placeholder="IS-6640-Fall-2027")
+            st.session_state.setdefault(_PARENT_KEY, str(DEFAULT_PARENT))
+            with st.expander("Save it somewhere else"):
+                parent = _folder_field("Create it inside", _PARENT_KEY, "Choose where to create the project")
             if st.form_submit_button("Create project", type="primary"):
                 _create(parent.strip(), name.strip())
+        st.caption(f"New courses are saved in `{DEFAULT_PARENT}`, so their files are easy to find.")
         _offer_existing_project()
 
     _watch_dialog()
@@ -117,16 +127,34 @@ def _open_demo(*, reset: bool) -> None:
     )
 
 
-def _your_projects() -> None:
-    """The projects in the default projects/ folder, most recently used
-    first, so the usual case needs no typing or browsing."""
+def your_projects() -> list[ProjectPaths]:
+    """The projects in the projects folder, then any still in the app's
+    own projects/ folder, most recently used first within each."""
     projects = list_projects(DEFAULT_PARENT)
+    if LEGACY_PARENT.resolve() != DEFAULT_PARENT.resolve():
+        projects += list_projects(LEGACY_PARENT)
+    return projects
+
+
+def _project_label(paths: ProjectPaths) -> str:
+    if paths.root.parent.resolve() == LEGACY_PARENT.resolve() != DEFAULT_PARENT.resolve():
+        return f"{paths.root.name} (in the Chalk app folder)"
+    return paths.root.name
+
+
+def _your_projects() -> None:
+    """The projects Chalk knows about, so the usual case needs no typing
+    or browsing, and a button that shows their folder."""
+    projects = your_projects()
     if not projects:
         return
     with st.form("open-your-project", border=False):
-        choice = st.selectbox("Your projects", projects, format_func=lambda paths: paths.root.name)
-        if st.form_submit_button("Open"):
+        choice = st.selectbox("Your projects", projects, format_func=_project_label)
+        if st.form_submit_button("Open", type="primary"):
             _open(str(choice.root))
+    shown = st.button("Show the courses folder", key="show-projects-folder", help=str(DEFAULT_PARENT))
+    if shown and not open_in_file_manager(DEFAULT_PARENT):
+        st.info(f"Your courses are in `{DEFAULT_PARENT}`.")
     st.caption("Or open a project folder from somewhere else:")
 
 

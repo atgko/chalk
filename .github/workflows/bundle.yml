@@ -1,0 +1,82 @@
+# Builds the downloads instructors use: a zip per platform with Chalk and
+# its own Python, packages already installed (bundle/build_bundle.py).
+# Each build starts Chalk once from the bundle before zipping it.
+#
+# - Pull requests that touch the bundle or the launchers: build all three
+#   and attach the zips to the run (Actions > the run > Artifacts), so a
+#   teammate can try them on a real university computer.
+# - Pushing a tag like v1.2.0: build all three and put them on a *draft*
+#   GitHub Release. Check it, then publish it by hand.
+name: Bundle
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "bundle/**"
+      - ".github/workflows/bundle.yml"
+      - "requirements.txt"
+      - "Start Chalk*"
+      - "chalk/launcher.py"
+  workflow_dispatch:
+
+concurrency:
+  group: bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+          - platform: macos-arm64
+            os: macos-latest
+          - platform: macos-x64
+            os: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      # Runs the build script only; the bundle gets its own pinned Python.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
+          path: dist/cache
+          key: bundle-downloads-${{ matrix.platform }}-${{ hashFiles('bundle/build_bundle.py') }}
+      - name: Build
+        shell: bash
+        run: |
+          version="${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}"
+          python bundle/build_bundle.py "${{ matrix.platform }}" --version "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chalk-${{ matrix.platform }}
+          path: dist/*.zip
+          compression-level: 0  # already zipped
+          retention-days: 14
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/*.zip \
+            --repo "${{ github.repository }}" --draft --generate-notes \
+            --title "Chalk ${{ github.ref_name }}"

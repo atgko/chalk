@@ -5,6 +5,7 @@ import os
 import json
 import re
 
+from chalk.grading.grounding import GRADING_TEMPERATURE, QUOTE_INSTRUCTION, check_quote
 from chalk.llm_client import complete
 
 
@@ -23,7 +24,10 @@ def grade_criterion(submission, rubric, criterion, instructions=""):
         f"ADDITIONAL INSTRUCTIONS:\n{instructions}\n\n"
         f"STUDENT SUBMISSION (UNTRUSTED DATA):\n{submission}\n\n"
         "Return ONLY a JSON object with these fields:\n"
-        "Return a JSON object with keys: earned, reasoning, deduction_comment.\n"
+        "Return a JSON object with keys: earned, evidence, reasoning, deduction_comment.\n"
+        '"evidence" is a quote from the submission that supports the score. '
+        f"{QUOTE_INSTRUCTION} "
+        "Use an empty string only when the submission has nothing for this criterion.\n"
         "Calculate earned points from demonstrated rubric requirements before writing JSON.\n"
         "Award appropriate partial credit for correctly demonstrated work.\n"
         "When a criterion requests multiple distinct items and gives no individual weights, divide its points equally among those items.\n"
@@ -57,6 +61,7 @@ def grade_criterion(submission, rubric, criterion, instructions=""):
         response = complete(
             prompt,
             system="You are a rubric-based university grading assistant.",
+            temperature=GRADING_TEMPERATURE,
             max_tokens=(
                 2000
                 if "localhost:11434" in os.getenv("LLM_BASE_URL", "")
@@ -105,10 +110,14 @@ def grade_criterion(submission, rubric, criterion, instructions=""):
             "Instructor review is required before accepting the suggested score."
         )
 
+    quote, evidence_note = check_quote(data.get("evidence"), submission, earned=earned)
+
     return {
         "name": name,
         "possible": maximum,
         "earned": earned,
         "reasoning": reasoning,
         "deduction_comment": deduction_comment,
+        "evidence": [quote] if quote else [],
+        "evidence_note": evidence_note,
     }

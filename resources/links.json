@@ -1,0 +1,29 @@
+{
+  "_about": "Every web page Chalk links to or relies on, in one place, so a maintainer can update a link without touching the code (sponsor, Nov 9). Change a 'url' here to change it for everyone who installs this copy of Chalk. An instructor can also change a link for their own computer under Settings -> More settings; that is saved in 'Chalk links.json' in their Chalk Courses folder and wins over this file. Keep each 'key' as it is: the code looks links up by key.",
+  "links": [
+    {
+      "key": "academic_calendars",
+      "label": "University of Utah academic calendars",
+      "url": "https://registrar.utah.edu/academic-calendars/",
+      "used_for": "Where the term dates and breaks in resources/data/calendars.json come from. Check it each term and add the next year's terms."
+    },
+    {
+      "key": "class_schedule",
+      "label": "University of Utah class schedule",
+      "url": "https://class-schedule.app.utah.edu/",
+      "used_for": "Lists each section's meeting days, times, and room. Rollover links to it so instructors can look up the new term's room."
+    },
+    {
+      "key": "canvas_student_guides",
+      "label": "Canvas student guides",
+      "url": "https://community.canvaslms.com/t5/Student-Guide/tkb-p/student",
+      "used_for": "Linked from the help section of the Canvas syllabus page Chalk writes."
+    },
+    {
+      "key": "disability_center",
+      "label": "Center for Disability & Access",
+      "url": "https://disability.utah.edu/",
+      "used_for": "Linked from the accessibility section of the Canvas syllabus page Chalk writes."
+    }
+  ]
+}

@@ -119,11 +119,11 @@ def test_fall_to_spring_places_the_new_break_in_date_order():
     )
 
     labels = [week.label for week in new_course_data.weeks]
-    # Week 8 starts Mar 1, Week 9 starts Mar 8 (inside the break, so flagged).
+    # Week 8 starts Mar 1; Week 9 would start Mar 8, inside the break, so it moves to Mar 15.
     assert (
         labels.index("Week 8 (3/1)")
         < labels.index("Spring Break (3/6 - 3/14)")
-        < labels.index("Week 9 (3/8)")
+        < labels.index("Week 9 (3/15)")
     )
 
 
@@ -180,12 +180,13 @@ def test_breaks_after_the_course_ends_are_not_added():
     assert _break_labels(new_course_data) == ["Fall Break (10/9 - 10/17)"]
 
 
-def test_season_change_does_not_add_breaks_to_a_syllabus_that_listed_none():
+def test_a_syllabus_that_listed_no_breaks_gets_the_one_its_weeks_moved_past():
+    # Nov 10 UAT: Spring Break covers Week 9, so Week 9 moves and the break gets a row.
     new_course_data, _ = roll_over_course(
         _fall_2026_course(breaks=[]), target_term="Spring 2027", calendars=CALENDARS
     )
 
-    assert _break_labels(new_course_data) == []
+    assert _break_labels(new_course_data) == ["Spring Break (3/6 - 3/14)"]
 
 
 def test_season_change_to_a_term_not_in_the_calendar_flags_the_stale_break():
@@ -203,7 +204,7 @@ def test_season_change_to_a_term_not_in_the_calendar_flags_the_stale_break():
 def test_same_season_rollover_has_no_break_replacement_flag():
     _, preview = roll_over_course(_fall_2026_course(), target_term="Fall 2027", calendars=CALENDARS)
 
-    assert not any("break" in flag.lower() for flag in preview.general_flags)
+    assert not any("breaks come from the" in flag for flag in preview.general_flags)
 
 
 def test_fall_to_spring_renames_the_break_in_university_dates_and_keeps_order():

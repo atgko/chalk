@@ -189,7 +189,7 @@ def set_generation_content_type(content_type: str) -> None:
 TAB_GROUPS: dict[str, tuple[str, ...]] = {
     "Build": ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export"),
     "Grading Assistant": ("Grading Assistant",),
-    "Settings": ("AI Provider", "Metrics"),
+    "Settings": ("AI Provider", "Metrics", "More settings"),
 }
 GROUP_TAB_KEY = "chalk_tab_group"
 SUB_TAB_KEYS = {"Build": "chalk_build_tab", "Settings": "chalk_settings_tab"}

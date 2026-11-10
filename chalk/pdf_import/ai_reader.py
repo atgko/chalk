@@ -54,7 +54,7 @@ _PROMPT = """Convert the syllabus below into one JSON object. Output only the JS
 Shape:
 {
   "course": {"title": "", "number": "", "section": "", "credits": "", "term": "",
-             "instructor": "", "meeting_pattern": ""},
+             "instructor": "", "meeting_pattern": "", "location": ""},
   "content": [ ...blocks, in the order they appear in the syllabus... ]
 }
 
@@ -104,6 +104,7 @@ class _Course(BaseModel):
     term: str = ""
     instructor: str = ""
     meeting_pattern: str = ""
+    location: str = ""
 
 
 class _Week(BaseModel):
@@ -372,6 +373,7 @@ _COURSE_LABELS = (
     ("term", "Term"),
     ("instructor", "Instructor"),
     ("meeting_pattern", "Meeting Times"),
+    ("location", "Location"),
 )
 
 
