@@ -2,7 +2,7 @@
 
 A running list of known gaps, open questions, and follow-ups. Add new items at the bottom of the right section; move an item to **Done** with the date and commit when it's resolved. Priorities: **P1** = likely to trip up a real instructor soon, **P2** = real but rarer or has a workaround, **P3** = polish.
 
-Last updated: 2026-11-06.
+Last updated: 2026-11-09.
 
 ## Open questions (need someone outside the code)
 
@@ -11,7 +11,7 @@ Last updated: 2026-11-06.
 - **P1: Collect more real syllabi.** Only two real syllabi have been tested (IS 6640, OSC 6660). As of Oct 15, the team is collecting more from faculty, who will also try Chalk themselves. The PRD's Section 15 test corpus (before the Nov 8 readiness meeting) lists what's still missing: a markdown syllabus with the DST boundary, the IS 6640 Spring copy with the term-label bug, and a 12- or 16-week course. Run each through extraction and rollover, then `toolkit.py report`, for the December evidence. Keep them in the git-ignored `reference/` folder, since the repo is public.
 - **P2: Confirm the session dates with a program that uses sessions.** The registrar publishes no session dates, so Chalk assumes three 5-week sessions counted in class weeks around Fall/Spring Break (Fall 2026: Aug 24, Sep 28, Nov 9), and 10- or 12-week summer courses (DECISIONS.md, Oct 21). If a program has its own session calendar, `session_start` in `chalk/sessions.py` is the one place to change.
 - **P1: Line up pilot testers (sponsor meeting, Oct 15).** Dave may find 2-3 professors to try Chalk. Also find pilot testers among technical staff. For both groups, find out which parts of the app they actually use, so the next steps focus there. The eval log already records which operations run; a short feedback form or a follow-up conversation would cover the rest. On Oct 28, Dave said they'd ask their faculty for more testers.
-- **P1: A two-hour working session with Dave (sponsor meeting, Oct 28).** Dave will move their real Fall course materials to Spring in Chalk, driving the app themselves while the team watches. Note where they hesitate or get stuck, what they expect a step to do, and which outputs they actually keep, and add what comes up to this backlog.
+- **P1: A two-hour working session with Dave (sponsor meeting, Oct 28).** Dave will move their real Fall course materials to Spring in Chalk, driving the app themselves while the team watches. Note where they hesitate or get stuck, what they expect a step to do, and which outputs they actually keep, and add what comes up to this backlog. On Nov 9, Dave tested two of their syllabi in a demo; the results are under "UAT with Dave (Nov 9)" below.
 
 ## AI providers and student data (sponsor discussion, Oct 5)
 
@@ -67,6 +67,43 @@ The meeting with TIR emphasized the handoff: what the sponsor needs to keep Chal
 
 - **P1: Write down what the sponsor needs to keep Chalk running.** Security, maintenance, and documentation are all required. Cover who updates the academic calendar and model prices each term, how to update Python and the packages, where to report problems, and what an API key costs per term.
 - **P1: A how-to manual alongside the Best Practices Guide and Catalog of Tools.** A step-by-step guide for instructors, with screenshots. README.md, GETTING-STARTED.md, and DEMO.md are the starting point, but they're written partly for developers.
+
+## UAT with Dave (Nov 9)
+
+In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Networking and Servers course through Chalk. The main point: the workflow has to make sense to an instructor. Clean up each screen and lead them from one step to the next.
+
+**Workflow and UX**
+
+- **P1: Make the whole workflow easier to follow.** Go through each tab as a first-time instructor would: what to do next, what's required, and where the results end up. The items below are the specific problems Dave hit.
+- **P1: Make opening a project and creating one look clearly different.** Dave was confused at first on the launch screen. Options: two boxes, each with a line of text explaining it, or fewer fields with plain labels such as "Existing project" and "Create a new project". Pick whichever is clearest to someone new. Related: the P3 item under App / UX about Open Project opening a file browser.
+- **P1: Mark the required fields on Upload with a \*.** If a required field is empty, show a message naming it and keep generation locked until it's filled in.
+- **P2: Go straight to Rollover once extraction is done.** Today a successful extraction opens Review (see Done, Oct 8). Decide whether Review still needs to come first, or whether Rollover can come next and Review stay available.
+
+**Ollama setup**
+
+- **P1: Pre-fill the Ollama endpoint and localhost address** with the values in the guide, so instructors don't have to work out what to type.
+- **P2: Find Ollama's address from the page.** Work out how to detect the address Ollama is running on, and let the instructor check it on the page instead of looking in a terminal.
+- **P2: Explain how to find the address when Ollama isn't on the defaults,** so an instructor can change the field themselves.
+- **P2: The Ollama endpoint shouldn't be a clickable link.** Clicking it opens a "page not found" error.
+
+**Extraction**
+
+- **P1: Read the section number.** In "IS 6640-001", the "-001" is the section, and Chalk doesn't pick it up.
+- **P2: Meeting pattern wasn't picked up, and Dave didn't know what it meant.** Either make it obvious (a clearer label, a hint, an example) or remove the field. Related: the P3 item under Extraction about labeled "Time:" lines.
+
+**Rollover**
+
+- **P1: Week 1 starts on a Monday whatever the class's first day.** On Rollover, the "New" weeks have the right dates, but each week is shown as starting on a Monday whatever "Starts on" is set to. With Ollama, a Wednesday class still had Week 1 on Monday (the 16-week course did work). Related: the P3 item under Rollover about once-a-week classes.
+- **P1: Let the instructor change the generated dates** when they don't match.
+- **P1: Fix the holidays in the rolled-over syllabus.** In a Fall → Spring rollover, the warnings on Rollover were right, but the new document still listed Labor Day and Fall Break near the end, left out MLK Day and Presidents' Day, and didn't include Spring Break. Fix the document so it matches the warnings. Also decide how an instructor acts on a warning (e.g. a break or holiday): accept or change it in the app before the syllabus is written, or edit the document by hand afterwards.
+- **P1: Change the meeting time everywhere it appears in the syllabus.** The rollover changed it near the top, but not further down.
+- **P2: Update the location, or leave it blank.** The rolled-over syllabus kept the old location. The university's class schedule lists each course's meeting time and room (e.g. IS: https://class-schedule.app.utah.edu/main/1268/class_list.html?subject=IS); see whether Chalk can look it up there. If that's too hard, leave the location blank for the instructor to fill in. When reading the old syllabus, remember the meeting time and location may differ in the new term.
+- **P2: Images in the rolled-over syllabus have problems,** and some dates need adjusting. Find out exactly what went wrong using Dave's syllabus.
+
+**Files and packaging**
+
+- **P1: Save projects and exports somewhere instructors look for them,** such as a Chalk folder in Documents on Windows, instead of inside the app folder among its program files. At least show where each file was saved.
+- **P1: Tidy the release download.** The instructor should see only the launcher (the batch file) and their own work. Put the rest of the app's files in a subfolder they can open if they need to.
 
 ## Extraction
 
