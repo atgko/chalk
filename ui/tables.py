@@ -72,5 +72,26 @@ def preview_rows(preview: RolloverPreview) -> list[dict[str, str]]:
     return rows
 
 
+def preview_date_rows(preview: RolloverPreview) -> list[dict[str, Any]]:
+    """The Rollover preview as rows for the editable table: the "New"
+    column holds real dates, so the instructor can change one (Nov 9 UAT)."""
+    return [
+        {**row, "New": change.new_date}
+        for row, change in zip(preview_rows(preview), preview.week_changes, strict=True)
+    ]
+
+
+def edited_dates(rows: list[dict[str, Any]]) -> list[dt.date | None]:
+    """The "New" dates back out of the edited table, one per row (None for
+    a cell the instructor cleared). Streamlit may hand back datetimes."""
+    dates: list[dt.date | None] = []
+    for row in rows:
+        value = row.get("New")
+        if isinstance(value, dt.datetime):
+            value = value.date()
+        dates.append(value if isinstance(value, dt.date) else None)
+    return dates
+
+
 def regular_week_count(course_data: CourseData) -> int:
     return week_count(course_data.weeks)
