@@ -128,7 +128,7 @@ def _instructor(course: CourseInfo) -> str:
             _paragraph(f"<strong>{escape(course.instructor or 'Instructor goes here')}</strong>"),
             _labelled("Email", "Insert email here"),
             _labelled("Office Hours", "Insert office hours here"),
-            _labelled("Classroom", "TBA"),
+            _labelled("Classroom", course.location or "TBA"),
             _labelled("Time", course.meeting_pattern or "Insert class days and times here"),
             _labelled("TA", "Insert TA name here"),
             _labelled("TA email", "Insert TA email here"),

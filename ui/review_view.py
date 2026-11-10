@@ -75,6 +75,7 @@ _DETAIL_FIELDS = (
     ("credits", "Credits"),
     ("instructor", "Instructor"),
     ("meeting_pattern", "Class days and time"),
+    ("location", "Location"),
 )
 
 # Placeholder and help per field, so a blank field says what belongs in it
@@ -90,6 +91,7 @@ _DETAIL_HINTS = {
             "Leave it blank for an online class with no set meeting time."
         ),
     ),
+    "location": ("e.g. WEB L104, or Online", "Where the class meets. Rollover can change it for the new term."),
 }
 
 

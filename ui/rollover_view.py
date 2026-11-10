@@ -14,6 +14,7 @@ import streamlit as st
 from chalk.calendar_data import find_term, load_calendars, suggest_target_term
 from chalk.config import env_is_configured
 from chalk.errors import ChalkError, TermNotInCalendarError
+from chalk.links import url_for
 from chalk.models import CourseData
 from chalk.pipeline import RolloverPlan, confirm_rollover, missing_pdf_note, preview_rollover
 from chalk.progress import ProgressCallback
@@ -69,6 +70,7 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
             value=env_is_configured(paths.env),
         )
     meeting_days, breaks_not_observed = _render_schedule_inputs(paths, course_data, term)
+    class_time, location = _render_class_details(course_data, term)
 
     inputs = (
         term,
@@ -77,6 +79,8 @@ def render(paths: ProjectPaths, course_data: CourseData) -> None:
         use_llm,
         meeting_days,
         breaks_not_observed,
+        class_time,
+        location,
         course_data.course.term,
         course_data.course.extracted_at,
     )
@@ -196,6 +200,32 @@ def _render_schedule_inputs(
     return meeting_days, not_observed
 
 
+def _render_class_details(course_data: CourseData, term: str) -> tuple[str, str]:
+    """The new term's class days and time (starting from the old ones) and
+    location (starting blank: rooms are assigned each term). Rollover
+    changes them wherever the syllabus repeats them (Nov 9 UAT)."""
+    course = course_data.course
+    st.markdown(f"**Class time and place{' in ' + term if term else ''}**")
+    time_col, place_col = st.columns(2)
+    class_time = time_col.text_input(
+        "New class days and time",
+        value=course.meeting_pattern,
+        placeholder="e.g. Wed 6:00-8:45 pm",
+        key=f"rollover-class-time-{course.extracted_at.isoformat()}",
+        help="Changed everywhere the syllabus repeats the old class time. Other lines that mention a "
+        "day and time are listed in the preview to check by hand.",
+    )
+    location = place_col.text_input(
+        "New location",
+        placeholder=f"Was: {course.location}" if course.location else "e.g. WEB L104, or Online",
+        key=f"rollover-location-{course.extracted_at.isoformat()}",
+        help="Rooms are assigned each term, so this starts blank. Left blank, the old location in the "
+        "syllabus becomes TBA.",
+    )
+    st.caption(f"Find the new room and time in the [class schedule]({url_for('class_schedule')}).")
+    return class_time, location
+
+
 def _short_range(entry: dict) -> str:
     start = dt.date.fromisoformat(entry["date_start"])
     end = dt.date.fromisoformat(entry["date_end"])
@@ -213,7 +243,7 @@ def _compute_plan(
     paths: ProjectPaths, course_data: CourseData, inputs: tuple, *, on_progress: ProgressCallback
 ) -> StoredPlan:
     """Runs on the background thread, so no Streamlit calls here."""
-    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed = inputs[:6]
+    term, week1_date, duration, use_llm, meeting_days, breaks_not_observed, class_time, location = inputs[:8]
     plan = preview_rollover(
         paths,
         course_data,
@@ -223,6 +253,8 @@ def _compute_plan(
         llm_generate_topics=use_llm,
         meeting_days=meeting_days,
         breaks_not_observed=breaks_not_observed,
+        class_time=class_time,
+        location=location,
         on_progress=on_progress,
     )
     return StoredPlan(inputs, plan)

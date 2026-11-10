@@ -39,6 +39,7 @@ from chalk.extractors._front_matter import parse_labeled_line, replace_term_text
 from chalk.extractors.docx_extractor import front_matter_slots
 from chalk.extractors.meetings import number_meetings, week_key
 from chalk.models import CourseData, UniversityDate, Week
+from chalk.rollover.class_details import TextChange, replace_in_document
 
 
 def write_rolled_over_docx(
@@ -47,14 +48,17 @@ def write_rolled_over_docx(
     output_path,
     *,
     eval_log_path=None,
+    text_changes: list[TextChange] | None = None,
 ) -> None:
     """Write the rolled-over schedule into a fresh copy of the original
     Word document at `output_path`, archiving whatever was already there
     first (PRD's "Confirm rollover" step never writes without archiving).
+    `text_changes` (the class time and location) apply everywhere.
     """
     document = Document(str(source_docx_path))
 
     _update_front_matter_term(document, new_course_data.course.term)
+    replace_in_document(document, text_changes or [])
 
     new_weeks_by_key = {
         week_key(week): week for week in new_course_data.weeks if not week.is_break and week.date is not None

@@ -27,6 +27,7 @@ from chalk.archiving import archive_before_write
 from chalk.extractors._dates import DATE_RANGE_RE, FULL_DATE_RE
 from chalk.extractors._front_matter import parse_labeled_line, replace_term_text, term_line_index
 from chalk.models import CourseData, UniversityDate
+from chalk.rollover.class_details import TextChange, replace_in_lines
 from chalk.rollover.preview import break_name
 
 _SEPARATOR_CELL_RE = re.compile(r"^:?-{3,}:?$")
@@ -38,13 +39,15 @@ def write_rolled_over_markdown(
     output_path,
     *,
     eval_log_path=None,
+    text_changes: list[TextChange] | None = None,
 ) -> None:
     """Write the rolled-over schedule into a fresh copy of the original
     markdown file at `output_path`, archiving whatever was already there
-    first."""
+    first. `text_changes` (the class time and location) apply everywhere."""
     lines = Path(source_md_path).read_text(encoding="utf-8").splitlines()
 
     lines = _replace_term_line(lines, new_course_data.course.term)
+    lines = replace_in_lines(lines, text_changes or [])
     lines = _replace_schedule_table(lines, new_course_data)
     lines = _replace_university_dates_table(lines, new_course_data.university_dates)
 

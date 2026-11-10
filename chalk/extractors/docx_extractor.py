@@ -86,6 +86,7 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
         term_end=_course_end_date(weeks),
         duration_weeks=week_count(weeks),
         meeting_pattern=front_matter["meeting_pattern"],
+        location=front_matter["location"],
         instructor=front_matter["instructor"],
         source_format="word",
         source_file=str(docx_path),

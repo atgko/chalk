@@ -49,6 +49,7 @@ def test_labeled_lines_still_extract_every_field():
             "Term: Fall 2026",
             "Instructor: Dave Norwood",
             "Meeting Pattern: Online async",
+            "Room: WEB L104",
         ]
     )
 
@@ -60,6 +61,7 @@ def test_labeled_lines_still_extract_every_field():
         "term": "Fall 2026",
         "instructor": "Dave Norwood",
         "meeting_pattern": "Online async",
+        "location": "WEB L104",
     }
 
 

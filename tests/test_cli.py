@@ -180,6 +180,22 @@ def test_rollover_meeting_days_and_skipped_break_narrow_the_flags(project, tmp_p
     assert "meets through Fall Break" in result.out
 
 
+def test_rollover_changes_the_class_time_everywhere(project, tmp_path):
+    from docx import Document
+
+    _extract(project, docx_builder.build_minimal_syllabus(tmp_path / "s.docx"))
+
+    result = run(
+        "rollover", "--term", "Fall 2027", "--no-llm", "--class-time", "Wed 6-8:45 pm",
+        "--project", str(project), "--yes",
+    )  # fmt: skip
+
+    assert result.code == 0
+    assert 'The class time "Online async" becomes "Wed 6-8:45 pm"' in result.out
+    text = " | ".join(p.text for p in Document(str(project / "outputs" / "syllabus.docx")).paragraphs)
+    assert "Meeting Pattern: Wed 6-8:45 pm" in text
+
+
 def test_rollover_rejects_meeting_days_that_name_no_day(project):
     with pytest.raises(SystemExit):
         run("rollover", "--term", "Fall 2027", "--meeting-days", "soon", "--project", str(project))

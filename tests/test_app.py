@@ -1542,3 +1542,17 @@ def test_a_bad_link_is_refused(saved_project, courses_folder):
 
     assert any("isn't a web address" in e for e in texts(at.error))
     assert not (courses_folder / "Chalk links.json").exists()
+
+
+# ---- Rollover: the new term's class time and place (Nov 9 UAT) --------------------------
+
+
+def test_rollover_asks_for_the_new_class_time_and_location(saved_project):
+    at = launch(saved_project)
+
+    class_time = widget(at.text_input, "New class days and time")
+    location = widget(at.text_input, "New location")
+    assert class_time.value == load_course(saved_project).course.meeting_pattern
+    assert location.value == ""
+    assert "becomes TBA" in location.help
+    assert any("[class schedule](https://class-schedule.app.utah.edu/)" in c for c in texts(at.caption))
