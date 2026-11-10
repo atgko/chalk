@@ -77,7 +77,6 @@ In a demo on Nov 9, Dave ran the undergraduate and graduate syllabi for their Ne
 
 - **P1: Make the whole workflow easier to follow.** Go through each tab as a first-time instructor would: what to do next, what's required, and where the results end up. The items below are the specific problems Dave hit.
 - **P1: Make opening a project and creating one look clearly different.** Dave was confused at first on the launch screen. Options: two boxes, each with a line of text explaining it, or fewer fields with plain labels such as "Existing project" and "Create a new project". Pick whichever is clearest to someone new. Related: the P3 item under App / UX about Open Project opening a file browser.
-- **P1: Mark the required fields on Upload with a \*.** If a required field is empty, show a message naming it and keep generation locked until it's filled in.
 - **P2: Go straight to Rollover once extraction is done.** Today a successful extraction opens Review (see Done, Oct 8). Decide whether Review still needs to come first, or whether Rollover can come next and Review stay available.
 
 **Ollama setup**
@@ -106,6 +105,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 - [ ] Section number and "Class days and time" (fix/section-number): upload Dave's IS 6640-001 syllabus and check Review shows Section 001 and a course title without "-001". Hover the "?" next to Section and Class days and time: are the hints clear to an instructor?
 - [ ] Class day at rollover (fix/rollover-class-day): roll Dave's Wednesday course to Spring 2027. "Class meets on" should start on Wed (from the syllabus, or from the days its rows are dated on), and every week in the preview, including added weeks, should be a Wednesday. Change it to Tue/Thu and check each week moves to its Tuesday.
+- [ ] Required fields (feat/required-fields): on Generate, pick Assignment and Rubric and check the fields marked * and the message naming what's missing; Generate stays greyed out until they're filled in. Upload and Grading Assistant show the * too. Is anything else required that isn't marked?
 
 ## Extraction
 
@@ -152,6 +152,7 @@ Each item below was built and covered by automated tests, but needs a person to 
 
 ## Done
 
+- 2026-11-10: Required fields are marked with a * on Upload, Generate, and the Grading Assistant. Generate shows greyed out under a message naming the empty required fields (e.g. "Assignment name; What should students learn or demonstrate?") instead of disappearing, and unlocks once they're filled in (Nov 9 UAT).
 - 2026-11-10: A schedule with one row per week is dated on the first "Class meets on" day of each week in the new term, added weeks too: a Wednesday class's Week 1 is the first Wednesday, not the term's Monday. "Class meets on" starts from the syllabus's class days, or else the weekday most of the old rows were dated on, so a syllabus with Monday week labels keeps its Monday dates. Leaving it empty keeps the week's start date (Nov 9 UAT).
 - 2026-11-10: The section is read from the course number ("IS 6640-001", "IS 6640 - 001", "IS 6640, Section 001", or a labeled "Course Number: IS 6640-090"), and left out of the title guess. On Review, "Meeting pattern" is now "Class days and time", with an example and a hint saying Rollover uses it; Section has a hint too (Nov 9 UAT).
 - 2026-11-07: Release downloads carry their own Python. `bundle/build_bundle.py` builds a zip for Windows, Apple-silicon Macs, and Intel Macs, with Python 3.14 and every package installed, so the first start downloads and installs nothing. GitHub Actions builds them for tagged releases (as a draft release) and for pull requests that touch the bundle. The launchers use the bundled Python when it's there (sponsor meeting, Oct 15).

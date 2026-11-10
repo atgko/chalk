@@ -87,13 +87,13 @@ def render(paths):
     )
 
     uploaded_file = st.file_uploader(
-        "Upload student submission",
+        "Upload student submission *",
         type=["pdf", "docx", "txt"],
         key="grading_submission",
     )
 
     rubric = st.text_area(
-        "Assignment instructions and grading rubric",
+        "Assignment instructions and grading rubric *",
         height=200,
         placeholder="Paste the assignment requirements and rubric here...",
         key="grading_rubric",
@@ -117,7 +117,17 @@ def render(paths):
         "the rubric. Standard grades as before.",
     ) or STANDARD
 
-    ready = uploaded_file is not None and bool(rubric.strip())
+    missing = [
+        name
+        for name, filled in (
+            ("the student submission", uploaded_file is not None),
+            ("the instructions and rubric", bool(rubric.strip())),
+        )
+        if not filled
+    ]
+    ready = not missing
+    if missing:
+        st.caption(f"Fill in the required fields (marked *) to analyze: {' and '.join(missing)}.")
 
     if st.button(
         "Analyze Submission",
