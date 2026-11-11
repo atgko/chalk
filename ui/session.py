@@ -186,6 +186,14 @@ def set_generation_content_type(content_type: str) -> None:
 # group with several tabs shows them as a second row of tabs. A tab's own
 # name ("Generate") is what the rest of the app goes by; ACTIVE_TAB_KEY
 # holds the open one, and the two rows of tabs are set from it.
+#
+# GROUP_TAB_KEY and SUB_TAB_KEYS name the rows (their containers carry them,
+# for the tab-mark styles); the tabs widgets themselves are keyed with the
+# round too (`tabs_widget_key`), which goes up each time the app opens a tab
+# itself. A tabs widget the browser drew before that switch can still hold
+# the tab it showed then and send it back with the next click: Preview
+# rollover reopened Review after Confirm and save had opened Rollover
+# (Nov 11 UAT). A widget with a new key starts from the requested tab.
 TAB_GROUPS: dict[str, tuple[str, ...]] = {
     "Build": ("Upload", "Review", "Rollover", "Generate", "Drafts", "Export"),
     "Grading Assistant": ("Grading Assistant",),
@@ -193,6 +201,18 @@ TAB_GROUPS: dict[str, tuple[str, ...]] = {
 }
 GROUP_TAB_KEY = "chalk_tab_group"
 SUB_TAB_KEYS = {"Build": "chalk_build_tab", "Settings": "chalk_settings_tab"}
+_TAB_ROUND_KEY = "chalk_tab_round"
+
+
+def tab_round() -> int:
+    """How many times the app has opened a tab itself this session."""
+    return st.session_state.get(_TAB_ROUND_KEY, 0)
+
+
+def tabs_widget_key(row_key: str) -> str:
+    """The key of the tabs widget for row `row_key` (GROUP_TAB_KEY or a
+    SUB_TAB_KEYS value) in the current round."""
+    return f"{row_key}-{tab_round()}"
 
 
 def go_to_tab(name: str) -> None:
@@ -210,22 +230,25 @@ def group_of(tab: str) -> str:
     return next(group for group, tabs in TAB_GROUPS.items() if tab in tabs)
 
 
-def apply_tab_request(default: str = "Upload") -> None:
+def apply_tab_request(default: str = "Upload") -> bool:
     """Open a requested tab, then set both rows of tabs to the open one.
+    True when a tab was requested, so the page can scroll to its top.
     `default` opens when no tab has been opened yet: the shell passes
     Review for a course that's already saved, so opening one (the demo
     included) shows the course instead of an empty Upload tab."""
     requested = st.session_state.pop(_NEXT_TAB_KEY, None)
     if requested is not None:
         st.session_state[ACTIVE_TAB_KEY] = requested
+        st.session_state[_TAB_ROUND_KEY] = tab_round() + 1
     tab = st.session_state.get(ACTIVE_TAB_KEY) or default
     if not any(tab in tabs for tabs in TAB_GROUPS.values()):
         tab = default  # e.g. a session from before the tabs were grouped
     group = group_of(tab)
     st.session_state[ACTIVE_TAB_KEY] = tab
-    st.session_state[GROUP_TAB_KEY] = group
+    st.session_state[tabs_widget_key(GROUP_TAB_KEY)] = group
     if group in SUB_TAB_KEYS:
-        st.session_state[SUB_TAB_KEYS[group]] = tab
+        st.session_state[tabs_widget_key(SUB_TAB_KEYS[group])] = tab
+    return requested is not None
 
 
 def on_group_change() -> None:
@@ -234,12 +257,12 @@ def on_group_change() -> None:
 
     The tabs' state can be missing when a click lands while a slow run
     hasn't drawn them yet; the open tab then stays as it is."""
-    group = st.session_state.get(GROUP_TAB_KEY)
+    group = st.session_state.get(tabs_widget_key(GROUP_TAB_KEY))
     if group not in TAB_GROUPS:
         return
     tabs = TAB_GROUPS[group]
     sub_tab_key = SUB_TAB_KEYS.get(group)  # None for a group with no second row
-    last = st.session_state.get(sub_tab_key) if sub_tab_key else None
+    last = st.session_state.get(tabs_widget_key(sub_tab_key)) if sub_tab_key else None
     st.session_state[ACTIVE_TAB_KEY] = last if last in tabs else tabs[0]
 
 

@@ -385,6 +385,47 @@ def test_settings_keeps_the_saved_key_when_left_blank_and_switches_model(project
     assert SAVED_EVERYWHERE in texts(at.success)
 
 
+def test_settings_saves_a_model_typed_under_other_model(project, monkeypatch):
+    from chalk.config import OTHER_MODEL
+
+    tested = []
+    monkeypatch.setattr("chalk.config.complete", lambda prompt, max_tokens=5: tested.append(prompt) or {})
+    at = launch(project)
+    widget(at.selectbox, "Model").set_value(OTHER_MODEL)
+    at = at.run()
+    assert any("unknown" in caption for caption in texts(at.caption))  # no cost rate for it
+    widget(at.text_input, "Model name").input("gpt-5-mini")
+    at = click(at.run(), "Test connection and save")
+
+    from chalk.saved_provider import read_saved_provider
+
+    assert_no_exception(at)
+    assert tested  # Test connection checked the typed model
+    assert read_saved_provider()["LLM_MODEL"] == "gpt-5-mini"
+
+
+def test_settings_opens_on_other_model_for_a_saved_model_not_in_the_list(tmp_project):
+    from chalk.config import OTHER_MODEL
+    from chalk.saved_provider import save_provider
+
+    save_provider({"LLM_PROVIDER": "openai", "LLM_API_KEY": "sk-saved", "LLM_BASE_URL": "", "LLM_MODEL": "gpt-5"})
+    at = launch(tmp_project)
+
+    assert_no_exception(at)
+    assert widget(at.selectbox, "Model").value == OTHER_MODEL
+    assert widget(at.text_input, "Model name").value == "gpt-5"
+
+
+def test_settings_needs_a_name_under_other_model(project):
+    from chalk.config import OTHER_MODEL
+
+    at = launch(project)
+    widget(at.selectbox, "Model").set_value(OTHER_MODEL)
+    at = click(at.run(), "Test connection and save")
+
+    assert any("Type the model's name" in error for error in texts(at.error))
+
+
 # ---- Tab gating --------------------------------------------------------------------
 
 

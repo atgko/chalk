@@ -47,6 +47,16 @@ _MEETING_RE = re.compile(
 _ANY_LABEL_RE = re.compile(r"^[A-Za-z][A-Za-z /&#'-]{0,40}:")
 _TITLE_NOISE_RE = re.compile(r"\bsyllabus\b", re.IGNORECASE)
 _TITLE_EDGE_CHARS = " \t-–—:,|·"
+# How the class is taught, written after the title and set off by a dash,
+# colon, pipe, or brackets: "Networking and Servers – Online", "Data
+# Mining (Online Asynchronous)". A modality word inside the title ("Online
+# Learning Design") has no separator before it and is kept.
+_TITLE_MODALITY_RE = re.compile(
+    r"\s*(?:[-–—:|·,]\s*|\(\s*)"
+    r"(?:fully\s+)?(?:online|hybrid|in[- ]person|remote|face[- ]to[- ]face)"
+    r"(?:\s+(?:async(?:hronous)?|sync(?:hronous)?))?\s*\)?\s*$",
+    re.IGNORECASE,
+)
 
 _FIELD_ALIASES = {
     "course": "title",
@@ -180,8 +190,10 @@ def term_line_index(lines: list[str], header_lines: list[str]) -> int | None:
 
 def _labeled_fields(lines: list[str]) -> dict:
     fields: dict = {}
-    for line in lines:
-        parsed = parse_labeled_line(line)
+    # A Word paragraph with soft line breaks ("Time: ...↵Location: ...")
+    # holds a labeled line on each line.
+    for part in (part for line in lines for part in line.split("\n")):
+        parsed = parse_labeled_line(part)
         if parsed and parsed[0] not in fields:
             fields[parsed[0]] = parsed[1]
     return fields
@@ -241,7 +253,8 @@ def _remove_number_and_section(text: str) -> str:
 
 def _guess_title(header: list[str]) -> str | None:
     """The first header line that isn't a recognized "Label: value" line,
-    with any course number, term, and the word "syllabus" removed."""
+    with any course number, term, trailing modality ("– Online"), and the
+    word "syllabus" removed."""
     for line in header:
         if parse_labeled_line(line):
             continue
@@ -250,6 +263,9 @@ def _guess_title(header: list[str]) -> str | None:
         cleaned = _SEASON_YEAR_RE.sub("", cleaned, count=1)
         cleaned = _TITLE_NOISE_RE.sub("", cleaned)
         cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(_TITLE_EDGE_CHARS)
+        without_modality = _TITLE_MODALITY_RE.sub("", cleaned).strip(_TITLE_EDGE_CHARS)
+        if len(without_modality) >= 3:
+            cleaned = without_modality
         if len(cleaned) >= 3:
             return cleaned
     return None
