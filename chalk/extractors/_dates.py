@@ -37,12 +37,16 @@ _NEW_YEAR_GAP = dt.timedelta(days=180)
 _DATE_FIELDS = ("date", "date_start", "date_end")
 
 
-def roll_dates_past_new_year(weeks: list[Week]) -> list[Week]:
+def roll_dates_past_new_year(weeks: list[Week], *, spring_term: bool = False) -> list[Week]:
     """Schedule rows are read with the term's year, but a schedule that runs
     past December (a Fall course whose finals week is in January, or a
     break from Dec 20 to Jan 3) needs the next year for the later dates.
     Walk the rows in order and add a year from the first date that falls
-    far before the previous one."""
+    far before the previous one.
+
+    A Spring term's year is the year it ends in, so there the crossing
+    moves the rows *before* it back a year instead: an orientation "Week 0
+    (12/15)" in a Spring 2027 syllabus is Dec 15, 2026."""
     result: list[Week] = []
     previous: dt.date | None = None
     extra_years = 0
@@ -58,4 +62,20 @@ def roll_dates_past_new_year(weeks: list[Week]) -> list[Week]:
                 value = value.replace(year=value.year + 1)
             updates[field] = previous = value
         result.append(week.model_copy(update=updates))
+    if spring_term and extra_years:
+        return [_shift_years(week, -extra_years) for week in result]
     return result
+
+
+def _shift_years(week: Week, years: int) -> Week:
+    updates = {
+        field: value.replace(year=value.year + years)
+        for field in _DATE_FIELDS
+        if (value := getattr(week, field)) is not None
+    }
+    return week.model_copy(update=updates)
+
+
+def is_spring_term(term: str) -> bool:
+    """Whether a term label ("Spring 2027") names a Spring term."""
+    return "spring" in term.lower()

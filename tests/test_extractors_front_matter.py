@@ -98,13 +98,34 @@ def test_free_form_header_like_a_real_syllabus_is_understood():
         ]
     )
 
-    assert fields["title"] == "Networking and Servers – Online"
+    assert fields["title"] == "Networking and Servers"
     assert fields["number"] == "IS 6640"
     assert fields["term"] == "Fall 2026"
     assert fields["instructor"] == "Jane Example"
     assert fields["section"] == ""
     assert fields["credits"] is None
     assert fields["meeting_pattern"] == ""
+
+
+@pytest.mark.parametrize(
+    ("header", "title"),
+    [
+        ("Networking and Servers – Online Fall 2026", "Networking and Servers"),
+        ("Networking and Servers - Hybrid", "Networking and Servers"),
+        ("Data Mining (Online Asynchronous)", "Data Mining"),
+        ("Data Mining | In-Person | Spring 2027", "Data Mining"),
+        ("Cloud Computing: Fully Online", "Cloud Computing"),
+        # A modality word inside the title isn't a modality suffix.
+        ("Online Learning Design", "Online Learning Design"),
+        ("Teaching Hybrid Courses", "Teaching Hybrid Courses"),
+        # Nothing would be left, so the line is kept as it is.
+        ("Online", "Online"),
+    ],
+)
+def test_title_guess_drops_a_trailing_modality(header, title):
+    fields = extract_front_matter([header, "Term: Fall 2026"])
+
+    assert fields["title"] == title
 
 
 def test_markdown_heading_supplies_number_and_title():

@@ -8,6 +8,7 @@ import streamlit as st
 from chalk.config import (
     DEFAULT_OLLAMA_MODEL,
     DEFAULT_OLLAMA_URL,
+    OTHER_MODEL,
     PROVIDER_CHOICES,
     choice_for_env,
     effective_env,
@@ -76,20 +77,13 @@ def render(paths: ProjectPaths, *, submit_label: str, key: str) -> str | None:
             placeholder="Leave blank to keep the saved key" if has_saved_key else "",
             key=f"{key}-api-key-{choice}",
         ) or (env.get("LLM_API_KEY", "") if has_saved_key else "")
-        config = load_config(paths.config_json)
-        options = model_options(config, choice)
-        saved_model = env.get("LLM_MODEL")
-        model = st.selectbox(
-            "Model",
-            options,
-            index=options.index(saved_model) if is_saved_choice and saved_model in options else 0,
-            format_func=lambda option: model_label(config, choice, option),
-            key=f"{key}-model-{choice}",
-            help="Not sure? The recommended model handles drafts and syllabi well for a fraction "
-            "of the cost. Pick the most capable one for very long syllabi or harder content.",
-        )
+        saved_model = env.get("LLM_MODEL", "") if is_saved_choice else ""
+        model = _hosted_model_field(paths, choice, saved_model, key)
 
     if not st.button(submit_label, type="primary", key=f"{key}-submit"):
+        return None
+    if choice != _LOCAL and model is None:
+        st.error("Type the model's name under Model name, or choose a model from the list.")
         return None
     try:
         settings = provider_settings(choice, api_key=api_key, model=model or "", base_url=base_url)
@@ -99,6 +93,43 @@ def render(paths: ProjectPaths, *, submit_label: str, key: str) -> str | None:
         st.error(exc.user_message)
         return None
     return SAVED_EVERYWHERE if saved_everywhere else SAVED_HERE
+
+
+def _hosted_model_field(paths: ProjectPaths, choice: str, saved_model: str, key: str) -> str | None:
+    """The Model dropdown: the models with a cost rate, then Other model…,
+    which shows a field for any model name (a newer model than this
+    version of Chalk knows). A saved model that isn't listed opens on Other
+    model… with its name filled in. None when Other model… is picked but no
+    name is typed."""
+    config = load_config(paths.config_json)
+    options = [*model_options(config, choice), OTHER_MODEL]
+    if saved_model in options:
+        index = options.index(saved_model)
+    else:
+        index = options.index(OTHER_MODEL) if saved_model else 0
+    picked = st.selectbox(
+        "Model",
+        options,
+        index=index,
+        format_func=lambda option: model_label(config, choice, option),
+        key=f"{key}-model-{choice}",
+        help="Not sure? The recommended model handles drafts and syllabi well for a fraction "
+        "of the cost. Pick the most capable one for very long syllabi or harder content, or "
+        "Other model… to type the name of one that isn't listed.",
+    )
+    if picked != OTHER_MODEL:
+        return picked
+    typed = st.text_input(
+        "Model name",
+        value=saved_model if saved_model not in options else "",
+        key=f"{key}-other-model-{choice}",
+        help="The model's exact name from the provider's documentation, e.g. `gpt-5-mini`.",
+    ).strip()
+    st.caption(
+        "Test connection checks the name works. Chalk has no price for a model that isn't "
+        "listed, so its cost shows as unknown on the Metrics tab."
+    )
+    return typed or None
 
 
 def _local_model_fields(saved_env: dict[str, str], key: str) -> tuple[str, str]:

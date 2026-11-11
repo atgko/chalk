@@ -242,6 +242,13 @@ def choice_for_env(env: dict[str, str]) -> str:
     return "OpenAI"
 
 
+# The last Model choice for a hosted provider: the instructor types any
+# model name, e.g. one released after this version of Chalk. Test
+# connection checks it; its cost shows as unknown unless config.json has a
+# rate for it (`costs.rate_for`).
+OTHER_MODEL = "Other model…"
+
+
 def model_options(config: dict[str, Any], choice: str) -> list[str]:
     """Model dropdown choices: the cost_rates keys for a hosted provider, so
     every selectable model has a cost rate (DECISIONS.md), with the

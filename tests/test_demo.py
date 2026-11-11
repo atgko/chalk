@@ -101,3 +101,16 @@ def test_try_these_includes_a_real_world_layout_syllabus_that_extracts(tmp_path)
     course, _ = extract_syllabus(demo, demo.root / TRY_THESE_DIR / "OSC-6660-Spring-2026-real-world-layout.docx")
 
     assert (course.course.number, course.course.term, course.course.duration_weeks) == ("OSC 6660", "Spring 2026", 16)
+
+
+def test_try_these_includes_a_pdf_syllabus_the_free_reader_extracts(demo):
+    pdf = demo.root / TRY_THESE_DIR / "IS-6640-Fall-2026.pdf"
+
+    course, consistency = extract_syllabus(demo, pdf)
+
+    assert consistency.passed
+    assert (course.course.number, course.course.term, course.course.duration_weeks) == ("IS 6640", "Fall 2026", 10)
+    assert len(course.learning_objectives) == 4
+    assert sum(a.weight for a in course.assessments) == pytest.approx(1.0)
+    assert [w.label for w in course.weeks if w.is_break] == ["Fall Break (10/10 - 10/18)"]
+    assert course.weeks[0].topics[0] == "Course Introduction"

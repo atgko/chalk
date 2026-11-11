@@ -6,6 +6,8 @@ Everything runs on your own computer. Your files never leave it, except for the 
 
 **New to the project? [GETTING-STARTED.md](GETTING-STARTED.md)** walks you through running the demo on your own computer, step by step.
 
+**Looking after Chalk after the handover? [MAINTAINING.md](MAINTAINING.md)** lists what to update each term and each year, where problems go, and what it costs to run.
+
 ---
 
 ## Contents

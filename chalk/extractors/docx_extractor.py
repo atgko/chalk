@@ -29,6 +29,7 @@ from chalk.errors import ExtractionError, ProtectedFileError
 from chalk.extractors._dates import (
     DATE_RANGE_RE,
     FULL_DATE_RE,
+    is_spring_term,
     roll_dates_past_new_year,
     year_from_term,
 )
@@ -72,7 +73,8 @@ def extract_course_data(docx_path, *, schedule_table_index: int | None = None) -
     undated = any(is_undated_schedule(table) for table in schedule_tables)
     weeks = with_meetings(
         roll_dates_past_new_year(
-            extract_weeks(schedule_tables, year, undated_week1=provisional_week1(front_matter["term"], year))
+            extract_weeks(schedule_tables, year, undated_week1=provisional_week1(front_matter["term"], year)),
+            spring_term=is_spring_term(front_matter["term"]),
         )
     )
 
