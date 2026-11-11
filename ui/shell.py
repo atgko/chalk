@@ -76,11 +76,14 @@ def main(argv: list[str] | None = None) -> None:
     background.show_toasts()
 
     course_data = _load_course_or_warn(paths)
-    session.apply_tab_request()
+    tab_was_requested = session.apply_tab_request()
     background.clear_mark(session.active_tab())
-    build_group, grading, settings_group = st.tabs(
-        tuple(session.TAB_GROUPS), key=session.GROUP_TAB_KEY, on_change=session.on_group_change
-    )
+    with st.container(key=session.GROUP_TAB_KEY):
+        build_group, grading, settings_group = st.tabs(
+            tuple(session.TAB_GROUPS),
+            key=session.tabs_widget_key(session.GROUP_TAB_KEY),
+            on_change=session.on_group_change,
+        )
     with build_group:
         upload, review, rollover, generate, drafts, export = _sub_tabs("Build")
     with settings_group:
@@ -119,12 +122,29 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     _render_footer(paths)
+    if tab_was_requested:
+        _scroll_to_top()  # last, so it never moves the tabs (that left the old row on screen)
 
 
 def _sub_tabs(group: str):
     """A group's own row of tabs."""
-    key = session.SUB_TAB_KEYS[group]
-    return st.tabs(session.TAB_GROUPS[group], key=key, on_change=session.on_sub_tab_change, args=(key,))
+    row_key = session.SUB_TAB_KEYS[group]
+    key = session.tabs_widget_key(row_key)
+    with st.container(key=row_key):
+        return st.tabs(session.TAB_GROUPS[group], key=key, on_change=session.on_sub_tab_change, args=(key,))
+
+
+def _scroll_to_top() -> None:
+    """Show a tab the app just opened from its top. The browser keeps the
+    scroll position, so Confirm and save, at the bottom of Review, opened
+    Rollover at the bottom too (Nov 11 UAT). The round in the script makes
+    each one new, so it runs again on the next switch."""
+    st.html(
+        f"<script>/* {session.tab_round()} */"
+        "document.querySelector('[data-testid=\"stMain\"]')?.scrollTo({top: 0});"
+        "</script>",
+        unsafe_allow_javascript=True,
+    )
 
 
 ALL_COURSES = "All courses"
