@@ -8,11 +8,13 @@ Skipped entirely when the app is started with
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
 
 import streamlit as st
 
 from chalk import branding
+from chalk.config import env_is_configured
 from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
 from chalk.locations import LEGACY_PROJECTS_DIR, default_projects_dir, open_in_file_manager
@@ -97,13 +99,32 @@ def render() -> None:
     )
     demo_col, reset_col = st.columns(2)
     if demo_col.button("Open the demo course"):
-        _enter(lambda: open_demo_project(DEFAULT_PARENT), "Opening the demo course…", "Opened the demo course.")
+        _open_demo(reset=False)
     if reset_col.button("Reset the demo course", help="Rebuild it from scratch. Keeps your saved AI key."):
-        _enter(
-            lambda: open_demo_project(DEFAULT_PARENT, reset=True),
-            "Rebuilding the demo course…",
-            "Reset the demo course.",
-        )
+        _open_demo(reset=True)
+
+
+DEMO_NEEDS_AI_NOTE = (
+    " Extraction, rollover, and export work without AI. To try Generate or the "
+    "Grading Assistant, connect an AI provider under Settings → AI Provider."
+)
+
+
+def _open_demo(*, reset: bool) -> None:
+    """Open the demo straight to its course. Someone just looking shouldn't
+    meet an API key form first, so first-run setup is skipped; without a
+    provider, the confirmation says where to connect one."""
+
+    def done(paths: ProjectPaths) -> str:
+        message = "Reset the demo course." if reset else "Opened the demo course."
+        return message if env_is_configured(paths.env) else message + DEMO_NEEDS_AI_NOTE
+
+    session.skip_setup()
+    _enter(
+        lambda: open_demo_project(DEFAULT_PARENT, reset=reset),
+        "Rebuilding the demo course…" if reset else "Opening the demo course…",
+        done,
+    )
 
 
 def your_projects() -> list[ProjectPaths]:
@@ -247,9 +268,9 @@ def _offer_existing_project() -> None:
         st.rerun()
 
 
-def _enter(get_paths, working: str, done: str) -> None:
+def _enter(get_paths, working: str, done: str | Callable[[ProjectPaths], str]) -> None:
     """Run `get_paths` under a status spinner, then enter the project with
-    `done` shown on the next screen."""
+    `done` (or what it returns for the project) shown on the next screen."""
     try:
         with st.spinner(working):
             paths = get_paths()
@@ -257,5 +278,5 @@ def _enter(get_paths, working: str, done: str) -> None:
         st.error(exc.user_message)
         return
     session.set_project(paths)
-    session.flash(done)
+    session.flash(done if isinstance(done, str) else done(paths))
     st.rerun()
