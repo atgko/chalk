@@ -1,5 +1,5 @@
-"""Export tab (PRD section 7.2): every current output, grouped by what it
-is and named plainly, plus download-all-as-zip; then the Canvas syllabus
+"""Export tab (PRD section 7.2): the current outputs, grouped by what they
+are and named plainly, plus download-all-as-zip; then the Canvas syllabus
 page (how to paste it in, a preview, and a copyable HTML block)."""
 
 from __future__ import annotations
@@ -21,11 +21,9 @@ _MATERIAL_FOLDERS = tuple(spec.output_subdir for spec in SPECS.values())
 _SECTION_NOTES = {
     "Syllabus": "The syllabus as Chalk last wrote it, from Confirm rollover.",
     "Course materials": "Drafts saved from Generate, as Markdown. For Word or PDF, open one on the Drafts tab.",
-    "Canvas and course brief": (
-        "To put the Canvas page on Canvas, copy it from the box under Canvas syllabus page on the Export "
-        "tab; the HTML file is the same page, to keep. The course brief is the one-page summary Chalk "
-        "gives the AI when it drafts course materials. Both are rebuilt whenever you save the course or "
-        "roll it over."
+    "Course brief": (
+        "The one-page summary Chalk gives the AI when it drafts course materials. Rebuilt whenever you "
+        "save the course or roll it over."
     ),
     "Other files": "Files in the outputs folder that Chalk didn't make.",
 }
@@ -68,13 +66,18 @@ def render_saved_location(paths: ProjectPaths, *, key_prefix: str) -> None:
 
 def output_sections(files: list[Path], paths: ProjectPaths) -> list[tuple[str, list[tuple[str, Path]]]]:
     """The output files as (section title, [(button label, path)]), in the
-    order the tab shows them, leaving out empty sections."""
+    order the tab shows them, leaving out empty sections.
+
+    The Canvas page has no download button: it only goes on Canvas by
+    pasting into the HTML editor, from the copy box below the files, and
+    the file opened on its own shows code or an unstyled page (Nov 12)."""
     sections: dict[str, list[tuple[str, Path]]] = {title: [] for title in _SECTION_NOTES}
     for path in files:
+        if path == paths.canvas_html:
+            continue
         title, label = describe(path, paths)
         sections[title].append((label, path))
     sections["Syllabus"].sort(key=lambda item: list(_FORMAT_NAMES).index(item[1].suffix))
-    sections["Canvas and course brief"].sort(key=lambda item: item[1] != paths.canvas_html)
     return [(title, items) for title, items in sections.items() if items]
 
 
@@ -82,9 +85,10 @@ def describe(path: Path, paths: ProjectPaths) -> tuple[str, str]:
     if path.parent == paths.outputs_dir and path.stem == "syllabus" and path.suffix in _FORMAT_NAMES:
         return "Syllabus", f"Syllabus ({_FORMAT_NAMES[path.suffix]})"
     if path == paths.canvas_html:
-        return "Canvas and course brief", "Canvas syllabus page (HTML)"
+        # Named for Rollover's "Files to be written"; never a download button.
+        return "Canvas syllabus page", "Canvas syllabus page (HTML)"
     if path == paths.course_brief:
-        return "Canvas and course brief", "Course brief"
+        return "Course brief", "Course brief"
     if path.parent.parent == paths.outputs_dir and path.parent.name in _MATERIAL_FOLDERS and path.suffix == ".md":
         name = path.stem.replace("-", " ")
         return "Course materials", name[:1].upper() + name[1:]
