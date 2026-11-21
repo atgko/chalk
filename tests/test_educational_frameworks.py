@@ -15,7 +15,7 @@ from chalk.generation.educational_frameworks import (
 
 def test_no_saved_choice_means_the_default():
     assert not settings_path().exists()
-    assert load_main_framework() == DEFAULT_FRAMEWORK
+    assert load_main_framework() == DEFAULT_FRAMEWORK == "backward_design"
 
 
 def test_a_saved_choice_is_read_back(courses_folder):
