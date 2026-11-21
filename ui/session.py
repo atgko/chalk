@@ -230,16 +230,19 @@ def group_of(tab: str) -> str:
     return next(group for group, tabs in TAB_GROUPS.items() if tab in tabs)
 
 
-def apply_tab_request() -> bool:
+def apply_tab_request(default: str = "Upload") -> bool:
     """Open a requested tab, then set both rows of tabs to the open one.
-    True when a tab was requested, so the page can scroll to its top."""
+    True when a tab was requested, so the page can scroll to its top.
+    `default` opens when no tab has been opened yet: the shell passes
+    Review for a course that's already saved, so opening one (the demo
+    included) shows the course instead of an empty Upload tab."""
     requested = st.session_state.pop(_NEXT_TAB_KEY, None)
     if requested is not None:
         st.session_state[ACTIVE_TAB_KEY] = requested
         st.session_state[_TAB_ROUND_KEY] = tab_round() + 1
-    tab = active_tab()
+    tab = st.session_state.get(ACTIVE_TAB_KEY) or default
     if not any(tab in tabs for tabs in TAB_GROUPS.values()):
-        tab = "Upload"  # e.g. a session from before the tabs were grouped
+        tab = default  # e.g. a session from before the tabs were grouped
     group = group_of(tab)
     st.session_state[ACTIVE_TAB_KEY] = tab
     st.session_state[tabs_widget_key(GROUP_TAB_KEY)] = group

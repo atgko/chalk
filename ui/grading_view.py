@@ -6,6 +6,13 @@ from io import BytesIO
 
 import streamlit as st
 
+from chalk.config import (
+    LOCAL_CHOICE,
+    NOT_APPROVED_FOR_STUDENT_DATA,
+    choice_for_env,
+    describe_provider,
+    effective_env,
+)
 from chalk.grading.eval_log import grade_and_log
 from chalk.grading.strictness import STANDARD, STRICTNESS_LABELS, STRICTNESS_LEVELS
 from chalk.llm_client import LLMProviderError
@@ -73,6 +80,33 @@ def extract_submission(uploaded_file):
     raise ValueError("Unsupported file type.")
 
 
+def _provider_allows_grading(paths) -> bool:
+    """Say where student work goes before any is uploaded, and stop when
+    no provider is connected or the one in use isn't approved for student
+    data. The rest of the app takes course materials only (FERPA), so
+    this is the one tab where student work leaves the instructor's hands."""
+    env = effective_env(paths.env)
+    if describe_provider(env) == "Not configured":
+        st.info("Connect an AI provider under Settings → AI Provider to use the Grading Assistant.")
+        return False
+    choice = choice_for_env(env)
+    if choice in NOT_APPROVED_FOR_STUDENT_DATA:
+        st.error(
+            f"{choice} isn't approved by the university for student data, so the Grading Assistant "
+            "is off while it's your AI provider. Switch to another provider under "
+            "Settings → AI Provider to grade student work."
+        )
+        return False
+    where = (
+        "Student work you upload here stays on this computer: your local model reads it."
+        if choice == LOCAL_CHOICE
+        else f"Student work you upload here is sent to {choice} to be analyzed. Remove names, "
+        "student IDs, and other identifying details first."
+    )
+    st.info(f"{where} Chalk only suggests grades: you review and approve every final grade.")
+    return True
+
+
 def render(paths):
     """Render the grading assistant workflow."""
     st.header("AI Grading Assistant")
@@ -81,10 +115,8 @@ def render(paths):
         "recommendations for instructor review."
     )
 
-    st.info(
-        "This feature provides grading suggestions. "
-        "Instructors review and approve all final grades."
-    )
+    if not _provider_allows_grading(paths):
+        return
 
     uploaded_file = st.file_uploader(
         "Upload student submission *",
