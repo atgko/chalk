@@ -1598,12 +1598,13 @@ def test_the_main_framework_is_chosen_in_more_settings(saved_project):
     from chalk.generation.educational_frameworks import load_main_framework
 
     at = launch(saved_project)
-    widget(at.selectbox, "Main framework for assignments").set_value("backward_design")
+    assert widget(at.selectbox, "Main framework for assignments").value == "backward_design"  # the default
+    widget(at.selectbox, "Main framework for assignments").set_value("fink")
     at = at.run()
 
     assert_no_exception(at)
-    assert "Saved. Assignments now use Backward Design (UbD)." in texts(at.success)
-    assert load_main_framework() == "backward_design"
+    assert "Saved. Assignments now use Fink's Taxonomy of Significant Learning." in texts(at.success)
+    assert load_main_framework() == "fink"
 
 
 def test_the_generate_form_has_no_framework_dropdown(sourced_project):
@@ -1612,6 +1613,17 @@ def test_the_generate_form_has_no_framework_dropdown(sourced_project):
     at = at.run()
 
     assert "Educational framework (optional)" not in [box.label for box in at.selectbox]
+    assert any("Backward Design (UbD)" in caption for caption in texts(at.caption))  # the default
+
+
+def test_no_framework_hides_the_evidence_box(sourced_project):
+    from chalk.generation.educational_frameworks import save_main_framework
+
+    save_main_framework("none")
+    at = launch_with_source(sourced_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+
     assert "Evidence of learning (optional)" not in [box.label for box in at.text_area]
 
 

@@ -21,7 +21,7 @@ FRAMEWORK_LABELS = {
     "constructive_alignment": "Constructive Alignment",
 }
 FRAMEWORKS = tuple(FRAMEWORK_LABELS)
-DEFAULT_FRAMEWORK = "none"
+DEFAULT_FRAMEWORK = "backward_design"
 SETTINGS_FILE_NAME = "Chalk framework.json"
 
 
