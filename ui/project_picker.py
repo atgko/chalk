@@ -13,7 +13,6 @@ from pathlib import Path
 import streamlit as st
 
 from chalk import branding
-from chalk.demo import open_demo_project
 from chalk.errors import ChalkError
 from chalk.locations import LEGACY_PROJECTS_DIR, default_projects_dir, open_in_file_manager
 from chalk.project import ProjectPaths, init_project, list_projects, open_project
@@ -88,22 +87,6 @@ def render() -> None:
     _watch_dialog()
     if st.session_state.pop(_BROWSE_FAILED_KEY, False):
         st.warning("The folder window couldn't open. Type or paste the folder path instead.")
-
-    st.divider()
-    st.subheader("Just looking?")
-    st.write(
-        "Open a demo course with a sample syllabus already loaded. Its `try-these` folder has "
-        "more sample files to upload."
-    )
-    demo_col, reset_col = st.columns(2)
-    if demo_col.button("Open the demo course"):
-        _enter(lambda: open_demo_project(DEFAULT_PARENT), "Opening the demo course…", "Opened the demo course.")
-    if reset_col.button("Reset the demo course", help="Rebuild it from scratch. Keeps your saved AI key."):
-        _enter(
-            lambda: open_demo_project(DEFAULT_PARENT, reset=True),
-            "Rebuilding the demo course…",
-            "Reset the demo course.",
-        )
 
 
 def your_projects() -> list[ProjectPaths]:

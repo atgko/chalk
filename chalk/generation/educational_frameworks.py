@@ -1,8 +1,57 @@
-"""Optional educational frameworks for instructor-grounded assignments."""
+"""Optional educational frameworks for instructor-grounded assignments.
 
-from chalk.errors import GenerationError
+The instructor picks one main framework under Settings → More settings;
+every assignment Chalk drafts or improves on this computer uses it. The
+choice is saved next to the courses (Documents/Chalk Courses), like the
+links in chalk/links.py.
+"""
 
-FRAMEWORKS = ("none", "backward_design", "fink", "constructive_alignment")
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from chalk.errors import ChalkError, GenerationError
+from chalk.locations import default_projects_dir
+
+FRAMEWORK_LABELS = {
+    "none": "None",
+    "backward_design": "Backward Design (UbD)",
+    "fink": "Fink's Taxonomy of Significant Learning",
+    "constructive_alignment": "Constructive Alignment",
+}
+FRAMEWORKS = tuple(FRAMEWORK_LABELS)
+DEFAULT_FRAMEWORK = "none"
+SETTINGS_FILE_NAME = "Chalk framework.json"
+
+
+def settings_path() -> Path:
+    return default_projects_dir() / SETTINGS_FILE_NAME
+
+
+def load_main_framework(path: Path | None = None) -> str:
+    """The framework chosen in Settings; a missing, damaged, or unknown
+    choice means the default."""
+    try:
+        saved = json.loads((path or settings_path()).read_text(encoding="utf-8")).get("framework")
+    except (OSError, ValueError, AttributeError):
+        return DEFAULT_FRAMEWORK
+    return saved if saved in FRAMEWORKS else DEFAULT_FRAMEWORK
+
+
+def save_main_framework(framework: str, path: Path | None = None) -> None:
+    """Save the main framework for every course on this computer."""
+    if framework not in FRAMEWORKS:
+        raise GenerationError("Choose a valid educational framework.")
+    path = path or settings_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"framework": framework}, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise ChalkError(
+            f"Chalk couldn't save the framework choice in {path.parent}. "
+            "Check that the folder exists and isn't read-only, then try again."
+        ) from exc
 
 
 def framework_guidance(framework: str, evidence: str = "") -> str:

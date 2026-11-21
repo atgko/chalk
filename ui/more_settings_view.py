@@ -1,19 +1,56 @@
-"""Settings → More settings: the web pages Chalk links to (chalk/links.py),
-so whoever keeps Chalk running after the handover can see and fix them
-in one place (sponsor, Nov 9)."""
+"""Settings → More settings: the main educational framework for
+assignments (chalk/generation/educational_frameworks.py), and the web
+pages Chalk links to (chalk/links.py), so whoever keeps Chalk running
+after the handover can see and fix them in one place (sponsor, Nov 9)."""
 
 from __future__ import annotations
 
 import streamlit as st
 
 from chalk.errors import ChalkError
+from chalk.generation.educational_frameworks import (
+    FRAMEWORK_LABELS,
+    FRAMEWORKS,
+    load_main_framework,
+    save_main_framework,
+)
 from chalk.links import LINKS_FILE, bundled_urls, load_links, overrides_path, save_links
 from ui import session
 
 _FORM = "links-form"
+_FRAMEWORK_KEY = "main-educational-framework"
 
 
 def render() -> None:
+    _render_framework()
+    st.divider()
+    _render_links()
+
+
+def _render_framework() -> None:
+    st.markdown("#### Educational framework")
+    current = load_main_framework()
+    choice = st.selectbox(
+        "Main framework for assignments",
+        FRAMEWORKS,
+        index=FRAMEWORKS.index(current),
+        format_func=FRAMEWORK_LABELS.get,
+        key=_FRAMEWORK_KEY,
+        help="Assignments Chalk creates or improves are aligned with this framework, "
+        "for every course on this computer.",
+    )
+    if choice == current:
+        return
+    try:
+        save_main_framework(choice)
+    except ChalkError as exc:
+        st.error(exc.user_message)
+        return
+    session.flash(f"Saved. Assignments now use {FRAMEWORK_LABELS[choice]}.")
+    st.rerun()
+
+
+def _render_links() -> None:
     st.markdown("#### Links Chalk uses")
     st.caption(
         "Every web page Chalk links to or relies on. If a page moves (for example the registrar "
