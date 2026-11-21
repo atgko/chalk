@@ -102,7 +102,6 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher, "in_virtualenv", lambda: True)
     monkeypatch.setattr(launcher.sys, "prefix", str(tmp_path))
     (tmp_path / launcher.STAMP_NAME).write_text(launcher.requirements_digest(), encoding="utf-8")
-    monkeypatch.setattr(launcher, "PROJECTS_DIR", tmp_path / "projects")
     return tmp_path
 
 
@@ -136,13 +135,9 @@ def test_main_no_browser(env):
     assert opened == []
 
 
-def test_main_demo_prepares_and_opens_the_demo_course(env, capsys):
-    code, started, _, _ = _main("--demo")
-    assert code == 0
-    project = env / "projects" / "Chalk-Demo"
-    assert (project / "course.json").exists()
-    assert started[0][0][-2:] == ["--project", str(project)]
-    assert f"Demo course: {project}" in capsys.readouterr().out
+def test_main_no_longer_offers_a_demo_flag(env):
+    with pytest.raises(SystemExit):
+        _main("--demo")
 
 
 def test_main_passes_an_explicit_project(env, tmp_path):

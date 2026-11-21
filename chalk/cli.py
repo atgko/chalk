@@ -28,6 +28,7 @@ from chalk.errors import ChalkError, GenerationError, TermNotInCalendarError
 from chalk.extractors import log_consistency_override
 from chalk.extractors.consistency import grading_weight_warning
 from chalk.generation.course_level import COURSE_LEVELS, level_from_course_number
+from chalk.generation.educational_frameworks import load_main_framework
 from chalk.generation.engine import (
     GenerationRequest,
     current_env,
@@ -390,7 +391,7 @@ def _generation_request(args, course_data: CourseData) -> GenerationRequest:
         assignment_name=args.assignment or "",
         assignment_goal=args.assignment_goal,
         assignment_mode=args.assignment_mode,
-
+        educational_framework=load_main_framework(),
         assignment_description=description,
         total_points=args.points,
         slide_notes=args.notes or "",

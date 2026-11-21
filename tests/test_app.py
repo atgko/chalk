@@ -1188,18 +1188,9 @@ def test_generate_tab_offers_a_source_material_uploader(saved_project):
     assert widget(at.button, "Add to project").disabled
 
 
-def test_picker_opens_and_resets_the_demo_course(tmp_path, monkeypatch):
-    monkeypatch.setattr("ui.project_picker.DEFAULT_PARENT", tmp_path)
-    at = click(launch(), "Open the demo course")
-
-    assert_no_exception(at)
-    demo_root = tmp_path / "Chalk-Demo"
-    assert (demo_root / "course.json").exists()
-    assert at.title[0].value == "Welcome to Chalk"  # the demo has no .env yet
-
-    at = click(launch(), "Reset the demo course")
-    assert_no_exception(at)
-    assert (demo_root / ".chalk-demo").exists()
+def test_picker_has_no_demo_course_buttons():
+    labels = [b.label for b in launch().button]
+    assert not any("demo" in label.lower() for label in labels)
 
 
 def test_generate_defaults_the_course_level_from_the_course_number(sourced_project, llm):
@@ -1601,6 +1592,45 @@ def test_a_bad_link_is_refused(saved_project, courses_folder):
 
     assert any("isn't a web address" in e for e in texts(at.error))
     assert not (courses_folder / "Chalk links.json").exists()
+
+
+def test_the_main_framework_is_chosen_in_more_settings(saved_project):
+    from chalk.generation.educational_frameworks import load_main_framework
+
+    at = launch(saved_project)
+    widget(at.selectbox, "Main framework for assignments").set_value("backward_design")
+    at = at.run()
+
+    assert_no_exception(at)
+    assert "Saved. Assignments now use Backward Design (UbD)." in texts(at.success)
+    assert load_main_framework() == "backward_design"
+
+
+def test_the_generate_form_has_no_framework_dropdown(sourced_project):
+    at = launch_with_source(sourced_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+
+    assert "Educational framework (optional)" not in [box.label for box in at.selectbox]
+    assert "Evidence of learning (optional)" not in [box.label for box in at.text_area]
+
+
+def test_an_assignment_uses_the_main_framework(sourced_project, llm):
+    from chalk.generation.educational_frameworks import save_main_framework
+
+    save_main_framework("constructive_alignment")
+    at = launch_with_source(sourced_project)
+    widget(at.selectbox, "Content type").set_value("assignment")
+    at = at.run()
+    assert any("Constructive Alignment" in caption for caption in texts(at.caption))
+    widget(at.text_input, "Assignment name *").input("Design Brief")
+    widget(at.text_area, "What should students learn or demonstrate? *").input("Defend a design.")
+    widget(at.text_area, "Evidence of learning (optional)").input("A defended design memo")
+    at = click(at.run(), "Generate")
+
+    assert_no_exception(at)
+    assert "Use Constructive Alignment" in llm[-1]
+    assert "A defended design memo" in llm[-1]
 
 
 # ---- Rollover: the new term's class time and place (Nov 9 UAT) --------------------------

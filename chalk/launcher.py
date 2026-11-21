@@ -7,8 +7,7 @@ in one cross-platform place:
 
 1. check the Python version
 2. install requirements.txt on the first run, and again whenever it changes
-3. optionally prepare the demo course
-4. start Streamlit on a free port and open the browser once it's ready
+3. start Streamlit on a free port and open the browser once it's ready
 
 Streamlit runs headless so it never stops at its first-run "Email:"
 prompt, which would otherwise make a double-clicked launcher look frozen.
@@ -32,11 +31,8 @@ import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 
-from chalk.locations import default_projects_dir  # standard library only
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = REPO_ROOT / "requirements.txt"
-PROJECTS_DIR = default_projects_dir()  # Documents/Chalk Courses (Nov 9 UAT)
 BUNDLED_PYTHON_DIR = REPO_ROOT / "python"
 MIN_PYTHON = (3, 11)
 DEFAULT_PORT = 8501
@@ -151,8 +147,6 @@ def wait_until_ready(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="Start Chalk", description="Start the Chalk app in your browser.")
-    parser.add_argument("--demo", action="store_true", help="Open the demo course.")
-    parser.add_argument("--reset-demo", action="store_true", help="Rebuild the demo course first (implies --demo).")
     parser.add_argument("--project", type=Path, help="Open this course project folder.")
     parser.add_argument("--no-browser", action="store_true", help="Don't open a browser window.")
     return parser
@@ -189,17 +183,10 @@ def main(
             print("Installing Chalk's components failed. Check your internet connection and try again.")
             return 1
 
-    project = args.project
-    if args.demo or args.reset_demo:
-        from chalk.demo import open_demo_project
-
-        project = open_demo_project(PROJECTS_DIR, reset=args.reset_demo).root
-        print(f"Demo course: {project}")
-
     port = find_free_port()
     url = f"http://localhost:{port}"
     print("Starting Chalk...")
-    server = popen(streamlit_command(port, project), cwd=str(REPO_ROOT))
+    server = popen(streamlit_command(port, args.project), cwd=str(REPO_ROOT))
     if not ready(f"{url}/_stcore/health"):
         print("Chalk didn't start. Scroll up for the error message.")
         server.terminate()
