@@ -26,26 +26,33 @@ Pick one:
 
 > **Tip: keep it out of OneDrive, iCloud Drive, or Dropbox.** Put it in a plain folder like `C:\Users\<you>\chalk` or `~/chalk`. Sync apps try to upload the thousands of files Chalk installs, which can make everything (including the app) very slow.
 
-✅ **Check:** the folder contains `Start Chalk.bat`, `Start Chalk Demo.bat`, `README.md`, and a `chalk` folder.
+✅ **Check:** the folder contains `Start Chalk.bat`, `README.md`, and a `chalk` folder.
 
 ## 3. Start the demo
 
-**Windows:** double-click **`Start Chalk Demo.bat`**.
+**Windows:** double-click **`Start Chalk.bat`**.
 - If a blue **"Windows protected your PC"** box appears, click **More info → Run anyway**. It appears because the file came from the internet.
 
-**Mac:** double-click **`Start Chalk Demo.command`**. The first time, macOS says *"Start Chalk Demo.command" Not Opened*, because the file came from the internet:
+**Mac:** double-click **`Start Chalk.command`**. The first time, macOS says *"Start Chalk.command" Not Opened*, because the file came from the internet:
 1. Click **Done** (not Move to Trash).
 2. Open **System Settings → Privacy & Security** and scroll down to **Security**.
-3. Next to *"Start Chalk Demo.command" was blocked*, click **Open Anyway**, confirm with your password or Touch ID, and click **Open Anyway** again.
+3. Next to *"Start Chalk.command" was blocked*, click **Open Anyway**, confirm with your password or Touch ID, and click **Open Anyway** again.
 
-You only do this once per launcher (Start Chalk needs its own approval the first time you use it). Right-click → Open no longer gets past this on current macOS.
-- If you downloaded the ZIP and nothing happens, open Terminal in the folder and run `chmod +x "Start Chalk.command" "Start Chalk Demo.command"`, then try again.
+You only do this once. Right-click → Open no longer gets past this on current macOS.
+- If you downloaded the ZIP and nothing happens, open Terminal in the folder and run `chmod +x "Start Chalk.command"`, then try again.
 
 A console window opens. **The first start takes a few minutes** while it installs components; you'll see `Installing Chalk's components...`. Later starts take seconds.
 
 ✅ **Check:** the console says `Chalk is running at http://localhost:8501` (the number may differ), and your browser opens a page with **Welcome to Chalk** in a large serif font under a red line of text.
 
 > Keep the console window open while you use Chalk. Minimizing it is fine; closing it stops Chalk.
+
+Now create the demo course. Open a second terminal in the Chalk folder and run:
+
+- **Windows:** `.venv\Scripts\python toolkit.py demo`
+- **Mac:** `.venv/bin/python toolkit.py demo`
+
+It puts the demo course in Documents/Chalk Courses. Refresh the browser page and open **Chalk-Demo** from your courses on the launch screen.
 
 ## 4. Get past the welcome screen
 
@@ -54,7 +61,7 @@ The welcome screen asks for an AI provider.
 - **No API key?** Click **Skip for now** at the bottom. Everything except generating drafts works without one, and costs nothing: reading syllabi (including PDFs read on this computer), reviewing, rolling over to a new term, Canvas HTML, the course brief, and metrics. See section 1a of the README for the full list.
 - **Have a key?** Choose OpenAI or Anthropic Claude, paste the key, pick a model, and click **Test connection and continue**. The key is saved once in your computer's password store (Windows Credential Manager or the Mac Keychain), and every course you open uses it.
 
-✅ **Check:** you see three tabs, **Build, Grading Assistant, Settings**, and under Build a second row: **Upload, Review, Rollover, Generate, Drafts, Export**. Settings holds **AI Provider** and **Metrics**.
+✅ **Check:** you see three tabs, **Build, Grading Assistant, Settings**, and under Build a second row: **Upload, Review, Rollover, Generate, Drafts, Export**. Settings holds **AI Provider**, **Metrics**, and **More settings** (where you pick the main educational framework for assignments).
 
 ## 5. Walk through the demo
 
@@ -86,7 +93,7 @@ The sample files for uploading are in the demo project's folder at **`Documents/
 
 ## 6. Start over whenever you like
 
-To put the demo back to its original state: close the browser tab, stop Chalk (close the console window), start **`Start Chalk.bat`** / **`Start Chalk.command`** (not the Demo one), and click **Reset the demo course** on the launch screen. A saved API key is kept.
+To put the demo back to its original state: close the browser tab, stop Chalk (close the console window), run `.venv\Scripts\python toolkit.py demo --reset` (Mac: `.venv/bin/python toolkit.py demo --reset`), and start Chalk again. A saved API key is kept.
 
 ## 7. Getting updates
 

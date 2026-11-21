@@ -31,8 +31,15 @@ def test_outputs_are_grouped_and_named_plainly(tmp_project):
     assert [(title, [label for label, _ in items]) for title, items in sections] == [
         ("Syllabus", ["Syllabus (Word)", "Syllabus (PDF)"]),
         ("Course materials", ["Week 1 quiz", "Final project rubric"]),
-        ("Canvas and course brief", ["Canvas syllabus page (HTML)", "Course brief"]),
+        ("Course brief", ["Course brief"]),
     ]
+
+
+def test_the_canvas_page_has_no_download_button(tmp_project):
+    # It goes on Canvas from the copy box; the file alone opens as code (Nov 12).
+    files = _make(tmp_project, "canvas.html")
+
+    assert output_sections(files, tmp_project) == []
 
 
 def test_an_unfamiliar_file_is_still_listed(tmp_project):

@@ -62,7 +62,7 @@ MAC_ARCHES = {"macos-arm64": "arm64", "macos-x64": "x86_64"}
 # Tracked files that an instructor doesn't need in the download.
 EXCLUDED_PREFIXES = (".github/", "bundle/", "tests/")
 # The only files at the top of the download; everything else is in APP_FOLDER.
-LAUNCHERS = ("Start Chalk.bat", "Start Chalk.command", "Start Chalk Demo.bat", "Start Chalk Demo.command")
+LAUNCHERS = ("Start Chalk.bat", "Start Chalk.command")
 APP_FOLDER = "app"
 READ_ME_NAME = "Read me.txt"
 READ_ME = """Chalk

@@ -23,6 +23,7 @@ from chalk.generation.course_level import (
     level_from_course_number,
 )
 from chalk.generation.document_export import can_export
+from chalk.generation.educational_frameworks import FRAMEWORK_LABELS, load_main_framework
 from chalk.generation.engine import (
     GeneratedDraft,
     GenerationRequest,
@@ -275,21 +276,10 @@ def _assignment_fields() -> dict:
         GOAL_LABEL,
         placeholder="Students should apply course concepts to a realistic business problem and defend their recommendation.",
     )
-    framework_labels = {
-        "none": "None (existing behavior)",
-        "backward_design": "Backward Design (UbD)",
-        "fink": "Fink's Taxonomy of Significant Learning",
-        "constructive_alignment": "Constructive Alignment",
-    }
-    framework = st.selectbox(
-        "Educational framework (optional)",
-        list(framework_labels),
-        format_func=framework_labels.get,
-        key="assignment-educational-framework",
-        help="Aligns assignment tasks with instructor-provided learning goals.",
-    )
+    framework = load_main_framework()  # chosen once, under Settings → More settings
     evidence = ""
     if framework != "none":
+        st.caption(f"Educational framework: {FRAMEWORK_LABELS[framework]} (change it in Settings → More settings).")
         evidence = st.text_area(
             "Evidence of learning (optional)",
             placeholder="How should students demonstrate what they learned?",
